@@ -16,10 +16,20 @@ class PaymentSerializer(serializers.ModelSerializer):
             "is_paid",
             "paid_at",
             "created_by",
+            "payment_intent_id",
+            "stripe_event_id",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "is_paid", "paid_at", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "is_paid",
+            "paid_at",
+            "payment_intent_id",
+            "stripe_event_id",
+            "created_at",
+            "updated_at",
+        ]
 
 
 class IncomeRuleSerializer(serializers.ModelSerializer):

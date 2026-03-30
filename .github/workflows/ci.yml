@@ -27,6 +27,8 @@ jobs:
       DB_PASSWORD: ci_password
       DB_HOST: localhost
       DB_PORT: "5432"
+      STRIPE_SECRET_KEY: sk_test_ci_dummy
+      STRIPE_WEBHOOK_SECRET: whsec_ci_dummy
 
     steps:
       - name: Checkout code

@@ -1,13 +1,15 @@
 """
 Payments URL configuration.
 
-API endpoint: /api/v1/payments/ (README Section 17)
+API endpoints:
+    /api/v1/payments/payments/  — CRUD (README Section 17)
+    /api/v1/payments/webhook/   — Stripe webhook (README Section 26.1)
 """
 
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import PaymentViewSet
+from .views import PaymentViewSet, StripeWebhookView
 
 app_name = "payments"
 
@@ -15,5 +17,6 @@ router = DefaultRouter()
 router.register("payments", PaymentViewSet, basename="payment")
 
 urlpatterns = [
+    path("webhook/", StripeWebhookView.as_view(), name="stripe-webhook"),
     path("", include(router.urls)),
 ]

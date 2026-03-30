@@ -27,6 +27,10 @@ class Payment(models.Model):
     Fields per README:
         - id, booking_id (FK), amount, payment_type,
           is_paid, paid_at, created_by (FK → administrators)
+
+    Stripe fields (README Section 25.1 & 26.1):
+        - payment_intent_id: Stripe PaymentIntent ID
+        - stripe_event_id: Stripe event that confirmed the payment
     """
 
     class PaymentType(models.TextChoices):
@@ -56,6 +60,22 @@ class Payment(models.Model):
         blank=True,
         related_name="created_payments",
     )
+
+    # Stripe integration fields
+    payment_intent_id = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        unique=True,
+        help_text="Stripe PaymentIntent ID (pi_...)",
+    )
+    stripe_event_id = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="Stripe event that confirmed this payment",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -67,6 +87,10 @@ class Payment(models.Model):
         indexes = [
             models.Index(fields=["booking"], name="idx_payment_booking"),
             models.Index(fields=["is_paid"], name="idx_payment_is_paid"),
+            models.Index(
+                fields=["payment_intent_id"],
+                name="idx_payment_intent_id",
+            ),
         ]
 
     def __str__(self):
@@ -147,3 +171,31 @@ class SalaryRecord(models.Model):
 
     def __str__(self):
         return f"Salary #{self.pk} — {self.account} ({self.status})"
+
+
+class ProcessedStripeEvent(models.Model):
+    """
+    Idempotency table for Stripe webhook events (README Section 25.1 & 26.1).
+
+    Every processed Stripe event ID is stored here so that
+    re-delivered webhooks are silently ignored.
+    """
+
+    event_id = models.CharField(
+        max_length=255,
+        unique=True,
+        help_text="Stripe event ID (evt_...)",
+    )
+    event_type = models.CharField(
+        max_length=100,
+        help_text="Stripe event type (e.g. payment_intent.succeeded)",
+    )
+    processed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "processed_stripe_events"
+        verbose_name = "Processed Stripe Event"
+        verbose_name_plural = "Processed Stripe Events"
+
+    def __str__(self):
+        return f"{self.event_type} — {self.event_id}"

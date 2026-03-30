@@ -194,6 +194,13 @@ CORS_ALLOWED_ORIGINS = []
 CORS_ALLOW_CREDENTIALS = True
 
 # ==============================================================================
+# STRIPE (README Section 25.1 & 26.1)
+# ==============================================================================
+
+STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="")  # type: ignore[call-overload]
+STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")  # type: ignore[call-overload]
+
+# ==============================================================================
 # DEFAULT PRIMARY KEY
 # ==============================================================================
 
