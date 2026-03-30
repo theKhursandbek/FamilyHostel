@@ -43,7 +43,12 @@ class MonthlyReport(models.Model):
 
     class Meta:
         db_table = "monthly_reports"
-        unique_together = ("branch", "month", "year")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["branch", "month", "year"],
+                name="unique_branch_month_year",
+            ),
+        ]
         ordering = ["-year", "-month"]
         verbose_name = "Monthly Report"
         verbose_name_plural = "Monthly Reports"
@@ -126,12 +131,20 @@ class Notification(models.Model):
         - id, account_id (FK), type, message, is_read, created_at
     """
 
+    class NotificationType(models.TextChoices):
+        BOOKING = "booking", "Booking"
+        PAYMENT = "payment", "Payment"
+        CLEANING = "cleaning", "Cleaning"
+        SHIFT = "shift", "Shift"
+        PENALTY = "penalty", "Penalty"
+        SYSTEM = "system", "System"
+
     account = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="notifications",
     )
-    type = models.CharField(max_length=50)
+    type = models.CharField(max_length=50, choices=NotificationType.choices)
     message = models.TextField()
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

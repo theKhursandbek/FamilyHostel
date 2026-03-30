@@ -12,7 +12,7 @@ from .models import Account, Administrator, Client, Director, Staff, SuperAdmin
 class AccountSerializer(serializers.ModelSerializer):
     """Read-only account representation with computed roles."""
 
-    roles = serializers.ListField(source="roles", read_only=True)
+    roles = serializers.ListField(read_only=True)
 
     class Meta:
         model = Account
@@ -25,7 +25,14 @@ class AccountSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = fields
+        read_only_fields = [
+            "id",
+            "telegram_id",
+            "phone",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
 
 
 class ClientSerializer(serializers.ModelSerializer):
