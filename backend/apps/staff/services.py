@@ -24,6 +24,7 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from apps.cleaning.models import CleaningTask
+from apps.reports.services import log_action, notify_roles, send_notification
 from apps.staff.models import Attendance, ShiftAssignment
 
 __all__ = [
@@ -105,16 +106,36 @@ def check_in(
         existing.check_in = now
         existing.status = status
         existing.save(update_fields=["check_in", "status", "updated_at"])
-        return existing
+        attendance = existing
+    else:
+        attendance = Attendance.objects.create(
+            account=account,
+            branch=branch,
+            date=date,
+            shift_type=shift_type,
+            check_in=now,
+            status=status,
+        )
 
-    return Attendance.objects.create(
+    # --- Audit ---
+    log_action(
         account=account,
-        branch=branch,
-        date=date,
-        shift_type=shift_type,
-        check_in=now,
-        status=status,
+        action="attendance.check_in",
+        entity_type="Attendance",
+        entity_id=attendance.pk,
+        after_data=_attendance_snapshot(attendance),
     )
+
+    # --- Notification: late check-in → directors ---
+    if is_late:
+        notify_roles(
+            roles=["director"],
+            branch=branch,
+            notification_type="shift",
+            message=f"{account} checked in late for {shift_type} shift on {date}.",
+        )
+
+    return attendance
 
 
 @transaction.atomic
@@ -129,8 +150,21 @@ def check_out(attendance: Attendance) -> Attendance:
             {"check_out": "Already checked out."}
         )
 
+    before = _attendance_snapshot(attendance)
+
     attendance.check_out = timezone.now()
     attendance.save(update_fields=["check_out", "updated_at"])
+
+    # --- Audit ---
+    log_action(
+        account=attendance.account,
+        action="attendance.check_out",
+        entity_type="Attendance",
+        entity_id=attendance.pk,
+        before_data=before,
+        after_data=_attendance_snapshot(attendance),
+    )
+
     return attendance
 
 
@@ -188,7 +222,7 @@ def create_shift_assignment(
                 {"shift_type": "An admin is already assigned to this shift for this branch."}
             )
 
-    return ShiftAssignment.objects.create(
+    assignment = ShiftAssignment.objects.create(
         account=account,
         role=role,
         branch=branch,
@@ -196,6 +230,51 @@ def create_shift_assignment(
         date=date,
         assigned_by=assigned_by,
     )
+
+    # --- Audit ---
+    log_action(
+        account=assigned_by.account if hasattr(assigned_by, "account") else None,
+        action="shift.assigned",
+        entity_type="ShiftAssignment",
+        entity_id=assignment.pk,
+        after_data={
+            "id": assignment.pk,
+            "account_id": account.pk,
+            "role": role,
+            "branch_id": branch.pk,
+            "shift_type": shift_type,
+            "date": str(date),
+        },
+    )
+
+    # --- Notification: inform the assigned account ---
+    send_notification(
+        account_id=account.pk,
+        notification_type="shift",
+        message=f"You have been assigned a {shift_type} shift on {date} "
+                f"at {branch} (role: {role}).",
+    )
+
+    return assignment
+
+
+# ==============================================================================
+# SNAPSHOT HELPER
+# ==============================================================================
+
+
+def _attendance_snapshot(attendance: Attendance) -> dict:
+    """Return a JSON-serialisable dict of attendance state."""
+    return {
+        "id": attendance.pk,
+        "account_id": attendance.account_id,
+        "branch_id": attendance.branch_id,
+        "date": str(attendance.date),
+        "shift_type": attendance.shift_type,
+        "check_in": str(attendance.check_in) if attendance.check_in else None,
+        "check_out": str(attendance.check_out) if attendance.check_out else None,
+        "status": attendance.status,
+    }
 
 
 # ==============================================================================

@@ -16,6 +16,7 @@ from django.utils import timezone
 
 from apps.branches.models import Room
 from apps.cleaning.models import CleaningTask
+from apps.reports.services import log_action, notify_roles
 
 __all__ = [
     "create_cleaning_task",
@@ -25,7 +26,13 @@ __all__ = [
 
 
 @transaction.atomic
-def create_cleaning_task(*, room, branch, priority: str = "normal") -> CleaningTask:
+def create_cleaning_task(
+    *,
+    room,
+    branch,
+    priority: str = "normal",
+    performed_by=None,
+) -> CleaningTask:
     """
     Create a cleaning task for a room that just had a guest checkout.
 
@@ -56,6 +63,21 @@ def create_cleaning_task(*, room, branch, priority: str = "normal") -> CleaningT
         priority=priority,
     )
 
+    # --- Audit + Notification ---
+    log_action(
+        account=performed_by,
+        action="cleaning_task.created",
+        entity_type="CleaningTask",
+        entity_id=task.pk,
+        after_data=_task_snapshot(task),
+    )
+    notify_roles(
+        roles=["staff"],
+        branch=branch,
+        notification_type="cleaning",
+        message=f"New cleaning task #{task.pk} for room {room} (priority: {priority}).",
+    )
+
     return task
 
 
@@ -74,15 +96,27 @@ def assign_task_to_staff(*, task: CleaningTask, staff_profile) -> CleaningTask:
             {"status": f"Cannot assign a task with status '{task.status}'."}
         )
 
+    before = _task_snapshot(task)
+
     task.assigned_to = staff_profile
     task.status = CleaningTask.TaskStatus.IN_PROGRESS
     task.save(update_fields=["assigned_to", "status", "updated_at"])
+
+    # --- Audit ---
+    log_action(
+        account=getattr(staff_profile, "account", None),
+        action="cleaning_task.assigned",
+        entity_type="CleaningTask",
+        entity_id=task.pk,
+        before_data=before,
+        after_data=_task_snapshot(task),
+    )
 
     return task
 
 
 @transaction.atomic
-def complete_task(*, task: CleaningTask) -> CleaningTask:
+def complete_task(*, task: CleaningTask, performed_by=None) -> CleaningTask:
     """
     Mark a cleaning task as completed.
 
@@ -94,6 +128,8 @@ def complete_task(*, task: CleaningTask) -> CleaningTask:
             {"status": "Only in-progress tasks can be completed."}
         )
 
+    before = _task_snapshot(task)
+
     task.status = CleaningTask.TaskStatus.COMPLETED
     task.completed_at = timezone.now()
     task.save(update_fields=["status", "completed_at", "updated_at"])
@@ -101,4 +137,32 @@ def complete_task(*, task: CleaningTask) -> CleaningTask:
     # Room is clean and ready
     Room.objects.filter(pk=task.room_id).update(status=Room.RoomStatus.AVAILABLE)
 
+    # --- Audit ---
+    log_action(
+        account=performed_by,
+        action="cleaning_task.completed",
+        entity_type="CleaningTask",
+        entity_id=task.pk,
+        before_data=before,
+        after_data=_task_snapshot(task),
+    )
+
     return task
+
+
+# ==============================================================================
+# SNAPSHOT HELPER
+# ==============================================================================
+
+
+def _task_snapshot(task: CleaningTask) -> dict:
+    """Return a JSON-serialisable dict of task state."""
+    return {
+        "id": task.pk,
+        "status": task.status,
+        "room_id": task.room_id,
+        "branch_id": task.branch_id,
+        "priority": task.priority,
+        "assigned_to_id": task.assigned_to_id,
+        "completed_at": str(task.completed_at) if task.completed_at else None,
+    }

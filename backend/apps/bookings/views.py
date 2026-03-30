@@ -45,6 +45,7 @@ class BookingViewSet(viewsets.ModelViewSet):
             check_out_date=data["check_out_date"],
             price_at_booking=data["price_at_booking"],
             discount_amount=data.get("discount_amount", 0),
+            performed_by=self.request.user,
         )
         serializer.instance = booking
 
@@ -56,7 +57,7 @@ class BookingViewSet(viewsets.ModelViewSet):
     def cancel(self, request, pk=None):
         """POST /bookings/{pk}/cancel/ — cancel a pending booking."""
         booking = self.get_object()
-        booking = cancel_booking(booking)
+        booking = cancel_booking(booking, performed_by=request.user)
         serializer = BookingSerializer(booking)
         return Response(serializer.data)
 
@@ -64,6 +65,6 @@ class BookingViewSet(viewsets.ModelViewSet):
     def complete(self, request, pk=None):
         """POST /bookings/{pk}/complete/ — complete a paid booking."""
         booking = self.get_object()
-        booking = complete_booking(booking)
+        booking = complete_booking(booking, performed_by=request.user)
         serializer = BookingSerializer(booking)
         return Response(serializer.data)

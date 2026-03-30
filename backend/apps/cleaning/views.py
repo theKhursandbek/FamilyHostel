@@ -47,6 +47,7 @@ class CleaningTaskViewSet(viewsets.ModelViewSet):
             room=data["room"],
             branch=data["branch"],
             priority=data.get("priority", "normal"),
+            performed_by=self.request.user,
         )
         serializer.instance = task
 
@@ -72,6 +73,6 @@ class CleaningTaskViewSet(viewsets.ModelViewSet):
     def complete(self, request, pk=None):
         """POST /cleaning-tasks/{pk}/complete/ — mark task as completed."""
         task = self.get_object()
-        task = complete_task(task=task)
+        task = complete_task(task=task, performed_by=request.user)
         serializer = CleaningTaskSerializer(task)
         return Response(serializer.data)

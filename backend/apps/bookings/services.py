@@ -19,6 +19,7 @@ from django.db.models import Q
 
 from apps.bookings.models import Booking
 from apps.branches.models import Room
+from apps.reports.services import log_action, notify_roles
 
 __all__ = [
     "create_booking",
@@ -88,6 +89,7 @@ def create_booking(
     check_out_date,
     price_at_booking: Decimal,
     discount_amount: Decimal = Decimal("0"),
+    performed_by=None,
 ) -> Booking:
     """
     Create a new booking with full validation.
@@ -98,6 +100,7 @@ def create_booking(
         3. Compute final_price
         4. Create Booking record (status = pending)
         5. Mark room as booked
+        6. Audit log + notify admins/directors
 
     Returns:
         The created ``Booking`` instance.
@@ -124,11 +127,27 @@ def create_booking(
     # Mark room as booked
     Room.objects.filter(pk=room.pk).update(status=Room.RoomStatus.BOOKED)
 
+    # --- Audit + Notification ---
+    log_action(
+        account=performed_by,
+        action="booking.created",
+        entity_type="Booking",
+        entity_id=booking.pk,
+        after_data=_booking_snapshot(booking),
+    )
+    notify_roles(
+        roles=["administrator", "director"],
+        branch=branch,
+        notification_type="booking",
+        message=f"New booking #{booking.pk} created for room {room} "
+                f"({check_in_date} → {check_out_date}).",
+    )
+
     return booking
 
 
 @transaction.atomic
-def cancel_booking(booking: Booking) -> Booking:
+def cancel_booking(booking: Booking, *, performed_by=None) -> Booking:
     """
     Cancel a pending booking.
 
@@ -140,16 +159,28 @@ def cancel_booking(booking: Booking) -> Booking:
             {"status": f"Cannot cancel a booking with status '{booking.status}'."}
         )
 
+    before = _booking_snapshot(booking)
+
     booking.status = Booking.BookingStatus.CANCELED
     booking.save(update_fields=["status", "updated_at"])
 
     Room.objects.filter(pk=booking.room_id).update(status=Room.RoomStatus.AVAILABLE)
 
+    # --- Audit ---
+    log_action(
+        account=performed_by,
+        action="booking.canceled",
+        entity_type="Booking",
+        entity_id=booking.pk,
+        before_data=before,
+        after_data=_booking_snapshot(booking),
+    )
+
     return booking
 
 
 @transaction.atomic
-def complete_booking(booking: Booking) -> Booking:
+def complete_booking(booking: Booking, *, performed_by=None) -> Booking:
     """
     Mark a paid booking as completed (guest checked out).
 
@@ -160,6 +191,8 @@ def complete_booking(booking: Booking) -> Booking:
         raise ValidationError(
             {"status": "Only paid bookings can be completed."}
         )
+
+    before = _booking_snapshot(booking)
 
     booking.status = "completed"
     booking.save(update_fields=["status", "updated_at"])
@@ -172,4 +205,33 @@ def complete_booking(booking: Booking) -> Booking:
 
     create_cleaning_task(room=booking.room, branch=booking.branch)
 
+    # --- Audit ---
+    log_action(
+        account=performed_by,
+        action="booking.completed",
+        entity_type="Booking",
+        entity_id=booking.pk,
+        before_data=before,
+        after_data=_booking_snapshot(booking),
+    )
+
     return booking
+
+
+# ==============================================================================
+# SNAPSHOT HELPER
+# ==============================================================================
+
+
+def _booking_snapshot(booking: Booking) -> dict:
+    """Return a JSON-serialisable dict of booking state."""
+    return {
+        "id": booking.pk,
+        "status": booking.status,
+        "client_id": booking.client_id,
+        "room_id": booking.room_id,
+        "branch_id": booking.branch_id,
+        "check_in_date": str(booking.check_in_date),
+        "check_out_date": str(booking.check_out_date),
+        "final_price": str(booking.final_price),
+    }

@@ -15,6 +15,7 @@ from django.utils import timezone
 
 from apps.bookings.models import Booking
 from apps.payments.models import Payment
+from apps.reports.services import log_action, notify_roles
 
 __all__ = [
     "record_payment",
@@ -74,5 +75,28 @@ def record_payment(
     # 5. Transition booking
     booking.status = Booking.BookingStatus.PAID
     booking.save(update_fields=["status", "updated_at"])
+
+    # --- Audit + Notification ---
+    log_action(
+        account=created_by,
+        action="payment.recorded",
+        entity_type="Payment",
+        entity_id=payment.pk,
+        after_data={
+            "id": payment.pk,
+            "booking_id": booking.pk,
+            "amount": str(amount),
+            "payment_type": payment_type,
+            "is_paid": True,
+            "booking_status": booking.status,
+        },
+    )
+    notify_roles(
+        roles=["administrator", "director"],
+        branch=booking.branch,
+        notification_type="payment",
+        message=f"Payment #{payment.pk} recorded for booking #{booking.pk} "
+                f"(amount: {amount}).",
+    )
 
     return payment
