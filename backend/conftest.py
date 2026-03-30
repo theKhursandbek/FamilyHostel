@@ -8,9 +8,10 @@ Uses factory_boy for model creation. All fixtures are function-scoped
 import datetime
 from decimal import Decimal
 
-import factory
 import pytest
-from django.utils import timezone
+from factory.declarations import LazyAttribute, LazyFunction, Sequence, SubFactory
+from factory.django import DjangoModelFactory
+from factory.faker import Faker
 from rest_framework.test import APIClient
 
 
@@ -19,100 +20,100 @@ from rest_framework.test import APIClient
 # ==============================================================================
 
 
-class AccountFactory(factory.django.DjangoModelFactory):
+class AccountFactory(DjangoModelFactory):
     """Create an Account (custom user model)."""
 
     class Meta:
         model = "accounts.Account"
 
-    telegram_id = factory.Sequence(lambda n: 100_000_000 + n)
-    phone = factory.LazyAttribute(lambda o: f"+99890{o.telegram_id % 10_000_000:07d}")
+    telegram_id = Sequence(lambda n: 100_000_000 + n)
+    phone = LazyAttribute(lambda o: f"+99890{o.telegram_id % 10_000_000:07d}")
     is_active = True
 
 
-class BranchFactory(factory.django.DjangoModelFactory):
+class BranchFactory(DjangoModelFactory):
     class Meta:
         model = "branches.Branch"
 
-    name = factory.Sequence(lambda n: f"Branch #{n}")
-    location = factory.Faker("address")
+    name = Sequence(lambda n: f"Branch #{n}")
+    location = Faker("address")
     is_active = True
 
 
-class RoomTypeFactory(factory.django.DjangoModelFactory):
+class RoomTypeFactory(DjangoModelFactory):
     class Meta:
         model = "branches.RoomType"
 
-    name = factory.Sequence(lambda n: f"RoomType #{n}")
+    name = Sequence(lambda n: f"RoomType #{n}")
 
 
-class RoomFactory(factory.django.DjangoModelFactory):
+class RoomFactory(DjangoModelFactory):
     class Meta:
         model = "branches.Room"
 
-    branch = factory.SubFactory(BranchFactory)
-    room_type = factory.SubFactory(RoomTypeFactory)
-    room_number = factory.Sequence(lambda n: f"{n + 100}")
+    branch = SubFactory(BranchFactory)
+    room_type = SubFactory(RoomTypeFactory)
+    room_number = Sequence(lambda n: f"{n + 100}")
     status = "available"
     is_active = True
 
 
-class ClientFactory(factory.django.DjangoModelFactory):
+class ClientFactory(DjangoModelFactory):
     class Meta:
         model = "accounts.Client"
 
-    account = factory.SubFactory(AccountFactory)
-    full_name = factory.Faker("name")
+    account = SubFactory(AccountFactory)
+    full_name = Faker("name")
 
 
-class StaffFactory(factory.django.DjangoModelFactory):
+class StaffFactory(DjangoModelFactory):
     class Meta:
         model = "accounts.Staff"
 
-    account = factory.SubFactory(AccountFactory)
-    branch = factory.SubFactory(BranchFactory)
-    full_name = factory.Faker("name")
-    hire_date = factory.LazyFunction(lambda: datetime.date.today())
+    account = SubFactory(AccountFactory)
+    branch = SubFactory(BranchFactory)
+    full_name = Faker("name")
+    hire_date = LazyFunction(lambda: datetime.date.today())
     is_active = True
 
 
-class AdministratorFactory(factory.django.DjangoModelFactory):
+class AdministratorFactory(DjangoModelFactory):
     class Meta:
         model = "accounts.Administrator"
 
-    account = factory.SubFactory(AccountFactory)
-    branch = factory.SubFactory(BranchFactory)
-    full_name = factory.Faker("name")
+    account = SubFactory(AccountFactory)
+    branch = SubFactory(BranchFactory)
+    full_name = Faker("name")
     is_active = True
 
 
-class DirectorFactory(factory.django.DjangoModelFactory):
+class DirectorFactory(DjangoModelFactory):
     class Meta:
         model = "accounts.Director"
 
-    account = factory.SubFactory(AccountFactory)
-    branch = factory.SubFactory(BranchFactory)
-    full_name = factory.Faker("name")
+    account = SubFactory(AccountFactory)
+    branch = SubFactory(BranchFactory)
+    full_name = Faker("name")
     is_active = True
 
 
-class SuperAdminFactory(factory.django.DjangoModelFactory):
+class SuperAdminFactory(DjangoModelFactory):
     class Meta:
         model = "accounts.SuperAdmin"
 
-    account = factory.SubFactory(AccountFactory)
-    full_name = factory.Faker("name")
+    account = SubFactory(AccountFactory)
+    full_name = Faker("name")
 
 
-class BookingFactory(factory.django.DjangoModelFactory):
+class BookingFactory(DjangoModelFactory):
     class Meta:
         model = "bookings.Booking"
 
-    client = factory.SubFactory(ClientFactory)
-    room = factory.SubFactory(RoomFactory)
-    branch = factory.LazyAttribute(lambda o: o.room.branch)
-    check_in_date = factory.LazyFunction(lambda: datetime.date.today())
-    check_out_date = factory.LazyFunction(
+    client = SubFactory(ClientFactory)
+    room = SubFactory(RoomFactory)
+    branch = LazyAttribute(lambda o: o.room.branch)
+    check_in_date = LazyFunction(lambda: datetime.date.today())
+    check_out_date = LazyFunction(
         lambda: datetime.date.today() + datetime.timedelta(days=3),
     )
     price_at_booking = Decimal("500000")
