@@ -5,7 +5,7 @@ Extends base.py with production-specific overrides.
 Deploy on Azure App Service (README Section 16.4).
 """
 
-from .base import *  # noqa: F401, F403
+from .base import *  # noqa: F401, F403  # NOSONAR — standard Django settings pattern
 
 # ==============================================================================
 # PRODUCTION OVERRIDES

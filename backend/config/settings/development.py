@@ -4,7 +4,7 @@ Django development settings for Hostel Management System.
 Extends base.py with development-specific overrides.
 """
 
-from .base import *  # noqa: F401, F403
+from .base import *  # noqa: F401, F403  # NOSONAR — standard Django settings pattern
 
 # ==============================================================================
 # DEVELOPMENT OVERRIDES
