@@ -10,3 +10,7 @@ DATABASES = {
         "NAME": ":memory:",
     }
 }
+
+# Celery: run tasks synchronously in tests / offline mode
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_EAGER_PROPAGATES = True

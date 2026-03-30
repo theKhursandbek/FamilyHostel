@@ -60,12 +60,12 @@ def send_notification(
         message[:120],
     )
 
-    # --- Telegram push (README 26.4) ---
+    # --- Telegram push via Celery (Step 17 / README 26.4) ---
     try:
-        from apps.reports.telegram_service import send_telegram_notification
-        send_telegram_notification(account_id, message)
+        from apps.reports.tasks import send_telegram_notification_task
+        send_telegram_notification_task.delay(account_id, message)  # type: ignore[attr-defined]
     except Exception:
-        logger.exception("Telegram send failed for account #%s", account_id)
+        logger.exception("Telegram task dispatch failed for account #%s", account_id)
 
     return notification
 
@@ -95,7 +95,7 @@ def notify_role(
         logger.warning("notify_role called with unknown role: %s", role)
         return []
 
-    account_ids = list(
+    account_ids: list[int] = list(
         model_cls.objects.filter(branch=branch, is_active=True)
         .values_list("account_id", flat=True)
     )
@@ -120,13 +120,12 @@ def notify_role(
         branch,
     )
 
-    # --- Telegram push to every recipient (README 26.4) ---
+    # --- Telegram push via Celery (Step 17 / README 26.4) ---
     try:
-        from apps.reports.telegram_service import send_telegram_notification
-        for aid in account_ids:
-            send_telegram_notification(aid, message)
+        from apps.reports.tasks import send_bulk_telegram_task
+        send_bulk_telegram_task.delay(account_ids, message)  # type: ignore[attr-defined]
     except Exception:
-        logger.exception("Telegram bulk send failed for role=%s branch=%s", role, branch)
+        logger.exception("Telegram bulk task dispatch failed for role=%s branch=%s", role, branch)
 
     return notifications
 

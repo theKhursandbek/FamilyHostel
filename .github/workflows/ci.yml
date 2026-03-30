@@ -30,6 +30,8 @@ jobs:
       STRIPE_SECRET_KEY: sk_test_ci_dummy
       STRIPE_WEBHOOK_SECRET: whsec_ci_dummy
       TELEGRAM_BOT_TOKEN: ""
+      CELERY_BROKER_URL: "memory://"
+      CELERY_RESULT_BACKEND: "cache+memory://"
 
     steps:
       - name: Checkout code
