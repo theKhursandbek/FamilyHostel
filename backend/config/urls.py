@@ -1,0 +1,23 @@
+"""
+URL configuration for Hostel Management System.
+
+API Base: /api/v1/ (README Section 17)
+"""
+
+from django.contrib import admin
+from django.urls import include, path
+
+urlpatterns = [
+    # Django Admin
+    path("admin/", admin.site.urls),
+
+    # API v1
+    path("api/v1/auth/", include("apps.accounts.urls")),
+    path("api/v1/branches/", include("apps.branches.urls")),
+    path("api/v1/bookings/", include("apps.bookings.urls")),
+    path("api/v1/staff/", include("apps.staff.urls")),
+    path("api/v1/cleaning/", include("apps.cleaning.urls")),
+    path("api/v1/payments/", include("apps.payments.urls")),
+    path("api/v1/reports/", include("apps.reports.urls")),
+    path("api/v1/admin-panel/", include("apps.admin_panel.urls")),
+]
