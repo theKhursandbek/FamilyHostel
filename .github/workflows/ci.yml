@@ -1,0 +1,57 @@
+name: CI — Test Suite
+
+on:
+  push:
+    branches: [master, main, develop]
+  pull_request:
+    branches: [master, main, develop]
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.offline
+      SECRET_KEY: ci-test-secret-key-not-for-production
+      DEBUG: "True"
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      # DB vars required by base.py env() — not used in offline mode
+      # but django-environ reads them at import time
+      DB_NAME: ci_db
+      DB_USER: ci_user
+      DB_PASSWORD: ci_password
+      DB_HOST: localhost
+      DB_PORT: "5432"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run Django system check
+        run: python manage.py check --settings=config.settings.offline
+
+      - name: Run migrations (SQLite in-memory)
+        run: python manage.py migrate --settings=config.settings.offline
+
+      - name: Run tests with pytest
+        run: pytest --tb=short -q
+
+      - name: Check for missing migrations
+        run: python manage.py makemigrations --check --dry-run --settings=config.settings.offline

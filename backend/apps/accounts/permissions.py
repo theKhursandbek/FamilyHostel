@@ -287,11 +287,13 @@ class IsAssignedStaffOrDirectorOrHigher(BasePermission):
         ):
             return True
 
-        # Staff can only access their own assigned tasks
+        # Staff can only access their own assigned tasks, or unassigned
+        # tasks (so they can self-assign).
         if _has_role(user, "is_hostel_staff"):
             assigned_to = getattr(obj, "assigned_to", None)
-            if assigned_to is not None:
-                staff_profile = getattr(user, "staff_profile", None)
-                return staff_profile is not None and staff_profile.pk == assigned_to.pk
+            if assigned_to is None:
+                return True  # unassigned — staff can pick it
+            staff_profile = getattr(user, "staff_profile", None)
+            return staff_profile is not None and staff_profile.pk == assigned_to.pk
 
         return False

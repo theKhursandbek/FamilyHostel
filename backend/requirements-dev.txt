@@ -1,0 +1,14 @@
+# Testing & development dependencies
+# Install: pip install -r requirements-dev.txt
+
+-r requirements.txt
+
+# Testing
+pytest==8.3.5
+pytest-django==4.9.0
+pytest-cov==6.0.0
+factory-boy==3.3.1
+
+# Code quality (optional — for future steps)
+# ruff==0.8.6
+# mypy==1.14.1
