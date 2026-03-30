@@ -16,6 +16,7 @@ import json
 import time
 from decimal import Decimal
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -46,19 +47,24 @@ def _make_stripe_event(
     intent_id="pi_test_abc",
     amount=500000,
     failure_message=None,
-):
-    """Build a mock Stripe Event object mimicking stripe.Event structure."""
+) -> Any:
+    """Build a mock Stripe Event object mimicking stripe.Event structure.
+
+    Uses dicts for ``data.object`` (matching Stripe type stubs) and
+    SimpleNamespace for the outer event envelope (attribute access on
+    ``event.id``, ``event.type``, ``event.data``).
+    """
     last_payment_error = None
     if failure_message:
-        last_payment_error = SimpleNamespace(message=failure_message)
+        last_payment_error = {"message": failure_message}
 
-    payment_intent = SimpleNamespace(
-        id=intent_id,
-        amount=amount,
-        currency="uzs",
-        metadata={"booking_id": "1"},
-        last_payment_error=last_payment_error,
-    )
+    payment_intent = {
+        "id": intent_id,
+        "amount": amount,
+        "currency": "uzs",
+        "metadata": {"booking_id": "1"},
+        "last_payment_error": last_payment_error,
+    }
 
     event = SimpleNamespace(
         id=event_id,
@@ -177,7 +183,7 @@ class TestHandlePaymentSucceeded:
         assert booking.status == "paid"
 
     def test_skips_already_paid_payment(self, booking):
-        payment = Payment.objects.create(
+        _payment = Payment.objects.create(
             booking=booking,
             amount=booking.final_price,
             payment_type="online",
@@ -318,8 +324,8 @@ class TestStripeWebhookView:
 
     @patch("apps.payments.views.construct_webhook_event")
     def test_invalid_signature_returns_400(self, mock_construct, client):
-        import stripe
-        mock_construct.side_effect = stripe.error.SignatureVerificationError(
+        from stripe import SignatureVerificationError
+        mock_construct.side_effect = SignatureVerificationError(
             "bad sig", "sig_header",
         )
 

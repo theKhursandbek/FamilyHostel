@@ -98,7 +98,7 @@ def create_payment_intent(
         currency="uzs",
         metadata={
             "booking_id": str(booking.pk),
-            "branch_id": str(booking.branch_id),
+            "branch_id": str(booking.branch.pk),
         },
         idempotency_key=f"booking_{booking.pk}",
     )
@@ -208,7 +208,7 @@ def _handle_payment_succeeded(event: stripe.Event) -> None:
         4. Audit + notify
     """
     payment_intent = event.data.object
-    intent_id: str = payment_intent.id
+    intent_id: str = payment_intent["id"]
 
     try:
         payment = Payment.objects.select_related("booking").get(
@@ -275,10 +275,11 @@ def _handle_payment_failed(event: stripe.Event) -> None:
     Logs the failure; does NOT change booking status (client can retry).
     """
     payment_intent = event.data.object
-    intent_id: str = payment_intent.id
-    failure_message: str = getattr(
-        payment_intent.last_payment_error, "message", "Unknown error"
-    ) if payment_intent.last_payment_error else "Unknown error"
+    intent_id: str = payment_intent["id"]
+    last_error = payment_intent.get("last_payment_error")
+    failure_message: str = (
+        last_error.get("message", "Unknown error") if last_error else "Unknown error"
+    )
 
     logger.warning(
         "PaymentIntent %s failed: %s", intent_id, failure_message,
@@ -303,7 +304,7 @@ def _handle_payment_failed(event: stripe.Event) -> None:
         entity_id=payment.pk,
         after_data={
             "payment_id": payment.pk,
-            "booking_id": payment.booking_id,
+            "booking_id": payment.booking.pk,
             "payment_intent_id": intent_id,
             "stripe_event_id": event.id,
             "failure_message": failure_message,
