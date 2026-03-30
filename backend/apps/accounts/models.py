@@ -49,6 +49,14 @@ class Account(AbstractBaseUser, PermissionsMixin):
         db_index=True,
         verbose_name="Telegram ID",
     )
+    telegram_chat_id = models.CharField(
+        max_length=64,
+        blank=True,
+        null=True,
+        default=None,
+        verbose_name="Telegram Chat ID",
+        help_text="Used for sending Telegram Bot notifications (README 26.4).",
+    )
     phone = models.CharField(
         max_length=20,
         blank=True,

@@ -3,6 +3,11 @@ Notification & Audit-Log services (README Section 14.9 & 23).
 
 These are the *only* modules that touch the ``Notification`` and
 ``AuditLog`` tables.  Every other app calls these helpers.
+
+Telegram integration (README Section 26.4):
+    After creating an in-app notification, each function also fires
+    a Telegram message via ``send_telegram_notification`` when the
+    recipient has a ``telegram_chat_id`` set.
 """
 
 from __future__ import annotations
@@ -36,6 +41,8 @@ def send_notification(
     """
     Create an in-app notification for a single account.
 
+    Also sends a Telegram message if the account has a ``telegram_chat_id``.
+
     Args:
         account_id: Primary key of the target ``Account``.
         notification_type: One of ``Notification.NotificationType`` values.
@@ -52,6 +59,14 @@ def send_notification(
         account_id,
         message[:120],
     )
+
+    # --- Telegram push (README 26.4) ---
+    try:
+        from apps.reports.telegram_service import send_telegram_notification
+        send_telegram_notification(account_id, message)
+    except Exception:
+        logger.exception("Telegram send failed for account #%s", account_id)
+
     return notification
 
 
@@ -104,6 +119,15 @@ def notify_role(
         role,
         branch,
     )
+
+    # --- Telegram push to every recipient (README 26.4) ---
+    try:
+        from apps.reports.telegram_service import send_telegram_notification
+        for aid in account_ids:
+            send_telegram_notification(aid, message)
+    except Exception:
+        logger.exception("Telegram bulk send failed for role=%s branch=%s", role, branch)
+
     return notifications
 
 

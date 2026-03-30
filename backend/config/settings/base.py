@@ -201,6 +201,12 @@ STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="")  # type: ignore[call-ov
 STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")  # type: ignore[call-overload]
 
 # ==============================================================================
+# TELEGRAM BOT (README Section 26.4)
+# ==============================================================================
+
+TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")  # type: ignore[call-overload]
+
+# ==============================================================================
 # DEFAULT PRIMARY KEY
 # ==============================================================================
 

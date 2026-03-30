@@ -4,7 +4,8 @@ Cleaning real-time hooks (Django signals).
 ``post_save`` receiver on ``CleaningTask`` — integration point for
 WebSocket / Telegram real-time notifications.
 
-Step 13 — prepare only.
+Telegram integration (Step 16 — README Section 26.4):
+    - On ``cleaning_task.updated`` with assigned staff → notify the staff member.
 """
 
 import logging
@@ -22,9 +23,8 @@ def on_cleaning_task_saved(sender, instance, created, **kwargs):
     """
     Fires after every ``CleaningTask.save()``.
 
-    Integration points (uncomment when ready):
-        - WebSocket: emit task status changes to the branch channel.
-        - Telegram: notify assigned staff or director on task updates.
+    Telegram notifications:
+        - Task assigned (status == in_progress + assigned_to set) → notify staff.
     """
     event = "cleaning_task.created" if created else "cleaning_task.updated"
 
@@ -36,6 +36,31 @@ def on_cleaning_task_saved(sender, instance, created, **kwargs):
         instance.room_id,
         instance.branch_id,
     )
+
+    # === Telegram: task assigned → notify the assigned staff member ===
+    if (
+        not created
+        and instance.status == CleaningTask.TaskStatus.IN_PROGRESS
+        and instance.assigned_to_id
+    ):
+        try:
+            from apps.reports.services import send_notification
+
+            staff = instance.assigned_to
+            send_notification(
+                account_id=staff.account_id,
+                notification_type="cleaning",
+                message=(
+                    f"\U0001f9f9 Cleaning task #{instance.pk} assigned to you "
+                    f"(room {instance.room}, priority: {instance.priority})."
+                ),
+            )
+        except Exception:
+            logger.exception(
+                "Failed to send cleaning_task.assigned notification "
+                "for CleaningTask #%s",
+                instance.pk,
+            )
 
     # === WebSocket integration point ===
     # from channels.layers import get_channel_layer
@@ -51,7 +76,3 @@ def on_cleaning_task_saved(sender, instance, created, **kwargs):
     #         "room_id": instance.room_id,
     #     },
     # )
-
-    # === Telegram integration point ===
-    # from apps.integrations.telegram import send_cleaning_alert
-    # send_cleaning_alert(instance, event)

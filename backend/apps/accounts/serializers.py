@@ -19,6 +19,7 @@ class AccountSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "telegram_id",
+            "telegram_chat_id",
             "phone",
             "is_active",
             "roles",

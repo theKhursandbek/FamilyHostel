@@ -4,7 +4,8 @@ Payment real-time hooks (Django signals).
 ``post_save`` receiver on ``Payment`` — integration point for
 WebSocket / Telegram real-time notifications.
 
-Step 13 — prepare only.
+Telegram integration (Step 16 — README Section 26.4):
+    - On ``payment.created`` where ``is_paid=True`` → notify admin + director.
 """
 
 import logging
@@ -22,9 +23,8 @@ def on_payment_saved(sender, instance, created, **kwargs):
     """
     Fires after every ``Payment.save()``.
 
-    Integration points (uncomment when ready):
-        - WebSocket: emit ``payment.created`` to the branch channel.
-        - Telegram: push payment confirmation to the admin on duty.
+    Telegram notifications:
+        - Payment created & paid → admin + director at the booking's branch.
     """
     if not created:
         return  # Payments are typically immutable after creation
@@ -37,6 +37,28 @@ def on_payment_saved(sender, instance, created, **kwargs):
         instance.amount,
         instance.is_paid,
     )
+
+    # === Telegram: paid payment → notify branch admins & directors ===
+    if instance.is_paid:
+        try:
+            from apps.reports.services import notify_roles
+
+            booking = instance.booking
+            notify_roles(
+                roles=["administrator", "director"],
+                branch=booking.branch,
+                notification_type="payment",
+                message=(
+                    f"\u2705 Payment #{instance.pk} received "
+                    f"for booking #{booking.pk} "
+                    f"(amount: {instance.amount} UZS, type: {instance.payment_type})."
+                ),
+            )
+        except Exception:
+            logger.exception(
+                "Failed to send payment.created notification for Payment #%s",
+                instance.pk,
+            )
 
     # === WebSocket integration point ===
     # from channels.layers import get_channel_layer
@@ -53,7 +75,3 @@ def on_payment_saved(sender, instance, created, **kwargs):
     #         "amount": str(instance.amount),
     #     },
     # )
-
-    # === Telegram integration point ===
-    # from apps.integrations.telegram import send_payment_alert
-    # send_payment_alert(instance)

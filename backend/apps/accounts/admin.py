@@ -6,13 +6,13 @@ from .models import Account, Administrator, Client, Director, Staff, SuperAdmin
 
 @admin.register(Account)
 class AccountAdmin(BaseUserAdmin):
-    list_display = ("id", "telegram_id", "phone", "is_active", "created_at")
+    list_display = ("id", "telegram_id", "telegram_chat_id", "phone", "is_active", "created_at")
     list_filter = ("is_active", "is_staff")
-    search_fields = ("telegram_id", "phone")
+    search_fields = ("telegram_id", "phone", "telegram_chat_id")
     ordering = ("-created_at",)
 
     fieldsets = (
-        (None, {"fields": ("telegram_id", "phone", "password")}),
+        (None, {"fields": ("telegram_id", "telegram_chat_id", "phone", "password")}),
         ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser")}),
     )
     add_fieldsets = (

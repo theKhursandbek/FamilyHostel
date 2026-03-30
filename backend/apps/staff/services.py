@@ -134,6 +134,15 @@ def check_in(
             notification_type="shift",
             message=f"{account} checked in late for {shift_type} shift on {date}.",
         )
+        # Also notify the late staff member directly (Telegram, Step 16)
+        send_notification(
+            account_id=account.pk,
+            notification_type="shift",
+            message=(
+                f"\u26a0\ufe0f You checked in late for the {shift_type} shift "
+                f"on {date}. Please be on time."
+            ),
+        )
 
     return attendance
 

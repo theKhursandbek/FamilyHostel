@@ -4,8 +4,8 @@ Booking real-time hooks (Django signals).
 These ``post_save`` receivers fire on every ``Booking`` save and serve
 as the integration point for real-time systems (WebSocket, Telegram).
 
-Step 13 — prepare only.  Actual WebSocket / Telegram dispatch will be
-wired in a later step.
+Telegram integration (Step 16 — README Section 26.4):
+    - On ``booking.created`` → notify administrators/directors at the branch.
 """
 
 import logging
@@ -23,10 +23,8 @@ def on_booking_saved(sender, instance, created, **kwargs):
     """
     Fires after every ``Booking.save()``.
 
-    Integration points (uncomment when ready):
-        - WebSocket: emit ``booking.created`` / ``booking.updated``
-          to the branch channel group.
-        - Telegram: push notification to the admin on duty.
+    Telegram notifications:
+        - Booking created → admin + director at the booking's branch.
     """
     event = "booking.created" if created else "booking.updated"
 
@@ -37,6 +35,28 @@ def on_booking_saved(sender, instance, created, **kwargs):
         instance.status,
         instance.branch_id,
     )
+
+    # === Telegram: booking created → notify branch admins & directors ===
+    if created:
+        try:
+            from apps.reports.services import notify_roles
+
+            notify_roles(
+                roles=["administrator", "director"],
+                branch=instance.branch,
+                notification_type="booking",
+                message=(
+                    f"\U0001f4cb New booking #{instance.pk} created "
+                    f"(room {instance.room}, "
+                    f"check-in: {instance.check_in_date}, "
+                    f"check-out: {instance.check_out_date})."
+                ),
+            )
+        except Exception:
+            logger.exception(
+                "Failed to send booking.created notification for Booking #%s",
+                instance.pk,
+            )
 
     # === WebSocket integration point ===
     # from channels.layers import get_channel_layer
@@ -51,7 +71,3 @@ def on_booking_saved(sender, instance, created, **kwargs):
     #         "status": instance.status,
     #     },
     # )
-
-    # === Telegram integration point ===
-    # from apps.integrations.telegram import send_booking_alert
-    # send_booking_alert(instance, event)

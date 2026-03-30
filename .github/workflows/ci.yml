@@ -29,6 +29,7 @@ jobs:
       DB_PORT: "5432"
       STRIPE_SECRET_KEY: sk_test_ci_dummy
       STRIPE_WEBHOOK_SECRET: whsec_ci_dummy
+      TELEGRAM_BOT_TOKEN: ""
 
     steps:
       - name: Checkout code
