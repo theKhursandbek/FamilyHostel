@@ -1,0 +1,1 @@
+"""Bookings service layer — placeholder."""

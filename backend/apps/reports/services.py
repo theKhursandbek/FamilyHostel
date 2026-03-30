@@ -1,0 +1,1 @@
+"""Reports service layer — placeholder."""

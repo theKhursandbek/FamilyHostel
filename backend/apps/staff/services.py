@@ -1,0 +1,1 @@
+"""Staff service layer — placeholder."""
