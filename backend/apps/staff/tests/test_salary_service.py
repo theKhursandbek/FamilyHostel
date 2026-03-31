@@ -53,8 +53,8 @@ from conftest import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-PERIOD_START = datetime.date(2026, 3, 1)
-PERIOD_END = datetime.date(2026, 3, 31)
+PERIOD_START = datetime.date(2026, 4, 1)
+PERIOD_END = datetime.date(2026, 4, 30)
 
 
 def _create_settings(
@@ -148,17 +148,20 @@ class TestGetBranchIncome:
         BookingFactory(
             client=client, room=room, branch=branch,
             check_in_date=PERIOD_START, final_price=Decimal("300000"),
+            check_out_date=PERIOD_START + datetime.timedelta(days=3),
             status="paid",
         )
         BookingFactory(
             client=client, room=room, branch=branch,
             check_in_date=PERIOD_START + datetime.timedelta(days=5),
+            check_out_date=PERIOD_START + datetime.timedelta(days=8),
             final_price=Decimal("200000"), status="paid",
         )
         # Unpaid booking — must be excluded
         BookingFactory(
             client=client, room=room, branch=branch,
             check_in_date=PERIOD_START + datetime.timedelta(days=10),
+            check_out_date=PERIOD_START + datetime.timedelta(days=13),
             final_price=Decimal("100000"), status="pending",
         )
 

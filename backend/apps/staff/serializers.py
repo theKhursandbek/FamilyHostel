@@ -1,5 +1,7 @@
 """Staff serializers (README Section 14.6)."""
 
+import datetime
+
 from rest_framework import serializers
 
 from .models import Attendance, ShiftAssignment
@@ -19,6 +21,11 @@ class ShiftAssignmentSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]
+
+    def validate_date(self, value):
+        if value < datetime.date.today():
+            raise serializers.ValidationError("Shift date cannot be in the past.")
+        return value
 
 
 class AttendanceSerializer(serializers.ModelSerializer):

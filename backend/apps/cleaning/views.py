@@ -8,6 +8,7 @@ from rest_framework.response import Response
 
 from apps.accounts.permissions import IsAssignedStaffOrDirectorOrHigher, IsStaffOrHigher
 
+from .filters import CleaningTaskFilter
 from .models import CleaningTask
 from .serializers import CleaningTaskListSerializer, CleaningTaskSerializer
 from .services import assign_task_to_staff, complete_task, create_cleaning_task
@@ -30,10 +31,13 @@ class CleaningTaskViewSet(viewsets.ModelViewSet):
     """
 
     queryset = CleaningTask.objects.select_related(
-        "room", "branch", "assigned_to",
+        "room", "room__branch", "branch", "assigned_to",
     ).prefetch_related("images", "ai_results")
     permission_classes = [IsAuthenticated, IsStaffOrHigher, IsAssignedStaffOrDirectorOrHigher]
-    filterset_fields = ["branch", "room", "status", "priority"]
+    filterset_class = CleaningTaskFilter
+    ordering_fields = ["status", "priority", "created_at", "completed_at"]
+    ordering = ["-created_at"]
+    search_fields = ["room__room_number", "assigned_to__full_name"]
 
     def get_serializer_class(self):
         if self.action == "list":

@@ -31,6 +31,11 @@ class PaymentSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Payment amount must be greater than zero.")
+        return value
+
 
 class IncomeRuleSerializer(serializers.ModelSerializer):
     class Meta:

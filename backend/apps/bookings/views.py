@@ -7,6 +7,7 @@ from rest_framework.response import Response
 
 from apps.accounts.permissions import IsAdminOrHigher
 
+from .filters import BookingFilter
 from .models import Booking
 from .serializers import BookingListSerializer, BookingSerializer
 from .services import cancel_booking, complete_booking, create_booking
@@ -25,9 +26,14 @@ class BookingViewSet(viewsets.ModelViewSet):
         - POST /bookings/{pk}/complete/
     """
 
-    queryset = Booking.objects.select_related("client", "room", "branch")
+    queryset = Booking.objects.select_related(
+        "client", "room", "room__branch", "branch",
+    )
     permission_classes = [IsAuthenticated, IsAdminOrHigher]
-    filterset_fields = ["branch", "room", "status"]
+    filterset_class = BookingFilter
+    ordering_fields = ["check_in_date", "check_out_date", "final_price", "status", "created_at"]
+    ordering = ["-created_at"]
+    search_fields = ["client__full_name", "room__room_number"]
 
     def get_serializer_class(self):
         if self.action == "list":

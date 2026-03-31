@@ -12,6 +12,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.accounts.permissions import IsAdminOrHigher
 
+from .filters import PaymentFilter
 from .models import Payment
 from .serializers import PaymentSerializer
 from .services import record_payment
@@ -31,10 +32,15 @@ class PaymentViewSet(viewsets.ModelViewSet):
         - booking status transitions (pending → paid)
     """
 
-    queryset = Payment.objects.select_related("booking", "created_by")
+    queryset = Payment.objects.select_related(
+        "booking", "booking__client", "booking__room", "created_by",
+    )
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated, IsAdminOrHigher]
-    filterset_fields = ["booking", "is_paid", "payment_type"]
+    filterset_class = PaymentFilter
+    ordering_fields = ["amount", "is_paid", "payment_type", "created_at", "paid_at"]
+    ordering = ["-created_at"]
+    search_fields = ["booking__client__full_name", "payment_intent_id"]
 
     def perform_create(self, serializer):
         """Delegate creation to the service layer."""

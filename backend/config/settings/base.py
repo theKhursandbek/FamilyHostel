@@ -168,20 +168,28 @@ MEDIA_ROOT = BASE_DIR / "media"
 # ==============================================================================
 
 REST_FRAMEWORK = {
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    # Pagination (Step 20)
+    "DEFAULT_PAGINATION_CLASS": "config.api.pagination.StandardPagination",
     "PAGE_SIZE": 20,
+    # Authentication
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    # Renderer — wraps success responses in {success: true, data: ...} (Step 20)
     "DEFAULT_RENDERER_CLASSES": [
-        "rest_framework.renderers.JSONRenderer",
+        "config.api.renderers.StandardJSONRenderer",
     ],
+    # Filtering, ordering, search (Step 20)
     "DEFAULT_FILTER_BACKENDS": [
         "django_filters.rest_framework.DjangoFilterBackend",
+        "rest_framework.filters.OrderingFilter",
+        "rest_framework.filters.SearchFilter",
     ],
+    # Exception handler — wraps errors in {success: false, error: ...} (Step 20)
+    "EXCEPTION_HANDLER": "config.api.exception_handler.custom_exception_handler",
     "DATETIME_FORMAT": "%Y-%m-%dT%H:%M:%S%z",
 }
 

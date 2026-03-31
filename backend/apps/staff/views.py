@@ -13,6 +13,7 @@ from apps.accounts.permissions import (
     ReadOnly,
 )
 
+from .filters import AttendanceFilter, ShiftAssignmentFilter
 from .models import Attendance, ShiftAssignment
 from .serializers import AttendanceSerializer, ShiftAssignmentSerializer
 from .services import check_in, check_out, create_shift_assignment, get_salary_summary
@@ -27,11 +28,14 @@ class ShiftAssignmentViewSet(viewsets.ModelViewSet):
     """
 
     queryset = ShiftAssignment.objects.select_related(
-        "account", "branch", "assigned_by",
+        "account", "branch", "assigned_by", "assigned_by__account",
     )
     serializer_class = ShiftAssignmentSerializer
     permission_classes = [IsAuthenticated, ReadOnly | IsDirectorOrHigher]
-    filterset_fields = ["branch", "shift_type", "date", "role"]
+    filterset_class = ShiftAssignmentFilter
+    ordering_fields = ["date", "shift_type", "role", "created_at"]
+    ordering = ["-date"]
+    search_fields = ["account__phone"]
 
     def perform_create(self, serializer):
         """Delegate creation to the service layer (one-admin-per-shift check)."""
@@ -63,7 +67,10 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     serializer_class = AttendanceSerializer
     permission_classes = [IsAuthenticated, IsStaffOrHigher, IsOwnerOrDirectorOrHigher]
     owner_field = "account"  # used by IsOwnerOrDirectorOrHigher
-    filterset_fields = ["branch", "shift_type", "date", "status"]
+    filterset_class = AttendanceFilter
+    ordering_fields = ["date", "shift_type", "status", "check_in", "check_out"]
+    ordering = ["-date"]
+    search_fields = ["account__phone"]
 
     # ------------------------------------------------------------------
     # Custom actions

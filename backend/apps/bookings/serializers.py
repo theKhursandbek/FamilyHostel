@@ -43,6 +43,32 @@ class BookingSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
+    def validate(self, attrs):
+        check_in = attrs.get("check_in_date")
+        check_out = attrs.get("check_out_date")
+        if check_in and check_out and check_out <= check_in:
+            raise serializers.ValidationError(
+                {"check_out_date": "Check-out date must be after check-in date."}
+            )
+
+        price = attrs.get("price_at_booking")
+        if price is not None and price <= 0:
+            raise serializers.ValidationError(
+                {"price_at_booking": "Price must be greater than zero."}
+            )
+
+        discount = attrs.get("discount_amount", 0) or 0
+        if discount < 0:
+            raise serializers.ValidationError(
+                {"discount_amount": "Discount cannot be negative."}
+            )
+        if price is not None and discount >= price:
+            raise serializers.ValidationError(
+                {"discount_amount": "Discount must be less than the booking price."}
+            )
+
+        return attrs
+
 
 class BookingListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list views."""

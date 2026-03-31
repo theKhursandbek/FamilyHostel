@@ -46,8 +46,8 @@ from conftest import (
 # Constants
 # ---------------------------------------------------------------------------
 
-DATE_FROM = datetime.date(2026, 3, 1)
-DATE_TO = datetime.date(2026, 3, 31)
+DATE_FROM = datetime.date(2026, 4, 1)
+DATE_TO = datetime.date(2026, 4, 30)
 
 
 # ===========================================================================

@@ -59,6 +59,11 @@ class RoomSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "status", "created_at", "updated_at"]
 
+    def validate_room_number(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Room number cannot be blank.")
+        return value.strip()
+
 
 class RoomListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list views (no nested images)."""
