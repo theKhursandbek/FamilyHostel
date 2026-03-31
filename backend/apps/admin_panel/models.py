@@ -95,6 +95,7 @@ class SystemSettings(models.Model):
         default=SalaryCycle.MONTHLY,
     )
     shift_rate = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    per_room_rate = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
 
     class Meta:
         db_table = "system_settings"
