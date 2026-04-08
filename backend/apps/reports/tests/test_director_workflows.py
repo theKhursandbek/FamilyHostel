@@ -368,6 +368,8 @@ class TestFacilityLogService:
         )
         audit = AuditLog.objects.filter(action="facility_log.updated").first()
         assert audit is not None
+        assert audit.before_data is not None
+        assert audit.after_data is not None
         assert audit.before_data["status"] == "open"
         assert audit.after_data["status"] == "resolved"
 
@@ -430,7 +432,7 @@ class TestFacilityLogAPI:
         assert resp.data["status"] == "resolved"
 
     def test_filter_by_status(self, director_client, director_profile, branch):
-        log1 = create_facility_log(
+        create_facility_log(
             branch=branch, facility_type="water",
             description="Leak", performed_by=director_profile.account,
         )
@@ -627,6 +629,8 @@ class TestDirectorAssignTaskService:
             action="cleaning_task.director_assigned",
         ).first()
         assert audit is not None
+        assert audit.before_data is not None
+        assert audit.after_data is not None
         assert audit.before_data["assigned_to_id"] is None
         assert audit.after_data["assigned_to_id"] == staff.pk
 
