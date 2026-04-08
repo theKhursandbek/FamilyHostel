@@ -118,12 +118,13 @@ def _branch_with_data(db):
         status="present",
     )
 
-    # Cash session
+    # Cash session — use localtime to ensure date matches timezone.localdate()
+    local_now = timezone.localtime(timezone.now())
     CashSession.objects.create(
         admin=admin,
         branch=branch,
         shift_type="day",
-        start_time=timezone.now() - timedelta(hours=2),
+        start_time=local_now,
         opening_balance=Decimal("1000000"),
     )
 

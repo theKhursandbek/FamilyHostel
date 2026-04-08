@@ -99,10 +99,10 @@ class TestDayOffRequestModel:
             end_date=datetime.date.today() + datetime.timedelta(days=6),
         )
         qs = list(DayOffRequest.objects.all())
-        # -created_at ordering: both may have same created_at,
-        # so just verify both are returned and newer PK comes first.
+        # -created_at ordering: both may share the same created_at,
+        # so verify both are returned and newest created_at is first.
         assert len(qs) == 2
-        assert qs[0].pk > qs[1].pk
+        assert qs[0].created_at >= qs[1].created_at
 
 
 # ==============================================================================
