@@ -4,12 +4,13 @@ Account models — Authentication & Role tables.
 Database schema: README Section 14.1 (Accounts) & 14.2 (Role Tables).
 
 Tables defined here:
-    - accounts       (14.1 — authentication only)
-    - clients        (14.2)
-    - staff          (14.2)
-    - administrators (14.2)
-    - directors      (14.2)
-    - super_admins   (14.2)
+    - accounts              (14.1 — authentication only)
+    - clients               (14.2)
+    - staff                 (14.2)
+    - administrators        (14.2)
+    - directors             (14.2)
+    - super_admins          (14.2)
+    - suspicious_activities (Step 21.2 — security)
 
 Business rule: One account can exist in multiple role tables
 (e.g., director + administrator).
@@ -278,3 +279,87 @@ class SuperAdmin(models.Model):
 
     def __str__(self):
         return self.full_name
+
+
+# ==============================================================================
+# SECURITY — SUSPICIOUS ACTIVITY DETECTION (Step 21.2)
+# ==============================================================================
+
+
+class SuspiciousActivity(models.Model):
+    """
+    Track suspicious activity events for security monitoring and auto-blocking.
+
+    Each record represents one type of suspicious activity from a specific
+    IP address (and optionally a specific user account).  The ``count`` field
+    is incremented each time the same activity type recurs within the tracking
+    window.  When the count exceeds the configured threshold the record is
+    marked ``is_blocked=True`` with a ``blocked_until`` timestamp for
+    automatic recovery.
+
+    Indexes on ``(ip_address, activity_type)`` and ``is_blocked`` ensure
+    lightweight lookups in the blocking middleware.
+    """
+
+    class ActivityType(models.TextChoices):
+        FAILED_LOGIN = "failed_login", "Failed Login"
+        RATE_LIMIT_EXCEEDED = "rate_limit_exceeded", "Rate Limit Exceeded"
+        UNAUTHORIZED_ACCESS = "unauthorized_access", "Unauthorized Access"
+        ABNORMAL_BEHAVIOR = "abnormal_behavior", "Abnormal Behavior"
+
+    account = models.ForeignKey(
+        Account,
+        on_delete=models.CASCADE,
+        related_name="suspicious_activities",
+        null=True,
+        blank=True,
+        help_text="Associated account (null for anonymous requests).",
+    )
+    ip_address = models.GenericIPAddressField(
+        db_index=True,
+        help_text="Client IP address of the suspicious request.",
+    )
+    activity_type = models.CharField(
+        max_length=30,
+        choices=ActivityType.choices,
+        help_text="Category of suspicious activity.",
+    )
+    count = models.PositiveIntegerField(
+        default=1,
+        help_text="Number of occurrences within the tracking window.",
+    )
+    is_blocked = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Whether this IP/account is currently blocked.",
+    )
+    blocked_until = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Auto-unblock timestamp (null = not blocked).",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "suspicious_activities"
+        ordering = ["-updated_at"]
+        verbose_name = "Suspicious Activity"
+        verbose_name_plural = "Suspicious Activities"
+        indexes = [
+            models.Index(
+                fields=["ip_address", "activity_type"],
+                name="idx_sa_ip_type",
+            ),
+            models.Index(
+                fields=["is_blocked", "blocked_until"],
+                name="idx_sa_blocked",
+            ),
+        ]
+
+    def __str__(self):
+        status = "BLOCKED" if self.is_blocked else "tracking"
+        return (
+            f"{self.activity_type} | {self.ip_address} | "
+            f"count={self.count} | {status}"
+        )

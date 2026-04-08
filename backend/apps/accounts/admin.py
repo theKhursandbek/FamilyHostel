@@ -1,7 +1,15 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import Account, Administrator, Client, Director, Staff, SuperAdmin
+from .models import (
+    Account,
+    Administrator,
+    Client,
+    Director,
+    Staff,
+    SuperAdmin,
+    SuspiciousActivity,
+)
 
 
 @admin.register(Account)
@@ -57,3 +65,15 @@ class DirectorAdmin(admin.ModelAdmin):
 class SuperAdminAdmin(admin.ModelAdmin):
     list_display = ("id", "full_name", "account")
     search_fields = ("full_name",)
+
+
+@admin.register(SuspiciousActivity)
+class SuspiciousActivityAdmin(admin.ModelAdmin):
+    list_display = (
+        "id", "ip_address", "activity_type", "count",
+        "is_blocked", "blocked_until", "account", "updated_at",
+    )
+    list_filter = ("activity_type", "is_blocked")
+    search_fields = ("ip_address",)
+    readonly_fields = ("created_at", "updated_at")
+    ordering = ("-updated_at",)
