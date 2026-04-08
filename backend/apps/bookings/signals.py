@@ -58,16 +58,21 @@ def on_booking_saved(sender, instance, created, **kwargs):
                 instance.pk,
             )
 
-    # === WebSocket integration point ===
-    # from channels.layers import get_channel_layer
-    # from asgiref.sync import async_to_sync
-    # channel_layer = get_channel_layer()
-    # async_to_sync(channel_layer.group_send)(
-    #     f"branch_{instance.branch_id}",
-    #     {
-    #         "type": "booking.event",
-    #         "event": event,
-    #         "booking_id": instance.pk,
-    #         "status": instance.status,
-    #     },
-    # )
+    # === WebSocket: broadcast booking event to dashboards (Step 21.4) ===
+    try:
+        from config.ws_events import send_dashboard_event
+
+        send_dashboard_event(
+            event_type=event,
+            data={
+                "booking_id": instance.pk,
+                "status": instance.status,
+                "room_id": instance.room_id,
+                "branch_id": instance.branch_id,
+            },
+            branch_id=instance.branch_id,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to send WS event for Booking #%s", instance.pk,
+        )

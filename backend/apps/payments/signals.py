@@ -60,18 +60,23 @@ def on_payment_saved(sender, instance, created, **kwargs):
                 instance.pk,
             )
 
-    # === WebSocket integration point ===
-    # from channels.layers import get_channel_layer
-    # from asgiref.sync import async_to_sync
-    # branch_id = instance.booking.branch_id
-    # channel_layer = get_channel_layer()
-    # async_to_sync(channel_layer.group_send)(
-    #     f"branch_{branch_id}",
-    #     {
-    #         "type": "payment.event",
-    #         "event": "payment.created",
-    #         "payment_id": instance.pk,
-    #         "booking_id": instance.booking_id,
-    #         "amount": str(instance.amount),
-    #     },
-    # )
+    # === WebSocket: broadcast payment event to dashboards (Step 21.4) ===
+    try:
+        from config.ws_events import send_dashboard_event
+
+        booking = instance.booking
+        send_dashboard_event(
+            event_type="payment.completed" if instance.is_paid else "payment.created",
+            data={
+                "payment_id": instance.pk,
+                "booking_id": instance.booking_id,
+                "amount": str(instance.amount),
+                "is_paid": instance.is_paid,
+                "payment_type": instance.payment_type,
+            },
+            branch_id=booking.branch_id,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to send WS event for Payment #%s", instance.pk,
+        )

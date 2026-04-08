@@ -53,6 +53,7 @@ THIRD_PARTY_APPS = [
     "rest_framework",
     "django_filters",
     "corsheaders",
+    "channels",
 ]
 
 LOCAL_APPS = [
@@ -259,6 +260,19 @@ CELERY_TASK_TIME_LIMIT = 300  # 5 minutes hard limit
 CELERY_TASK_SOFT_TIME_LIMIT = 240  # 4 minutes soft limit
 CELERY_TASK_ACKS_LATE = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+
+# ==============================================================================
+# DJANGO CHANNELS — WebSocket real-time layer (Step 21.4)
+# ==============================================================================
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [env("REDIS_URL", default="redis://localhost:6379/1")],  # type: ignore[call-overload]
+        },
+    },
+}
 
 # ==============================================================================
 # DEFAULT PRIMARY KEY
