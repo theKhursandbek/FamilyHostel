@@ -13,3 +13,7 @@ gunicorn==23.0.0
 uvicorn[standard]==0.34.0
 channels==4.2.0
 channels-redis==4.2.1
+django-storages[azure]==1.14.4
+whitenoise==6.8.2
+dj-database-url==2.3.0
+sentry-sdk[django]==2.19.2

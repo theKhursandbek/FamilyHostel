@@ -7,9 +7,19 @@ API Base: /api/v1/ (README Section 17)
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.http import JsonResponse
 from django.urls import include, path
 
+
+def health_check(request):
+    """Lightweight health-check for Azure App Service / load-balancer probes."""
+    return JsonResponse({"status": "ok"})
+
+
 urlpatterns = [
+    # Health check (Step 24) — no auth required
+    path("health/", health_check, name="health-check"),
+
     # Django Admin
     path("admin/", admin.site.urls),
 
