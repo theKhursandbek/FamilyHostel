@@ -71,6 +71,10 @@ class FacilityLog(models.Model):
         ELECTRICITY = "electricity", "Electricity"
         REPAIR = "repair", "Repair"
 
+    class LogStatus(models.TextChoices):
+        OPEN = "open", "Open"
+        RESOLVED = "resolved", "Resolved"
+
     branch = models.ForeignKey(
         "branches.Branch",
         on_delete=models.CASCADE,
@@ -79,7 +83,13 @@ class FacilityLog(models.Model):
     type = models.CharField(max_length=20, choices=FacilityType.choices)
     description = models.TextField()
     cost = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0"))
+    status = models.CharField(
+        max_length=10,
+        choices=LogStatus.choices,
+        default=LogStatus.OPEN,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "facility_logs"
@@ -111,7 +121,16 @@ class Penalty(models.Model):
     type = models.CharField(max_length=10, choices=PenaltyType.choices)
     count = models.PositiveIntegerField(default=1)
     penalty_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    reason = models.TextField(blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_penalties",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "penalties"

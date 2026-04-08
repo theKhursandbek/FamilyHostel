@@ -19,7 +19,7 @@ from .serializers import (
     CleaningTaskSerializer,
     OverrideSerializer,
 )
-from .services import assign_task_to_staff, complete_task, create_cleaning_task, override_task, retry_task
+from .services import assign_task_to_staff, complete_task, create_cleaning_task, director_assign_task, override_task, retry_task
 from .tasks import analyze_cleaning_images_task
 
 
@@ -77,9 +77,46 @@ class CleaningTaskViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="assign")
     def assign(self, request, pk=None):
-        """POST /cleaning-tasks/{pk}/assign/ — staff self-assigns."""
+        """POST /cleaning-tasks/{pk}/assign/ — assign staff to task.
+
+        Staff: self-assigns (no body needed).
+        Director+: assigns any staff via ``{"staff_id": <int>}``.
+        """
         task = self.get_object()
-        # The request user must have a staff_profile
+        user = request.user
+
+        # Director / SuperAdmin can assign any staff via staff_id
+        staff_id = request.data.get("staff_id")
+        if staff_id is not None:
+            if not (
+                getattr(user, "is_director", False)
+                or getattr(user, "is_superadmin", False)
+            ):
+                raise drf_serializers.ValidationError(
+                    {"detail": "Only directors can assign staff to tasks."},
+                )
+            from apps.accounts.models import Staff
+
+            try:
+                target_staff = Staff.objects.get(pk=staff_id)
+            except Staff.DoesNotExist:
+                raise drf_serializers.ValidationError(
+                    {"staff_id": "Staff not found."},
+                )
+            try:
+                task = director_assign_task(
+                    task=task,
+                    staff_profile=target_staff,
+                    performed_by=user,
+                )
+            except DjangoValidationError as exc:
+                raise drf_serializers.ValidationError(exc.message_dict)
+            serializer = CleaningTaskSerializer(
+                task, context={"request": request},
+            )
+            return Response(serializer.data)
+
+        # Staff self-assigns (existing behaviour)
         staff_profile = getattr(request.user, "staff_profile", None)
         if staff_profile is None:
             raise drf_serializers.ValidationError(

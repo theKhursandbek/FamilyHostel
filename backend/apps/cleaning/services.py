@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "create_cleaning_task",
     "assign_task_to_staff",
+    "director_assign_task",
     "complete_task",
     "retry_task",
     "override_task",
@@ -118,6 +119,45 @@ def assign_task_to_staff(*, task: CleaningTask, staff_profile) -> CleaningTask:
     log_action(
         account=getattr(staff_profile, "account", None),
         action="cleaning_task.assigned",
+        entity_type="CleaningTask",
+        entity_id=task.pk,
+        before_data=before,
+        after_data=_task_snapshot(task),
+    )
+
+    return task
+
+
+@transaction.atomic
+def director_assign_task(
+    *,
+    task: CleaningTask,
+    staff_profile,
+    performed_by,
+) -> CleaningTask:
+    """
+    Director assigns (or reassigns) any staff member to a cleaning task.
+
+    Unlike ``assign_task_to_staff``, this:
+        - Allows reassignment of in-progress tasks.
+        - Moves pending tasks to in_progress automatically.
+        - Cannot assign completed tasks.
+    """
+    if task.status == CleaningTask.TaskStatus.COMPLETED:
+        raise ValidationError(
+            {"status": "Cannot assign a completed task."},
+        )
+
+    before = _task_snapshot(task)
+
+    task.assigned_to = staff_profile
+    if task.status == CleaningTask.TaskStatus.PENDING:
+        task.status = CleaningTask.TaskStatus.IN_PROGRESS
+    task.save(update_fields=["assigned_to", "status", "updated_at"])
+
+    log_action(
+        account=performed_by,
+        action="cleaning_task.director_assigned",
         entity_type="CleaningTask",
         entity_id=task.pk,
         before_data=before,
