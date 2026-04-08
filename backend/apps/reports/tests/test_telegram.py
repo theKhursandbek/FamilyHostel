@@ -193,11 +193,11 @@ class TestNotificationTelegramIntegration:
         from apps.reports.services import notify_role
 
         branch = BranchFactory()
-        admin1 = AdministratorFactory(
+        _admin1 = AdministratorFactory(
             branch=branch,
             account=AccountFactory(telegram_chat_id="admin_chat_1"),
         )
-        admin2 = AdministratorFactory(
+        _admin2 = AdministratorFactory(
             branch=branch,
             account=AccountFactory(telegram_chat_id="admin_chat_2"),
         )

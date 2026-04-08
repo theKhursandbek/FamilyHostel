@@ -30,9 +30,7 @@ class StandardJSONRenderer(JSONRenderer):
 
         if response is not None and response.status_code < 400:
             # Don't double-wrap if already wrapped (e.g. by a custom view)
-            if isinstance(data, dict) and "success" in data:
-                pass
-            else:
+            if not (isinstance(data, dict) and "success" in data):
                 data = {"success": True, "data": data}
 
         return super().render(data, accepted_media_type, renderer_context)

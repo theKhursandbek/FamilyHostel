@@ -52,7 +52,7 @@ class Account(AbstractBaseUser, PermissionsMixin):
     telegram_chat_id = models.CharField(
         max_length=64,
         blank=True,
-        null=True,
+        null=True,  # noqa: DJ001 — None means 'not configured', used as sentinel
         default=None,
         verbose_name="Telegram Chat ID",
         help_text="Used for sending Telegram Bot notifications (README 26.4).",

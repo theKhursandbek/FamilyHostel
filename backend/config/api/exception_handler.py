@@ -98,10 +98,9 @@ def custom_exception_handler(exc: Exception, context: dict) -> Response | None:
     if response is not None:
         # Known DRF exception — check class hierarchy for mapping
         code = "api_error"
-        default_msg = "An error occurred."
         for cls in type(exc).__mro__:
             if cls in _EXCEPTION_MAP:
-                code, default_msg = _EXCEPTION_MAP[cls]
+                code, _ = _EXCEPTION_MAP[cls]
                 break
 
         # For validation errors, keep the structured detail as-is AND provide

@@ -164,7 +164,7 @@ class TelegramAuthView(APIView):
         serializer = TelegramAuthSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        init_data = serializer.validated_data["init_data"]
+        init_data: str = serializer.validated_data["init_data"]  # type: ignore[index]
         bot_token = settings.TELEGRAM_BOT_TOKEN
 
         if not bot_token:
