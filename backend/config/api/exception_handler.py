@@ -45,6 +45,8 @@ from rest_framework.exceptions import (
 from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 
+from config.api.exceptions import ServiceUnavailable
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["custom_exception_handler"]
@@ -61,6 +63,7 @@ _EXCEPTION_MAP: dict[type, tuple[str, str]] = {
     MethodNotAllowed: ("method_not_allowed", "HTTP method not allowed."),
     Throttled: ("throttled", "Request was throttled. Please try again later."),
     ParseError: ("parse_error", "Malformed request."),
+    ServiceUnavailable: ("service_unavailable", "Service temporarily unavailable."),
 }
 
 

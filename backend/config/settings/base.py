@@ -6,6 +6,7 @@ Reference: hostel_telegram_mini_app_readme.md
 """
 
 import environ
+from datetime import timedelta
 from pathlib import Path
 
 # ==============================================================================
@@ -73,12 +74,14 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "config.security.middleware.SecurityLoggingMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "config.security.middleware.SecurityHeadersMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -171,13 +174,24 @@ REST_FRAMEWORK = {
     # Pagination (Step 20)
     "DEFAULT_PAGINATION_CLASS": "config.api.pagination.StandardPagination",
     "PAGE_SIZE": 20,
-    # Authentication
+    # Authentication — JWT primary, session for browsable API (README Section 25.5)
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    # Throttling — rate limiting (README Section 16.6 & 26.5)
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "30/minute",
+        "user": "100/minute",
+        "auth": "10/minute",
+    },
     # Renderer — wraps success responses in {success: true, data: ...} (Step 20)
     "DEFAULT_RENDERER_CLASSES": [
         "config.api.renderers.StandardJSONRenderer",
@@ -200,6 +214,21 @@ REST_FRAMEWORK = {
 CORS_ALLOWED_ORIGINS = []
 
 CORS_ALLOW_CREDENTIALS = True
+
+# ==============================================================================
+# JWT — djangorestframework-simplejwt (README Section 25.5 & 26.5)
+# ==============================================================================
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": False,
+    "UPDATE_LAST_LOGIN": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+}
 
 # ==============================================================================
 # STRIPE (README Section 25.1 & 26.1)
@@ -235,3 +264,31 @@ CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 # ==============================================================================
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# ==============================================================================
+# LOGGING — Security events (README Section 23)
+# ==============================================================================
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "security": {
+            "format": "[{asctime}] {levelname} {name}: {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "security_console": {
+            "class": "logging.StreamHandler",
+            "formatter": "security",
+        },
+    },
+    "loggers": {
+        "security": {
+            "handlers": ["security_console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+    },
+}

@@ -53,7 +53,8 @@ class TestBookingAPI:
     def test_unauthenticated_cannot_list(self, api_client):
         url = reverse("bookings:booking-list")
         resp = api_client.get(url)
-        assert resp.status_code == 403
+        # JWTAuthentication provides WWW-Authenticate → 401 (not 403)
+        assert resp.status_code == 401
 
 
 @pytest.mark.django_db

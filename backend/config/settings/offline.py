@@ -14,3 +14,11 @@ DATABASES = {
 # Celery: run tasks synchronously in tests / offline mode
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
+
+# DummyCache: ensures throttle counters are never stored,
+# effectively disabling rate-limiting during tests.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.dummy.DummyCache",
+    }
+}

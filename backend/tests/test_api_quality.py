@@ -330,14 +330,16 @@ class TestStandardisedResponses:
         assert resp.status_code == 200
         assert "id" in resp.data
 
-    def test_error_403_has_standard_envelope(self, api_client):
+    def test_error_unauthenticated_has_standard_envelope(self, api_client):
         """Unauthenticated request gets standard error envelope."""
         url = reverse("bookings:booking-list")
         resp = api_client.get(url)
-        assert resp.status_code == 403
+        # With JWTAuthentication providing WWW-Authenticate header,
+        # unauthenticated requests return 401 (not 403).
+        assert resp.status_code == 401
         assert resp.data["success"] is False
         assert "error" in resp.data
-        assert resp.data["error"]["code"] in ("not_authenticated", "permission_denied")
+        assert resp.data["error"]["code"] == "not_authenticated"
 
     def test_error_404_has_standard_envelope(self, admin_client):
         url = reverse("bookings:booking-detail", args=[999999])
