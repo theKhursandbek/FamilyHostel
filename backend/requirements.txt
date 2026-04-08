@@ -10,3 +10,6 @@ celery[redis]==5.4.0
 djangorestframework-simplejwt==5.4.0
 Pillow==11.1.0
 gunicorn==23.0.0
+uvicorn[standard]==0.34.0
+channels==4.2.0
+channels-redis==4.2.1

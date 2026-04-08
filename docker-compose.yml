@@ -1,20 +1,46 @@
-# Docker Compose — local development environment (Step 17).
+# ==============================================================================
+# Docker Compose — FamilyHostel production stack (Step 22)
 #
 # Services:
-#   - redis       : Message broker + result backend for Celery
-#   - celery      : Celery worker process
+#   - backend     : Django (gunicorn + uvicorn ASGI workers)
+#   - postgres    : PostgreSQL 16
+#   - redis       : Broker for Celery + Channels
+#   - celery      : Celery background worker
 #
 # Usage:
-#   $ docker-compose up -d redis     # Redis only (minimal setup)
-#   $ docker-compose up -d           # Redis + Celery worker
-#
-# The Django dev server itself is NOT containerised (run via manage.py).
+#   1. Copy .env.docker.example → .env.docker  and fill in secrets
+#   2. docker-compose up --build -d
+#   3. Open http://localhost:8000
+# ==============================================================================
 
 services:
+  # ──────────────────────────────────────────────────────────────────────────
+  # PostgreSQL 16
+  # ──────────────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    env_file:
+      - .env.docker
+    environment:
+      POSTGRES_DB: ${DB_NAME:-hostel_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-hostel_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - hostel_net
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Redis 7
+  # ──────────────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -23,23 +49,75 @@ services:
       timeout: 5s
       retries: 3
     restart: unless-stopped
+    networks:
+      - hostel_net
 
-  celery:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Django backend (gunicorn + uvicorn workers)
+  # ──────────────────────────────────────────────────────────────────────────
+  backend:
     build:
       context: ./backend
-      dockerfile: ../Dockerfile
-    command: celery -A config worker --loglevel=info
-    volumes:
-      - ./backend:/app
+      dockerfile: Dockerfile
     env_file:
-      - ./backend/.env
+      - .env.docker
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      REDIS_URL: redis://redis:6379/1
+    ports:
+      - "8000:8000"
+    volumes:
+      - media_data:/app/media
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - hostel_net
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # Celery worker
+  # ──────────────────────────────────────────────────────────────────────────
+  celery:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A config worker --loglevel=info --concurrency=2
+    env_file:
+      - .env.docker
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      REDIS_URL: redis://redis:6379/1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - hostel_net
+
+# ==============================================================================
+# Volumes
+# ==============================================================================
 volumes:
+  postgres_data:
   redis_data:
+  media_data:
+
+# ==============================================================================
+# Network
+# ==============================================================================
+networks:
+  hostel_net:
+    driver: bridge

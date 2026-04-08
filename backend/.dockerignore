@@ -1,0 +1,54 @@
+# ==============================================================================
+# Docker ignore — backend build context optimization
+# ==============================================================================
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Tests & coverage
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# Environment files (injected via docker-compose)
+.env
+.env.*
+!.env.example
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Media uploads (mounted as volume)
+media/
+
+# Collected static (generated at build time)
+staticfiles/
+
+# Build artefacts
+dist/
+build/
+*.egg-info/
+*.egg
+*.whl

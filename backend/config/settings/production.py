@@ -19,7 +19,7 @@ ALLOWED_HOSTS = env("ALLOWED_HOSTS")  # noqa: F405
 # SECURITY — Transport & Cookie (README Section 25.5 & 26.5)
 # ==============================================================================
 
-SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)  # noqa: F405
 SECURE_HSTS_SECONDS = 31536000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
