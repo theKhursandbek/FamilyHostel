@@ -196,8 +196,9 @@ def cleanup_old_backups(
         Number of backups deleted.
     """
     if keep_count is None:
-        retention = getattr(settings, "BACKUP_RETENTION", {})
-        keep_count = retention.get(backup_type, 7 if backup_type == "daily" else 4)
+        retention: dict[str, int] = getattr(settings, "BACKUP_RETENTION", {})
+        default = 7 if backup_type == "daily" else 4
+        keep_count = int(retention.get(backup_type, default))
 
     storage = get_backup_storage()
     prefix = f"{backup_type}_backup_"

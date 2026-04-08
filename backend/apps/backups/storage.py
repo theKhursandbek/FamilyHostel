@@ -82,7 +82,7 @@ class AzureBlobBackupStorage:
     def __init__(self):
         # Lazy import — only needed when Azure is configured
         try:
-            from azure.storage.blob import BlobServiceClient
+            from azure.storage.blob import BlobServiceClient  # type: ignore[import-unresolved]
         except ImportError:
             raise ValueError(
                 "azure-storage-blob package is not installed. "
