@@ -110,6 +110,32 @@ services:
       - hostel_net
 
   # ──────────────────────────────────────────────────────────────────────────
+  # Celery Beat scheduler (Step 26 — automated backups)
+  # ──────────────────────────────────────────────────────────────────────────
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A config beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    env_file:
+      - .env.docker
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      REDIS_URL: redis://redis:6379/1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - hostel_net
+
+  # ──────────────────────────────────────────────────────────────────────────
   # Nginx reverse proxy (Step 23)
   # ──────────────────────────────────────────────────────────────────────────
   nginx:

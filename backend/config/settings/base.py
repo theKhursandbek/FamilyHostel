@@ -65,6 +65,7 @@ LOCAL_APPS = [
     "apps.cleaning",
     "apps.payments",
     "apps.reports",
+    "apps.backups",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -262,6 +263,44 @@ CELERY_TASK_ACKS_LATE = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 
 # ==============================================================================
+# CELERY BEAT — Scheduled tasks (Step 26)
+# ==============================================================================
+
+from celery.schedules import crontab  # noqa: E402
+
+CELERY_BEAT_SCHEDULE = {
+    "backup-daily": {
+        "task": "backups.daily_backup",
+        "schedule": crontab(hour=2, minute=0),  # every day at 02:00
+    },
+    "backup-weekly": {
+        "task": "backups.weekly_backup",
+        "schedule": crontab(hour=3, minute=0, day_of_week=0),  # Sunday 03:00
+    },
+}
+
+# ==============================================================================
+# BACKUP SYSTEM (Step 26)
+# ==============================================================================
+
+# Backend: "local" (filesystem) or "azure" (Azure Blob Storage)
+BACKUP_STORAGE_BACKEND = env("BACKUP_STORAGE_BACKEND", default="local")  # type: ignore[call-overload]
+
+# Local backup directory (default: backend/backups/)
+BACKUP_LOCAL_DIR = BASE_DIR / "backups"
+
+# Azure Blob backup credentials (re-uses media Azure creds if not overridden)
+BACKUP_AZURE_ACCOUNT_NAME = env("BACKUP_AZURE_ACCOUNT_NAME", default="")  # type: ignore[call-overload]
+BACKUP_AZURE_ACCOUNT_KEY = env("BACKUP_AZURE_ACCOUNT_KEY", default="")  # type: ignore[call-overload]
+BACKUP_AZURE_CONTAINER = env("BACKUP_AZURE_CONTAINER", default="backups")  # type: ignore[call-overload]
+
+# Retention policy — how many backups to keep per type
+BACKUP_RETENTION = {
+    "daily": 7,
+    "weekly": 4,
+}
+
+# ==============================================================================
 # DJANGO CHANNELS — WebSocket real-time layer (Step 21.4)
 # ==============================================================================
 
@@ -303,6 +342,11 @@ LOGGING = {
         "security": {
             "handlers": ["security_console"],
             "level": "WARNING",
+            "propagate": False,
+        },
+        "backups": {
+            "handlers": ["security_console"],
+            "level": "INFO",
             "propagate": False,
         },
     },
