@@ -53,7 +53,7 @@ def get_admin_dashboard(account: Account) -> dict:
         - active_rooms    — room status summary for the admin's branch
         - cash_session    — today's cash session summary
     """
-    admin_profile = account.administrator_profile
+    admin_profile = account.administrator_profile  # type: ignore[attr-defined]
     branch = admin_profile.branch
     today = _today()
 

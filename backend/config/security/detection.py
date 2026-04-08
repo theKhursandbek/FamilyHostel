@@ -103,7 +103,8 @@ def track_suspicious_activity(
 
     if record.count >= threshold:
         record.is_blocked = True
-        record.blocked_until = now + BLOCK_DURATION
+        blocked_until = now + BLOCK_DURATION
+        record.blocked_until = blocked_until
         record.save(update_fields=["is_blocked", "blocked_until", "updated_at"])
 
         logger.warning(
@@ -111,7 +112,7 @@ def track_suspicious_activity(
             ip_address,
             activity_type,
             record.count,
-            record.blocked_until.isoformat(),
+            blocked_until.isoformat(),
             account or "anonymous",
         )
         return True
@@ -203,7 +204,7 @@ def get_block_status(ip_address: str) -> dict:
             "activity_type": r.activity_type,
             "count": r.count,
             "blocked_until": r.blocked_until.isoformat() if r.blocked_until else None,
-            "account_id": r.account_id,
+            "account_id": getattr(r, "account_id", None),
         })
 
     return {

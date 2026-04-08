@@ -18,6 +18,7 @@ import pytest
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.response import Response
 from rest_framework.test import APIClient
 
 from apps.accounts.models import SuspiciousActivity
@@ -126,7 +127,7 @@ class TestTrackSuspiciousActivity:
 
     def test_blocks_at_threshold(self):
         threshold = ACTIVITY_THRESHOLDS["failed_login"]  # 5
-        for i in range(threshold - 1):
+        for _ in range(threshold - 1):
             result = track_suspicious_activity("5.5.5.5", "failed_login")
             assert result is False
 
@@ -151,6 +152,7 @@ class TestTrackSuspiciousActivity:
         # blocked_until should be ~BLOCK_DURATION from now
         expected_min = timezone.now() + BLOCK_DURATION - timedelta(seconds=5)
         expected_max = timezone.now() + BLOCK_DURATION + timedelta(seconds=5)
+        assert record.blocked_until is not None
         assert expected_min <= record.blocked_until <= expected_max
 
     def test_different_types_tracked_separately(self):
@@ -343,7 +345,7 @@ class TestBlockedUserMiddleware:
     def test_unblocked_request_passes_through(self):
         client = APIClient()
         # This will get a 401 (unauthenticated), not 403 (blocked)
-        response = client.get("/api/v1/auth/accounts/")
+        response: Response = client.get("/api/v1/auth/accounts/")  # type: ignore[assignment]
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_blocked_ip_returns_403(self, account):
@@ -354,7 +356,7 @@ class TestBlockedUserMiddleware:
             blocked_until=timezone.now() + timedelta(minutes=10),
         )
         client = APIClient()
-        response = client.get("/api/v1/auth/accounts/")
+        response: Response = client.get("/api/v1/auth/accounts/")  # type: ignore[assignment]
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert response.json()["error"]["code"] == "blocked"
 
@@ -366,7 +368,7 @@ class TestBlockedUserMiddleware:
             blocked_until=timezone.now() + timedelta(minutes=10),
         )
         client = APIClient()
-        response = client.get("/api/v1/branches/branches/")
+        response: Response = client.get("/api/v1/branches/branches/")  # type: ignore[assignment]
         data = response.json()
         assert data["success"] is False
         assert "suspicious activity" in data["error"]["message"]
@@ -380,7 +382,7 @@ class TestBlockedUserMiddleware:
         )
         client = APIClient()
         # Should pass through (get 401 for unauth, not 403 for blocked)
-        response = client.get("/api/v1/auth/accounts/")
+        response: Response = client.get("/api/v1/auth/accounts/")  # type: ignore[assignment]
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_blocked_authenticated_user(self, account):
@@ -393,7 +395,7 @@ class TestBlockedUserMiddleware:
         )
         client = APIClient()
         client.force_authenticate(user=account)
-        response = client.get("/api/v1/branches/branches/")
+        response: Response = client.get("/api/v1/branches/branches/")  # type: ignore[assignment]
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert response.json()["error"]["code"] == "blocked"
 
@@ -405,7 +407,7 @@ class TestBlockedUserMiddleware:
             side_effect=Exception("DB down"),
         ):
             # Middleware should catch the exception and let request through
-            response = client.get("/api/v1/auth/accounts/")
+            response: Response = client.get("/api/v1/auth/accounts/")  # type: ignore[assignment]
             # Will get 401 (normal unauthenticated), not 500
             assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
@@ -446,7 +448,7 @@ class TestLoggingMiddlewareDetectionIntegration:
             "config.security.detection.track_suspicious_activity",
             side_effect=Exception("DB error"),
         ):
-            response = client.get("/api/v1/auth/accounts/")
+            response: Response = client.get("/api/v1/auth/accounts/")  # type: ignore[assignment]
             # Should still return 401, not 500
             assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
@@ -471,7 +473,7 @@ class TestEndToEndBlockFlow:
             client.get("/api/v1/auth/accounts/")
 
         # Next request should be blocked (403 with "blocked" code).
-        response = client.get("/api/v1/auth/accounts/")
+        response: Response = client.get("/api/v1/auth/accounts/")  # type: ignore[assignment]
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert response.json()["error"]["code"] == "blocked"
 
@@ -487,7 +489,7 @@ class TestEndToEndBlockFlow:
         )
         client = APIClient()
         # Request should go through (get 401, not 403)
-        response = client.get("/api/v1/auth/accounts/")
+        response: Response = client.get("/api/v1/auth/accounts/")  # type: ignore[assignment]
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_manual_reset_unblocks(self):
@@ -502,7 +504,7 @@ class TestEndToEndBlockFlow:
         )
         # Confirm blocked
         client = APIClient()
-        response = client.get("/api/v1/auth/accounts/")
+        response: Response = client.get("/api/v1/auth/accounts/")  # type: ignore[assignment]
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
         # Manual reset
@@ -510,7 +512,7 @@ class TestEndToEndBlockFlow:
         assert count == 1
 
         # Now unblocked
-        response = client.get("/api/v1/auth/accounts/")
+        response: Response = client.get("/api/v1/auth/accounts/")  # type: ignore[assignment]
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 

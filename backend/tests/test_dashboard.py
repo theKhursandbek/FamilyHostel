@@ -17,6 +17,7 @@ from decimal import Decimal
 import pytest
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.response import Response
 from rest_framework.test import APIClient
 
 from apps.admin_panel.dashboard_service import (
@@ -311,22 +312,23 @@ class TestAdminDashboardEndpoint:
         admin = _branch_with_data["admin"]
         client = APIClient()
         client.force_authenticate(user=admin.account)
-        response = client.get(ADMIN_URL)
+        response: Response = client.get(ADMIN_URL)  # type: ignore[assignment]
         assert response.status_code == status.HTTP_200_OK
+        assert response.data is not None
         assert response.data["branch"]["id"] == _branch_with_data["branch"].pk
 
     def test_response_wrapped_in_success(self, _branch_with_data):
         admin = _branch_with_data["admin"]
         client = APIClient()
         client.force_authenticate(user=admin.account)
-        response = client.get(ADMIN_URL)
+        response: Response = client.get(ADMIN_URL)  # type: ignore[assignment]
         body = response.json()
         assert body["success"] is True
         assert "data" in body
 
     def test_unauthenticated_returns_401(self):
         client = APIClient()
-        response = client.get(ADMIN_URL)
+        response: Response = client.get(ADMIN_URL)  # type: ignore[assignment]
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_staff_returns_403(self, staff_client):
@@ -360,22 +362,23 @@ class TestDirectorDashboardEndpoint:
         director = _branch_with_data["director"]
         client = APIClient()
         client.force_authenticate(user=director.account)
-        response = client.get(DIRECTOR_URL)
+        response: Response = client.get(DIRECTOR_URL)  # type: ignore[assignment]
         assert response.status_code == status.HTTP_200_OK
+        assert response.data is not None
         assert response.data["branch"]["id"] == _branch_with_data["branch"].pk
 
     def test_response_wrapped_in_success(self, _branch_with_data):
         director = _branch_with_data["director"]
         client = APIClient()
         client.force_authenticate(user=director.account)
-        response = client.get(DIRECTOR_URL)
+        response: Response = client.get(DIRECTOR_URL)  # type: ignore[assignment]
         body = response.json()
         assert body["success"] is True
         assert "data" in body
 
     def test_unauthenticated_returns_401(self):
         client = APIClient()
-        response = client.get(DIRECTOR_URL)
+        response: Response = client.get(DIRECTOR_URL)  # type: ignore[assignment]
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_staff_returns_403(self, staff_client):
@@ -429,7 +432,7 @@ class TestSuperAdminDashboardEndpoint:
 
     def test_unauthenticated_returns_401(self):
         client = APIClient()
-        response = client.get(SUPERADMIN_URL)
+        response: Response = client.get(SUPERADMIN_URL)  # type: ignore[assignment]
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_staff_returns_403(self, staff_client):

@@ -64,14 +64,14 @@ class Payment(models.Model):
     # Stripe integration fields
     payment_intent_id = models.CharField(
         max_length=255,
-        null=True,  # noqa: DJ001 — nullable unique: NULLs bypass unique constraint
+        null=True,  # nullable unique: NULLs bypass unique constraint  # NOSONAR
         blank=True,
         unique=True,
         help_text="Stripe PaymentIntent ID (pi_...)",
     )
     stripe_event_id = models.CharField(
         max_length=255,
-        null=True,  # noqa: DJ001 — optional Stripe field, consistent with payment_intent_id
+        null=True,  # optional Stripe field, consistent with payment_intent_id  # NOSONAR
         blank=True,
         help_text="Stripe event that confirmed this payment",
     )
