@@ -34,16 +34,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     DJANGO_SETTINGS_MODULE=config.settings.production \
     PATH="/opt/venv/bin:$PATH"
 
-# Runtime system libs (no compiler)
+# Runtime system libs (no compiler) + non-root user
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libpq5 \
         libjpeg62-turbo \
         curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create non-root user
-RUN addgroup --system django \
+    && rm -rf /var/lib/apt/lists/* \
+    && addgroup --system django \
     && adduser --system --ingroup django django
 
 WORKDIR /app
@@ -54,16 +52,12 @@ COPY --from=builder /opt/venv /opt/venv
 # Copy project source code
 COPY . .
 
-# Collect static files (SECRET_KEY needed at build time only for collectstatic)
+# Collect static files, set permissions, prepare entrypoint
 RUN SECRET_KEY=build-placeholder \
     DB_NAME=x DB_USER=x DB_PASSWORD=x DB_HOST=x DB_PORT=5432 \
-    python manage.py collectstatic --noinput
-
-# Make entrypoint executable
-RUN chmod +x /app/entrypoint.sh
-
-# Ownership to non-root user
-RUN chown -R django:django /app
+    python manage.py collectstatic --noinput \
+    && chmod +x /app/entrypoint.sh \
+    && chown -R django:django /app
 
 USER django
 
