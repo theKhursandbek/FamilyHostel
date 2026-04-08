@@ -20,7 +20,6 @@ Message format (outbound):
 
 from __future__ import annotations
 
-import json
 import logging
 
 from channels.db import database_sync_to_async
@@ -30,6 +29,9 @@ logger = logging.getLogger(__name__)
 
 # WebSocket close code for unauthorized connections.
 WS_CLOSE_UNAUTHORIZED = 4403
+
+# Default event type when none is specified.
+DASHBOARD_UPDATE_EVENT = "dashboard.update"
 
 
 # ==============================================================================
@@ -95,6 +97,7 @@ class AdminDashboardConsumer(AsyncJsonWebsocketConsumer):
             await self.close(code=WS_CLOSE_UNAUTHORIZED)
             return
 
+        assert user is not None  # guaranteed by _has_role check above
         self.group_name = f"admin_{user.pk}"
         await self.channel_layer.group_add(self.group_name, self.channel_name)
 
@@ -124,7 +127,7 @@ class AdminDashboardConsumer(AsyncJsonWebsocketConsumer):
     async def dashboard_event(self, event):
         """Forward a dashboard event to the WebSocket client."""
         await self.send_json({
-            "type": event.get("event_type", "dashboard.update"),
+            "type": event.get("event_type", DASHBOARD_UPDATE_EVENT),
             "data": event.get("data", {}),
         })
 
@@ -207,7 +210,7 @@ class DirectorDashboardConsumer(AsyncJsonWebsocketConsumer):
     async def dashboard_event(self, event):
         """Forward a dashboard event to the WebSocket client."""
         await self.send_json({
-            "type": event.get("event_type", "dashboard.update"),
+            "type": event.get("event_type", DASHBOARD_UPDATE_EVENT),
             "data": event.get("data", {}),
         })
 
@@ -252,6 +255,6 @@ class SuperAdminConsumer(AsyncJsonWebsocketConsumer):
     async def dashboard_event(self, event):
         """Forward a dashboard event to the WebSocket client."""
         await self.send_json({
-            "type": event.get("event_type", "dashboard.update"),
+            "type": event.get("event_type", DASHBOARD_UPDATE_EVENT),
             "data": event.get("data", {}),
         })

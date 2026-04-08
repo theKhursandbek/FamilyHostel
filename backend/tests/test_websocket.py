@@ -55,9 +55,9 @@ def _make_communicator(consumer_class, path="/ws/test/", user=None, query_string
         path,
         subprotocols=[],
     )
-    communicator.scope["user"] = user
+    communicator.scope["user"] = user  # type: ignore[typeddict-unknown-key]
     if query_string:
-        communicator.scope["query_string"] = query_string.encode()
+        communicator.scope["query_string"] = query_string.encode()  # type: ignore[typeddict-unknown-key]
     return communicator
 
 
@@ -86,7 +86,7 @@ class TestAdminDashboardConsumer:
         communicator = _make_communicator(
             AdminDashboardConsumer, "/ws/admin/", user=AnonymousUser(),
         )
-        connected, code = await communicator.connect()
+        connected, _ = await communicator.connect()
         assert connected is False
 
     async def test_staff_rejected(self):
@@ -94,7 +94,7 @@ class TestAdminDashboardConsumer:
         communicator = _make_communicator(
             AdminDashboardConsumer, "/ws/admin/", user=staff.account,
         )
-        connected, code = await communicator.connect()
+        connected, _ = await communicator.connect()
         assert connected is False
 
     async def test_client_rejected(self):
@@ -102,7 +102,7 @@ class TestAdminDashboardConsumer:
         communicator = _make_communicator(
             AdminDashboardConsumer, "/ws/admin/", user=client.account,
         )
-        connected, code = await communicator.connect()
+        connected, _ = await communicator.connect()
         assert connected is False
 
     async def test_receives_dashboard_event(self):
@@ -158,7 +158,7 @@ class TestDirectorDashboardConsumer:
         communicator = _make_communicator(
             DirectorDashboardConsumer, "/ws/director/", user=AnonymousUser(),
         )
-        connected, code = await communicator.connect()
+        connected, _ = await communicator.connect()
         assert connected is False
 
     async def test_staff_rejected(self):
@@ -166,7 +166,7 @@ class TestDirectorDashboardConsumer:
         communicator = _make_communicator(
             DirectorDashboardConsumer, "/ws/director/", user=staff.account,
         )
-        connected, code = await communicator.connect()
+        connected, _ = await communicator.connect()
         assert connected is False
 
     async def test_superadmin_with_branch_id_can_connect(self):
@@ -188,7 +188,7 @@ class TestDirectorDashboardConsumer:
         communicator = _make_communicator(
             DirectorDashboardConsumer, "/ws/director/", user=superadmin.account,
         )
-        connected, code = await communicator.connect()
+        connected, _ = await communicator.connect()
         assert connected is False
 
     async def test_receives_dashboard_event(self):
@@ -243,7 +243,7 @@ class TestSuperAdminConsumer:
         communicator = _make_communicator(
             SuperAdminConsumer, "/ws/super-admin/", user=AnonymousUser(),
         )
-        connected, code = await communicator.connect()
+        connected, _ = await communicator.connect()
         assert connected is False
 
     async def test_director_rejected(self):
@@ -251,7 +251,7 @@ class TestSuperAdminConsumer:
         communicator = _make_communicator(
             SuperAdminConsumer, "/ws/super-admin/", user=director.account,
         )
-        connected, code = await communicator.connect()
+        connected, _ = await communicator.connect()
         assert connected is False
 
     async def test_admin_rejected(self):
@@ -259,7 +259,7 @@ class TestSuperAdminConsumer:
         communicator = _make_communicator(
             SuperAdminConsumer, "/ws/super-admin/", user=admin.account,
         )
-        connected, code = await communicator.connect()
+        connected, _ = await communicator.connect()
         assert connected is False
 
     async def test_receives_dashboard_event(self):
@@ -389,7 +389,7 @@ class TestSignalWebSocketIntegration:
             mock_layer.group_send = AsyncMock()
             mock_gcl.return_value = mock_layer
 
-            booking = BookingFactory()
+            BookingFactory()  # side-effect: triggers signal
 
             calls = mock_layer.group_send.call_args_list
             # At least 2 calls: branch group + super_admin
