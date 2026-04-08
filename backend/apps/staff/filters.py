@@ -2,7 +2,7 @@
 
 import django_filters
 
-from .models import Attendance, ShiftAssignment
+from .models import Attendance, DayOffRequest, ShiftAssignment
 
 
 class ShiftAssignmentFilter(django_filters.FilterSet):
@@ -43,3 +43,23 @@ class AttendanceFilter(django_filters.FilterSet):
     class Meta:
         model = Attendance
         fields = ["branch", "shift_type", "date", "status", "account"]
+
+
+class DayOffRequestFilter(django_filters.FilterSet):
+    """Filtering for day-off requests (Step 21.5).
+
+    Supports:
+        - status, branch, account (exact)
+        - date ranges on start_date / end_date
+    """
+
+    start_date_from = django_filters.DateFilter(
+        field_name="start_date", lookup_expr="gte",
+    )
+    start_date_to = django_filters.DateFilter(
+        field_name="start_date", lookup_expr="lte",
+    )
+
+    class Meta:
+        model = DayOffRequest
+        fields = ["status", "branch", "account"]
