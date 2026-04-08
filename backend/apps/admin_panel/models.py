@@ -1,16 +1,22 @@
 """
-Admin Panel models — Cash sessions & System settings.
+Admin Panel models — Cash sessions, Room inspections & System settings.
 
 Database schema: README Section 14.7.
 
 Tables defined here:
     - cash_sessions
+    - room_inspections      (Step 21.6)
+    - room_inspection_images (Step 21.6)
     - system_settings
 """
 
 from decimal import Decimal
 
 from django.db import models
+
+# Shared FK reference strings.
+_ADMIN_FK = "accounts.Administrator"
+_BRANCH_FK = "branches.Branch"
 
 
 class CashSession(models.Model):
@@ -28,12 +34,12 @@ class CashSession(models.Model):
         NIGHT = "night", "Night"
 
     admin = models.ForeignKey(
-        "accounts.Administrator",
+        _ADMIN_FK,
         on_delete=models.CASCADE,
         related_name="cash_sessions",
     )
     branch = models.ForeignKey(
-        "branches.Branch",
+        _BRANCH_FK,
         on_delete=models.CASCADE,
         related_name="cash_sessions",
     )
@@ -49,7 +55,7 @@ class CashSession(models.Model):
     )
     note = models.TextField(blank=True, default="")
     handed_over_to = models.ForeignKey(
-        "accounts.Administrator",
+        _ADMIN_FK,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -104,3 +110,94 @@ class SystemSettings(models.Model):
 
     def __str__(self):
         return f"Settings (mode={self.salary_mode}, cycle={self.salary_cycle})"
+
+
+# ==============================================================================
+# ROOM INSPECTION (Step 21.6)
+# ==============================================================================
+
+
+class RoomInspection(models.Model):
+    """
+    Room inspection performed by an administrator (Step 21.6).
+
+    Typically done after guest checkout to verify room condition.
+
+    Fields:
+        - room, inspected_by (Administrator), status, notes,
+          booking (optional link), branch, created_at
+    """
+
+    class InspectionStatus(models.TextChoices):
+        CLEAN = "clean", "Clean"
+        DAMAGED = "damaged", "Damaged"
+        NEEDS_CLEANING = "needs_cleaning", "Needs Cleaning"
+
+    room = models.ForeignKey(
+        "branches.Room",
+        on_delete=models.CASCADE,
+        related_name="inspections",
+    )
+    branch = models.ForeignKey(
+        _BRANCH_FK,
+        on_delete=models.CASCADE,
+        related_name="room_inspections",
+    )
+    inspected_by = models.ForeignKey(
+        _ADMIN_FK,
+        on_delete=models.CASCADE,
+        related_name="room_inspections",
+    )
+    booking = models.ForeignKey(
+        "bookings.Booking",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inspections",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=InspectionStatus.choices,
+    )
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "room_inspections"
+        ordering = ["-created_at"]
+        verbose_name = "Room Inspection"
+        verbose_name_plural = "Room Inspections"
+        indexes = [
+            models.Index(
+                fields=["room", "created_at"],
+                name="idx_inspection_room_date",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"Inspection #{self.pk} — Room {self.room} "
+            f"[{self.status}] by {self.inspected_by}"
+        )
+
+
+class RoomInspectionImage(models.Model):
+    """
+    Photo attached to a room inspection (Step 21.6).
+    """
+
+    inspection = models.ForeignKey(
+        RoomInspection,
+        on_delete=models.CASCADE,
+        related_name="images",
+    )
+    image = models.ImageField(upload_to="inspection_images/%Y/%m/%d/")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "room_inspection_images"
+        verbose_name = "Room Inspection Image"
+        verbose_name_plural = "Room Inspection Images"
+
+    def __str__(self):
+        return f"Image for Inspection #{self.inspection.pk}"
