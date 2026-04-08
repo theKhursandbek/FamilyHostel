@@ -35,6 +35,7 @@ class CleaningTask(models.Model):
         PENDING = "pending", "Pending"
         IN_PROGRESS = "in_progress", "In Progress"
         COMPLETED = "completed", "Completed"
+        RETRY_REQUIRED = "retry_required", "Retry Required"
 
     class Priority(models.TextChoices):
         LOW = "low", "Low"
@@ -68,6 +69,15 @@ class CleaningTask(models.Model):
         blank=True,
         related_name="cleaning_tasks",
     )
+    retry_count = models.PositiveIntegerField(default=0)
+    override_reason = models.TextField(blank=True, default="")
+    overridden_by = models.ForeignKey(
+        "accounts.Account",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="overridden_tasks",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -80,7 +90,7 @@ class CleaningTask(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["room"],
-                condition=~models.Q(status="completed"),
+                condition=~models.Q(status__in=["completed", "retry_required"]),
                 name="unique_active_cleaning_task_per_room",
             ),
         ]
@@ -105,7 +115,7 @@ class CleaningImage(models.Model):
         on_delete=models.CASCADE,
         related_name="images",
     )
-    image_url = models.URLField(max_length=500)
+    image = models.ImageField(upload_to="cleaning_images/%Y/%m/%d/")
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -114,7 +124,7 @@ class CleaningImage(models.Model):
         verbose_name_plural = "Cleaning Images"
 
     def __str__(self):
-        return f"Image for Task #{self.task.pk}"
+        return f"Image for Task #{self.task.pk} ({self.image.name})"
 
 
 class AIResult(models.Model):

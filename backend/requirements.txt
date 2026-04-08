@@ -8,4 +8,5 @@ stripe==11.4.1
 requests==2.32.3
 celery[redis]==5.4.0
 djangorestframework-simplejwt==5.4.0
+Pillow==11.1.0
 gunicorn==23.0.0
