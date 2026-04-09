@@ -4,15 +4,32 @@ import { getAccessToken } from "./auth";
  * WebSocket service for real-time updates.
  *
  * Endpoints:
- *   ws://host/ws/admin/
- *   ws://host/ws/director/
- *   ws://host/ws/super-admin/
+ *   ws(s)://host/ws/admin/
+ *   ws(s)://host/ws/director/
+ *   ws(s)://host/ws/super-admin/
  *
  * Auth: token sent as query param ?token=<access>
  */
 
-const WS_BASE =
-  import.meta.env.VITE_WS_URL || "ws://localhost:8000";
+function getWsBase() {
+  if (import.meta.env.VITE_WS_URL) {
+    return import.meta.env.VITE_WS_URL;
+  }
+  // Derive from API URL: https://host/api/v1 → wss://host
+  const apiUrl = import.meta.env.VITE_API_URL;
+  if (apiUrl) {
+    try {
+      const url = new URL(apiUrl);
+      const protocol = url.protocol === "https:" ? "wss:" : "ws:";
+      return `${protocol}//${url.host}`;
+    } catch {
+      // fall through to default
+    }
+  }
+  return "ws://localhost:8000";
+}
+
+const WS_BASE = getWsBase();
 
 // Active connections keyed by path (e.g. "/ws/admin/")
 const connections = {};
@@ -43,7 +60,6 @@ export function connect(channel) {
 
   const token = getAccessToken();
   if (!token) {
-    console.warn("[WS] No auth token, skipping connection to", path);
     return null;
   }
 
@@ -55,7 +71,6 @@ export function connect(channel) {
     reconnectAttempts[path] = 0;
 
     ws.onopen = () => {
-      console.info("[WS] Connected to", path);
       reconnectAttempts[path] = 0;
     };
 
@@ -85,7 +100,6 @@ export function connect(channel) {
     };
 
     ws.onclose = (event) => {
-      console.info("[WS] Disconnected from", path, "code:", event.code);
       delete connections[path];
 
       // Auto-reconnect unless intentional close (code 1000) or max attempts
@@ -99,8 +113,7 @@ export function connect(channel) {
     };
 
     return ws;
-  } catch (err) {
-    console.error("[WS] Failed to connect to", path, err);
+  } catch {
     return null;
   }
 }
@@ -113,8 +126,6 @@ function scheduleReconnect(channel, path) {
 
   reconnectAttempts[path] = (reconnectAttempts[path] ?? 0) + 1;
   const delay = RECONNECT_DELAY * Math.min(reconnectAttempts[path], 5);
-
-  console.info(`[WS] Reconnecting to ${path} in ${delay}ms (attempt ${reconnectAttempts[path]})`);
 
   reconnectTimers[path] = setTimeout(() => {
     delete reconnectTimers[path];
