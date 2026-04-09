@@ -26,6 +26,10 @@ import TaskAssignmentPage from "./pages/director/TaskAssignmentPage";
 import PenaltyManagementPage from "./pages/director/PenaltyManagementPage";
 import FacilityLogsPage from "./pages/director/FacilityLogsPage";
 import ShiftAssignmentPage from "./pages/director/ShiftAssignmentPage";
+import DirectorDashboard from "./pages/director/DirectorDashboard";
+
+// Super Admin pages
+import SuperAdminDashboard from "./pages/superadmin/SuperAdminDashboard";
 
 function App() {
   return (
@@ -65,6 +69,10 @@ function App() {
         <Route path="director/penalties" element={<PenaltyManagementPage />} />
         <Route path="director/facility-logs" element={<FacilityLogsPage />} />
         <Route path="director/shifts" element={<ShiftAssignmentPage />} />
+        <Route path="director/dashboard" element={<DirectorDashboard />} />
+
+        {/* Super Admin routes */}
+        <Route path="super-admin/dashboard" element={<SuperAdminDashboard />} />
       </Route>
     </Routes>
   );

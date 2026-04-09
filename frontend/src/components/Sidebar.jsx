@@ -21,11 +21,16 @@ const adminItems = [
 ];
 
 const directorItems = [
+  { to: "/director/dashboard", label: "🏢 Director Dashboard" },
   { to: "/director/days-off", label: "📅 Day-Off Approvals" },
   { to: "/director/assignments", label: "👷 Task Assignment" },
   { to: "/director/penalties", label: "⚠️ Penalties" },
   { to: "/director/facility-logs", label: "🏗️ Facility Logs" },
   { to: "/director/shifts", label: "🕐 Shift Assignments" },
+];
+
+const superAdminItems = [
+  { to: "/super-admin/dashboard", label: "🛡️ Super Admin Dashboard" },
 ];
 
 function SectionLabel({ children }) {
@@ -44,6 +49,7 @@ function Sidebar() {
   const isStaff = hasRole("staff");
   const isAdmin = hasRole("administrator");
   const isDirector = hasRole("director");
+  const isSuperAdmin = hasRole("super_admin");
 
   return (
     <aside
@@ -135,6 +141,31 @@ function Sidebar() {
             <>
               <SectionLabel>Director</SectionLabel>
               {directorItems.map(({ to, label }) => (
+                <li key={to} style={{ marginBottom: 2 }}>
+                  <NavLink
+                    to={to}
+                    style={({ isActive }) => ({
+                      display: "block",
+                      padding: "8px 12px",
+                      borderRadius: 4,
+                      color: isActive ? "#1a73e8" : "#333",
+                      background: isActive ? "#e8f0fe" : "transparent",
+                      fontWeight: isActive ? 600 : 400,
+                      textDecoration: "none",
+                      fontSize: 14,
+                    })}
+                  >
+                    {label}
+                  </NavLink>
+                </li>
+              ))}
+            </>
+          )}
+
+          {isSuperAdmin && (
+            <>
+              <SectionLabel>Super Admin</SectionLabel>
+              {superAdminItems.map(({ to, label }) => (
                 <li key={to} style={{ marginBottom: 2 }}>
                   <NavLink
                     to={to}
