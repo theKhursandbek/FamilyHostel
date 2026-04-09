@@ -13,6 +13,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from .authentication import TelegramAuthView
+from .admin_login import AdminLoginView
 from .views import AccountViewSet
 
 app_name = "accounts"
@@ -21,6 +22,8 @@ router = DefaultRouter()
 router.register("accounts", AccountViewSet, basename="account")
 
 urlpatterns = [
+    # Admin panel login (phone + password → JWT tokens)
+    path("login/", AdminLoginView.as_view(), name="admin-login"),
     # Telegram Mini App authentication (README Section 17 — POST /auth/telegram/)
     path("telegram/", TelegramAuthView.as_view(), name="telegram-auth"),
     # JWT token refresh (README Section 25.5)
