@@ -1,6 +1,6 @@
 import { useAuth } from "../context/AuthContext";
 
-function Header() {
+function Header({ onToggleSidebar, isMobile }) {
   const { user, logout } = useAuth();
 
   return (
@@ -12,12 +12,35 @@ function Header() {
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
+        gap: 8,
       }}
     >
-      <span style={{ fontWeight: 500 }}>FamilyHostel Admin</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {/* Sidebar toggle (hamburger) */}
+        <button
+          onClick={onToggleSidebar}
+          style={{
+            padding: "4px 8px",
+            background: "none",
+            border: "1px solid #dadce0",
+            borderRadius: 4,
+            cursor: "pointer",
+            fontSize: 18,
+            lineHeight: 1,
+            display: "flex",
+            alignItems: "center",
+          }}
+          aria-label="Toggle sidebar"
+        >
+          ☰
+        </button>
+        <span className="header-title" style={{ fontWeight: 500 }}>
+          {isMobile ? "FH" : "FamilyHostel Admin"}
+        </span>
+      </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        {user && (
+        {user && !isMobile && (
           <span style={{ color: "#666", fontSize: 14 }}>{user.phone}</span>
         )}
         <button
@@ -29,6 +52,7 @@ function Header() {
             borderRadius: 4,
             cursor: "pointer",
             fontSize: 14,
+            whiteSpace: "nowrap",
           }}
         >
           Logout
