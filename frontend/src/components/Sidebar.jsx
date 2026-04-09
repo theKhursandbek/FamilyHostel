@@ -23,6 +23,7 @@ const directorItems = [
   { to: "/director/assignments", label: "👷 Task Assignment" },
   { to: "/director/penalties", label: "⚠️ Penalties" },
   { to: "/director/facility-logs", label: "🏗️ Facility Logs" },
+  { to: "/director/shifts", label: "🕐 Shift Assignments" },
 ];
 
 function SectionLabel({ children }) {

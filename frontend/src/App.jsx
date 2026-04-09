@@ -22,6 +22,7 @@ import DaysOffApprovalPage from "./pages/director/DaysOffApprovalPage";
 import TaskAssignmentPage from "./pages/director/TaskAssignmentPage";
 import PenaltyManagementPage from "./pages/director/PenaltyManagementPage";
 import FacilityLogsPage from "./pages/director/FacilityLogsPage";
+import ShiftAssignmentPage from "./pages/director/ShiftAssignmentPage";
 
 function App() {
   return (
@@ -59,6 +60,7 @@ function App() {
         <Route path="director/assignments" element={<TaskAssignmentPage />} />
         <Route path="director/penalties" element={<PenaltyManagementPage />} />
         <Route path="director/facility-logs" element={<FacilityLogsPage />} />
+        <Route path="director/shifts" element={<ShiftAssignmentPage />} />
       </Route>
     </Routes>
   );
