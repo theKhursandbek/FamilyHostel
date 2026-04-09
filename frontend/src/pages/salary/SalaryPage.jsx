@@ -4,9 +4,9 @@ import Table from "../../components/Table";
 import Loader from "../../components/Loader";
 import ErrorMessage from "../../components/ErrorMessage";
 
-const STATUS_COLORS = {
-  paid: "#22c55e",
-  pending: "#f59e0b",
+const BADGE_MAP = {
+  paid: "badge-success",
+  pending: "badge-warning",
 };
 
 const columns = [
@@ -41,18 +41,8 @@ const columns = [
     key: "status",
     label: "Status",
     render: (val) => (
-      <span
-        style={{
-          display: "inline-block",
-          padding: "2px 10px",
-          borderRadius: 12,
-          fontSize: 12,
-          fontWeight: 600,
-          color: "#fff",
-          backgroundColor: STATUS_COLORS[val] || "#6b7280",
-        }}
-      >
-        {val ? val.charAt(0).toUpperCase() + val.slice(1) : "—"}
+      <span className={`badge ${BADGE_MAP[val] || "badge-muted"}`} style={{ textTransform: "capitalize" }}>
+        {val || "—"}
       </span>
     ),
   },
@@ -83,7 +73,9 @@ function SalaryPage() {
 
   return (
     <div>
-      <h2 style={{ margin: "0 0 20px" }}>💰 Salary Records</h2>
+      <div className="page-header">
+        <h1>💰 Salary Records</h1>
+      </div>
 
       {error && (
         <div style={{ marginBottom: 16 }}>

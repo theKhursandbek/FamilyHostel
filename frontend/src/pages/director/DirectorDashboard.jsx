@@ -32,16 +32,7 @@ const issueColumns = [
     key: "type",
     label: "Type",
     render: (val) => (
-      <span
-        style={{
-          padding: "2px 8px",
-          borderRadius: 4,
-          fontSize: 11,
-          fontWeight: 600,
-          color: "#fff",
-          backgroundColor: val === "retry" ? "#ef4444" : "#f59e0b",
-        }}
-      >
+      <span className="badge badge-sm" style={{ backgroundColor: val === "retry" ? "#ef4444" : "#f59e0b" }}>
         {val === "retry" ? "Cleaning Retry" : "Penalty"}
       </span>
     ),
@@ -97,17 +88,10 @@ function DirectorDashboard() {
 
   return (
     <div>
-      <h2 style={{ margin: "0 0 24px" }}>🏢 Director Dashboard</h2>
+      <div className="page-header"><h1>🏢 Director Dashboard</h1></div>
 
       {/* Revenue & Booking cards */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 16,
-          marginBottom: 28,
-        }}
-      >
+      <div className="stat-grid">
         <StatCard
           title="Revenue Today"
           value={`${Number(revenueToday).toLocaleString()} UZS`}
@@ -129,8 +113,8 @@ function DirectorDashboard() {
       </div>
 
       {/* Staff Performance */}
-      <div style={{ marginBottom: 28 }}>
-        <h3 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 600 }}>
+      <div className="section">
+        <h3 className="section-title">
           👷 Staff Performance
         </h3>
         <Table
@@ -141,8 +125,8 @@ function DirectorDashboard() {
       </div>
 
       {/* Attendance */}
-      <div style={{ marginBottom: 28 }}>
-        <h3 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 600 }}>
+      <div className="section">
+        <h3 className="section-title">
           📋 Attendance Summary
         </h3>
         <Table
@@ -154,8 +138,8 @@ function DirectorDashboard() {
 
       {/* Pending Issues */}
       {pendingIssues.length > 0 && (
-        <div>
-          <h3 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 600 }}>
+        <div className="section">
+          <h3 className="section-title">
             ⚠️ Pending Issues
           </h3>
           <Table

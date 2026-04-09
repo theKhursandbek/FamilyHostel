@@ -51,31 +51,17 @@ function DashboardPage() {
 
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 24,
-        }}
-      >
-        <h1 style={{ margin: 0 }}>Dashboard</h1>
+      <div className="page-header">
+        <h1>Dashboard</h1>
         {data.branch && (
-          <span style={{ color: "#666", fontSize: 14 }}>
+          <span className="text-secondary" style={{ fontSize: 14 }}>
             {data.branch.name}
           </span>
         )}
       </div>
 
       {/* Stat cards */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 16,
-          marginBottom: 32,
-        }}
-      >
+      <div className="stat-grid">
         <StatCard
           title="Today's Bookings"
           value={data.bookings_today?.total ?? 0}
@@ -103,15 +89,8 @@ function DashboardPage() {
 
       {/* Current shift info */}
       {data.current_shift && (
-        <div
-          style={{
-            padding: 16,
-            background: "#f0f9ff",
-            border: "1px solid #bae6fd",
-            borderRadius: 8,
-          }}
-        >
-          <p style={{ margin: 0, fontWeight: 500, color: "#0369a1" }}>
+        <div className="alert alert-info">
+          <p style={{ margin: 0, fontWeight: 500 }}>
             Current Shift: {data.current_shift.shift_type} —{" "}
             {data.current_shift.role}
           </p>

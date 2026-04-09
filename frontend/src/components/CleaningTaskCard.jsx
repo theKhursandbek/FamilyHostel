@@ -57,18 +57,7 @@ function CleaningTaskCard({
   };
 
   return (
-    <div
-      style={{
-        background: "#fff",
-        border: `1px solid ${task.status === "retry_required" ? "#fecaca" : "#e5e7eb"}`,
-        borderRadius: 8,
-        padding: 16,
-        marginBottom: 12,
-        boxShadow: task.status === "retry_required"
-          ? "0 0 0 2px rgba(239,68,68,0.15)"
-          : "0 1px 3px rgba(0,0,0,0.06)",
-      }}
-    >
+    <div className={`task-card${task.status === "retry_required" ? " retry" : ""}`}>
       {/* Header row */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
         <div>
@@ -76,34 +65,21 @@ function CleaningTaskCard({
             Room {task.room_number}
           </span>
           {task.branch_name && (
-            <span style={{ color: "#6b7280", fontSize: 13, marginLeft: 8 }}>
+            <span className="text-muted" style={{ fontSize: 13, marginLeft: 8 }}>
               ({task.branch_name})
             </span>
           )}
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <span
-            style={{
-              padding: "2px 8px",
-              borderRadius: 4,
-              fontSize: 11,
-              fontWeight: 600,
-              color: "#fff",
-              backgroundColor: PRIORITY_COLORS[task.priority] || "#94a3b8",
-              textTransform: "uppercase",
-            }}
+            className="badge badge-sm"
+            style={{ backgroundColor: PRIORITY_COLORS[task.priority] || "#94a3b8" }}
           >
             {task.priority}
           </span>
           <span
-            style={{
-              padding: "2px 10px",
-              borderRadius: 12,
-              fontSize: 12,
-              fontWeight: 600,
-              color: "#fff",
-              backgroundColor: STATUS_COLORS[task.status] || "#6b7280",
-            }}
+            className="badge"
+            style={{ backgroundColor: STATUS_COLORS[task.status] || "#6b7280" }}
           >
             {STATUS_LABELS[task.status] || task.status}
           </span>
@@ -111,12 +87,12 @@ function CleaningTaskCard({
       </div>
 
       {/* Info */}
-      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 10, display: "flex", flexWrap: "wrap", gap: "4px 16px" }}>
+      <div className="text-muted" style={{ fontSize: 13, marginBottom: 10, display: "flex", flexWrap: "wrap", gap: "4px 16px" }}>
         <span>
           <strong>Staff:</strong> {task.assigned_to_name || "Unassigned"}
         </span>
         {task.retry_count > 0 && (
-          <span style={{ color: "#ef4444" }}>
+          <span className="text-accent">
             <strong>Retries:</strong> {task.retry_count}
           </span>
         )}
@@ -124,17 +100,7 @@ function CleaningTaskCard({
 
       {/* Retry warning */}
       {task.status === "retry_required" && (
-        <div
-          style={{
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            borderRadius: 6,
-            padding: "8px 12px",
-            marginBottom: 10,
-            fontSize: 13,
-            color: "#991b1b",
-          }}
-        >
+        <div className="alert alert-error">
           ⚠️ AI rejected cleaning result. Task needs re-cleaning and new photo submission.
         </div>
       )}
@@ -223,22 +189,15 @@ function CleaningTaskCard({
       {showOverrideInput && (
         <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "flex-end" }}>
           <div style={{ flex: 1 }}>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 2 }}>
+            <label className="label" style={{ fontSize: 12 }}>
               Override reason (min 5 chars)
             </label>
             <input
               type="text"
+              className="input"
               value={overrideReason}
               onChange={(e) => setOverrideReason(e.target.value)}
               placeholder="Reason for overriding AI decision..."
-              style={{
-                width: "100%",
-                padding: 6,
-                border: "1px solid #dadce0",
-                borderRadius: 4,
-                fontSize: 13,
-                boxSizing: "border-box",
-              }}
             />
           </div>
           <Button size="sm" disabled={isActionLoading} onClick={handleOverrideSubmit}>

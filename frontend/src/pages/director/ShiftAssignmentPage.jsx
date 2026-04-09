@@ -89,20 +89,11 @@ function ShiftAssignmentPage() {
 
   return (
     <div>
-      <h2 style={{ margin: "0 0 20px" }}>📅 Shift Assignments</h2>
+      <div className="page-header"><h1>📅 Shift Assignments</h1></div>
 
       {/* Form section */}
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #e5e7eb",
-          borderRadius: 8,
-          padding: 20,
-          marginBottom: 24,
-          maxWidth: 480,
-        }}
-      >
-        <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600 }}>
+      <div className="card" style={{ maxWidth: 480 }}>
+        <h3 className="section-title">
           Assign New Shift
         </h3>
         <ShiftForm
@@ -114,17 +105,7 @@ function ShiftAssignmentPage() {
 
       {/* Success message */}
       {successMsg && (
-        <div
-          style={{
-            background: "#f0fdf4",
-            border: "1px solid #bbf7d0",
-            borderRadius: 6,
-            padding: "8px 12px",
-            marginBottom: 16,
-            fontSize: 13,
-            color: "#166534",
-          }}
-        >
+        <div className="alert alert-success">
           ✅ {successMsg}
         </div>
       )}

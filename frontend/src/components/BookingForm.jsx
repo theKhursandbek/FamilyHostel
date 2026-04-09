@@ -82,26 +82,16 @@ function BookingForm({ onSubmit, loading = false }) {
   return (
     <form onSubmit={handleSubmit}>
       {/* Room select */}
-      <div style={{ marginBottom: 16 }}>
-        <label
-          htmlFor="room"
-          style={{ display: "block", marginBottom: 4, fontSize: 13, fontWeight: 500 }}
-        >
-          Room <span style={{ color: "#dc2626" }}>*</span>
+      <div className="form-group">
+        <label htmlFor="room" className="label">
+          Room <span style={{ color: "var(--danger)" }}>*</span>
         </label>
         <select
           id="room"
           value={form.room}
           onChange={handleRoomChange}
           disabled={roomsLoading}
-          style={{
-            width: "100%",
-            padding: 8,
-            border: `1px solid ${errors.room ? "#dc2626" : "#dadce0"}`,
-            borderRadius: 4,
-            fontSize: 14,
-            boxSizing: "border-box",
-          }}
+          className={`select${errors.room ? " error" : ""}`}
         >
           <option value="">
             {roomsLoading ? "Loading rooms..." : "Select a room"}
@@ -114,7 +104,7 @@ function BookingForm({ onSubmit, loading = false }) {
           ))}
         </select>
         {errors.room && (
-          <p style={{ margin: "4px 0 0", fontSize: 12, color: "#dc2626" }}>{errors.room}</p>
+          <p className="form-error">{errors.room}</p>
         )}
       </div>
 
@@ -164,7 +154,7 @@ function BookingForm({ onSubmit, loading = false }) {
         step="1000"
       />
 
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+      <div className="form-actions">
         <Button type="submit" disabled={loading}>
           {loading ? "Creating..." : "Create Booking"}
         </Button>

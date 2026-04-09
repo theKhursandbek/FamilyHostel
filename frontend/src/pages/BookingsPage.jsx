@@ -15,11 +15,11 @@ const STATUS_LABELS = {
   canceled: "Canceled",
 };
 
-const STATUS_COLORS = {
-  pending: "#f59e0b",
-  paid: "#22c55e",
-  completed: "#6b7280",
-  canceled: "#ef4444",
+const BADGE_MAP = {
+  pending: "badge-warning",
+  paid: "badge-success",
+  completed: "badge-muted",
+  canceled: "badge-danger",
 };
 
 const columns = [
@@ -31,17 +31,7 @@ const columns = [
     key: "status",
     label: "Status",
     render: (val) => (
-      <span
-        style={{
-          display: "inline-block",
-          padding: "2px 10px",
-          borderRadius: 12,
-          fontSize: 12,
-          fontWeight: 600,
-          color: "#fff",
-          backgroundColor: STATUS_COLORS[val] || "#6b7280",
-        }}
-      >
+      <span className={`badge ${BADGE_MAP[val] || "badge-muted"}`}>
         {STATUS_LABELS[val] || val}
       </span>
     ),
@@ -169,15 +159,8 @@ function BookingsPage() {
 
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 20,
-        }}
-      >
-        <h1 style={{ margin: 0 }}>Bookings</h1>
+      <div className="page-header">
+        <h1>Bookings</h1>
         <Button onClick={() => setIsModalOpen(true)}>+ New Booking</Button>
       </div>
 

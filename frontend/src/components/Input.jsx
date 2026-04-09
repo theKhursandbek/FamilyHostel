@@ -8,18 +8,15 @@ function Input({
   required = false,
   disabled = false,
   error,
-  style: customStyle,
+  className = "",
   ...rest
 }) {
   return (
-    <div style={{ marginBottom: 16, ...customStyle }}>
+    <div className="form-group">
       {label && (
-        <label
-          htmlFor={id}
-          style={{ display: "block", marginBottom: 4, fontSize: 13, fontWeight: 500 }}
-        >
+        <label htmlFor={id} className="label">
           {label}
-          {required && <span style={{ color: "#dc2626" }}> *</span>}
+          {required && <span className="text-accent"> *</span>}
         </label>
       )}
       <input
@@ -30,20 +27,10 @@ function Input({
         placeholder={placeholder}
         required={required}
         disabled={disabled}
-        style={{
-          width: "100%",
-          padding: 8,
-          border: `1px solid ${error ? "#dc2626" : "#dadce0"}`,
-          borderRadius: 4,
-          fontSize: 14,
-          outline: "none",
-          boxSizing: "border-box",
-        }}
+        className={`input${error ? " error" : ""} ${className}`.trim()}
         {...rest}
       />
-      {error && (
-        <p style={{ margin: "4px 0 0", fontSize: 12, color: "#dc2626" }}>{error}</p>
-      )}
+      {error && <p className="form-error">{error}</p>}
     </div>
   );
 }

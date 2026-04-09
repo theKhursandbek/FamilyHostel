@@ -5,10 +5,10 @@ import Table from "../../components/Table";
 import Loader from "../../components/Loader";
 import ErrorMessage from "../../components/ErrorMessage";
 
-const STATUS_COLORS = {
-  pending: "#f59e0b",
-  approved: "#22c55e",
-  rejected: "#ef4444",
+const BADGE_MAP = {
+  pending: "badge-warning",
+  approved: "badge-success",
+  rejected: "badge-danger",
 };
 
 function DaysOffApprovalPage() {
@@ -59,17 +59,7 @@ function DaysOffApprovalPage() {
       key: "status",
       label: "Status",
       render: (val) => (
-        <span
-          style={{
-            padding: "2px 10px",
-            borderRadius: 12,
-            fontSize: 12,
-            fontWeight: 600,
-            color: "#fff",
-            backgroundColor: STATUS_COLORS[val] || "#6b7280",
-            textTransform: "capitalize",
-          }}
-        >
+        <span className={`badge ${BADGE_MAP[val] || "badge-muted"}`} style={{ textTransform: "capitalize" }}>
           {val}
         </span>
       ),
@@ -105,7 +95,7 @@ function DaysOffApprovalPage() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: 20 }}>Days Off Approvals</h1>
+      <div className="page-header"><h1>Days Off Approvals</h1></div>
       <Table columns={columns} data={requests} emptyMessage="No day-off requests" />
     </div>
   );

@@ -117,8 +117,8 @@ function PenaltyManagementPage() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h1 style={{ margin: 0 }}>Penalty Management</h1>
+      <div className="page-header">
+        <h1>Penalty Management</h1>
         <Button onClick={() => setModalOpen(true)}>+ Add Penalty</Button>
       </div>
 
@@ -126,12 +126,12 @@ function PenaltyManagementPage() {
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Create Penalty">
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", marginBottom: 4, fontSize: 13, fontWeight: 500 }}>Staff Member *</label>
+          <div className="form-group">
+            <label className="label">Staff Member *</label>
             <select
+              className="select"
               value={form.account}
               onChange={(e) => setForm((p) => ({ ...p, account: e.target.value }))}
-              style={{ width: "100%", padding: 8, border: "1px solid #dadce0", borderRadius: 4, fontSize: 14, boxSizing: "border-box" }}
             >
               <option value="">Select staff</option>
               {accounts.map((a) => (
@@ -140,12 +140,12 @@ function PenaltyManagementPage() {
             </select>
           </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", marginBottom: 4, fontSize: 13, fontWeight: 500 }}>Type *</label>
+          <div className="form-group">
+            <label className="label">Type *</label>
             <select
+              className="select"
               value={form.type}
               onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
-              style={{ width: "100%", padding: 8, border: "1px solid #dadce0", borderRadius: 4, fontSize: 14, boxSizing: "border-box" }}
             >
               <option value="late">Late</option>
               <option value="absence">Absence</option>
@@ -156,7 +156,7 @@ function PenaltyManagementPage() {
           <Input label="Amount" type="number" value={form.penalty_amount} onChange={(e) => setForm((p) => ({ ...p, penalty_amount: e.target.value }))} required min="0" step="1000" />
           <Input label="Reason (optional)" value={form.reason} onChange={(e) => setForm((p) => ({ ...p, reason: e.target.value }))} />
 
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+          <div className="form-actions">
             <Button type="submit" disabled={creating}>{creating ? "Saving..." : "Create Penalty"}</Button>
           </div>
         </form>

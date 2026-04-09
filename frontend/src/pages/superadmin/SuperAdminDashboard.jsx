@@ -74,17 +74,10 @@ function SuperAdminDashboard() {
 
   return (
     <div>
-      <h2 style={{ margin: "0 0 24px" }}>🛡️ Super Admin Dashboard</h2>
+      <div className="page-header"><h1>🛡️ Super Admin Dashboard</h1></div>
 
       {/* Summary cards */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 16,
-          marginBottom: 28,
-        }}
-      >
+      <div className="stat-grid">
         <StatCard
           title="Total Branches"
           value={totalBranches}
@@ -110,8 +103,8 @@ function SuperAdminDashboard() {
       </div>
 
       {/* Branch breakdown */}
-      <div style={{ marginBottom: 28 }}>
-        <h3 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 600 }}>
+      <div className="section">
+        <h3 className="section-title">
           🏢 Branch Overview
         </h3>
         <Table
@@ -123,8 +116,8 @@ function SuperAdminDashboard() {
 
       {/* System Activity */}
       {activityLog.length > 0 && (
-        <div>
-          <h3 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 600 }}>
+        <div className="section">
+          <h3 className="section-title">
             📜 Recent System Activity
           </h3>
           <Table

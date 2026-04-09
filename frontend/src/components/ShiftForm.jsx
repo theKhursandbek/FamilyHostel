@@ -108,28 +108,15 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
   return (
     <form onSubmit={handleSubmit}>
       {errors.general && (
-        <div
-          style={{
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            borderRadius: 6,
-            padding: "8px 12px",
-            marginBottom: 12,
-            fontSize: 13,
-            color: "#991b1b",
-          }}
-        >
+        <div className="alert alert-warning">
           ⚠️ {errors.general}
         </div>
       )}
 
       {/* Role selector */}
-      <div style={{ marginBottom: 16 }}>
-        <label
-          htmlFor="role"
-          style={{ display: "block", marginBottom: 4, fontSize: 13, fontWeight: 500 }}
-        >
-          Role <span style={{ color: "#dc2626" }}>*</span>
+      <div className="form-group">
+        <label htmlFor="role" className="label">
+          Role <span style={{ color: "var(--danger)" }}>*</span>
         </label>
         <select
           id="role"
@@ -138,14 +125,7 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
             setForm((prev) => ({ ...prev, role: e.target.value, account: "" }));
             setErrors((prev) => ({ ...prev, account: "", general: "" }));
           }}
-          style={{
-            width: "100%",
-            padding: 8,
-            border: "1px solid #dadce0",
-            borderRadius: 4,
-            fontSize: 14,
-            boxSizing: "border-box",
-          }}
+          className="select"
         >
           <option value="staff">Staff</option>
           <option value="admin">Admin</option>
@@ -153,26 +133,16 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
       </div>
 
       {/* Account selector */}
-      <div style={{ marginBottom: 16 }}>
-        <label
-          htmlFor="account"
-          style={{ display: "block", marginBottom: 4, fontSize: 13, fontWeight: 500 }}
-        >
-          Account <span style={{ color: "#dc2626" }}>*</span>
+      <div className="form-group">
+        <label htmlFor="account" className="label">
+          Account <span style={{ color: "var(--danger)" }}>*</span>
         </label>
         <select
           id="account"
           value={form.account}
           onChange={handleChange("account")}
           disabled={dataLoading}
-          style={{
-            width: "100%",
-            padding: 8,
-            border: `1px solid ${errors.account ? "#dc2626" : "#dadce0"}`,
-            borderRadius: 4,
-            fontSize: 14,
-            boxSizing: "border-box",
-          }}
+          className={`select${errors.account ? " error" : ""}`}
         >
           <option value="">
             {dataLoading ? "Loading..." : "Select account"}
@@ -184,31 +154,21 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
           ))}
         </select>
         {errors.account && (
-          <p style={{ margin: "4px 0 0", fontSize: 12, color: "#dc2626" }}>{errors.account}</p>
+          <p className="form-error">{errors.account}</p>
         )}
       </div>
 
       {/* Branch selector */}
-      <div style={{ marginBottom: 16 }}>
-        <label
-          htmlFor="branch"
-          style={{ display: "block", marginBottom: 4, fontSize: 13, fontWeight: 500 }}
-        >
-          Branch <span style={{ color: "#dc2626" }}>*</span>
+      <div className="form-group">
+        <label htmlFor="branch" className="label">
+          Branch <span style={{ color: "var(--danger)" }}>*</span>
         </label>
         <select
           id="branch"
           value={form.branch}
           onChange={handleChange("branch")}
           disabled={dataLoading}
-          style={{
-            width: "100%",
-            padding: 8,
-            border: `1px solid ${errors.branch ? "#dc2626" : "#dadce0"}`,
-            borderRadius: 4,
-            fontSize: 14,
-            boxSizing: "border-box",
-          }}
+          className={`select${errors.branch ? " error" : ""}`}
         >
           <option value="">
             {dataLoading ? "Loading..." : "Select branch"}
@@ -220,30 +180,20 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
           ))}
         </select>
         {errors.branch && (
-          <p style={{ margin: "4px 0 0", fontSize: 12, color: "#dc2626" }}>{errors.branch}</p>
+          <p className="form-error">{errors.branch}</p>
         )}
       </div>
 
       {/* Shift type */}
-      <div style={{ marginBottom: 16 }}>
-        <label
-          htmlFor="shift_type"
-          style={{ display: "block", marginBottom: 4, fontSize: 13, fontWeight: 500 }}
-        >
-          Shift Type <span style={{ color: "#dc2626" }}>*</span>
+      <div className="form-group">
+        <label htmlFor="shift_type" className="label">
+          Shift Type <span style={{ color: "var(--danger)" }}>*</span>
         </label>
         <select
           id="shift_type"
           value={form.shift_type}
           onChange={handleChange("shift_type")}
-          style={{
-            width: "100%",
-            padding: 8,
-            border: "1px solid #dadce0",
-            borderRadius: 4,
-            fontSize: 14,
-            boxSizing: "border-box",
-          }}
+          className="select"
         >
           <option value="day">Day</option>
           <option value="night">Night</option>
@@ -261,7 +211,7 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
         error={errors.date}
       />
 
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+      <div className="form-actions">
         <Button type="button" variant="ghost" onClick={handleReset} disabled={loading}>
           Reset
         </Button>

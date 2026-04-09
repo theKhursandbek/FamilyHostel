@@ -8,7 +8,7 @@ import Loader from "../../components/Loader";
 import ErrorMessage from "../../components/ErrorMessage";
 
 const TYPE_LABELS = { gas: "Gas", water: "Water", electricity: "Electricity", repair: "Repair" };
-const STATUS_COLORS = { open: "#f59e0b", resolved: "#22c55e" };
+const BADGE_MAP = { open: "badge-warning", resolved: "badge-success" };
 
 function FacilityLogsPage() {
   const [logs, setLogs] = useState([]);
@@ -88,17 +88,7 @@ function FacilityLogsPage() {
       key: "status",
       label: "Status",
       render: (val) => (
-        <span
-          style={{
-            padding: "2px 10px",
-            borderRadius: 12,
-            fontSize: 12,
-            fontWeight: 600,
-            color: "#fff",
-            backgroundColor: STATUS_COLORS[val] || "#6b7280",
-            textTransform: "capitalize",
-          }}
-        >
+        <span className={`badge ${BADGE_MAP[val] || "badge-muted"}`} style={{ textTransform: "capitalize" }}>
           {val}
         </span>
       ),
@@ -129,8 +119,8 @@ function FacilityLogsPage() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h1 style={{ margin: 0 }}>Facility Logs</h1>
+      <div className="page-header">
+        <h1>Facility Logs</h1>
         <Button onClick={() => setModalOpen(true)}>+ New Log</Button>
       </div>
 
@@ -138,12 +128,12 @@ function FacilityLogsPage() {
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="New Facility Log">
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", marginBottom: 4, fontSize: 13, fontWeight: 500 }}>Type *</label>
+          <div className="form-group">
+            <label className="label">Type *</label>
             <select
+              className="select"
               value={form.type}
               onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
-              style={{ width: "100%", padding: 8, border: "1px solid #dadce0", borderRadius: 4, fontSize: 14, boxSizing: "border-box" }}
             >
               <option value="gas">Gas</option>
               <option value="water">Water</option>
@@ -152,20 +142,20 @@ function FacilityLogsPage() {
             </select>
           </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", marginBottom: 4, fontSize: 13, fontWeight: 500 }}>Description *</label>
+          <div className="form-group">
+            <label className="label">Description *</label>
             <textarea
+              className="textarea"
               value={form.description}
               onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
               placeholder="Describe the issue..."
               rows={3}
-              style={{ width: "100%", padding: 8, border: "1px solid #dadce0", borderRadius: 4, fontSize: 14, boxSizing: "border-box", resize: "vertical" }}
             />
           </div>
 
           <Input label="Cost (optional)" type="number" value={form.cost} onChange={(e) => setForm((p) => ({ ...p, cost: e.target.value }))} min="0" step="1000" />
 
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+          <div className="form-actions">
             <Button type="submit" disabled={creating}>{creating ? "Saving..." : "Create Log"}</Button>
           </div>
         </form>

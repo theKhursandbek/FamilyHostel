@@ -49,7 +49,7 @@ function PenaltiesViewPage() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: 20 }}>My Penalties</h1>
+      <div className="page-header"><h1>My Penalties</h1></div>
       <Table columns={columns} data={penalties} emptyMessage="No penalties" />
     </div>
   );

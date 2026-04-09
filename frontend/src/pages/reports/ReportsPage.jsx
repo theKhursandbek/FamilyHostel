@@ -107,8 +107,8 @@ function ReportsPage() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h2 style={{ margin: 0 }}>📊 Reports</h2>
+      <div className="page-header">
+        <h1>📊 Reports</h1>
         <Button
           variant="secondary"
           disabled={exporting || loading}
@@ -119,64 +119,34 @@ function ReportsPage() {
       </div>
 
       {/* Filters */}
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 12,
-          alignItems: "flex-end",
-          marginBottom: 24,
-          padding: 16,
-          background: "#fff",
-          border: "1px solid #e5e7eb",
-          borderRadius: 8,
-        }}
-      >
+      <div className="card" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", marginBottom: 24 }}>
         <div>
-          <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>
-            From
-          </label>
+          <label className="label" htmlFor="filter-from">From</label>
           <input
+            id="filter-from"
             type="date"
+            className="input"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            style={{
-              padding: 6,
-              border: "1px solid #dadce0",
-              borderRadius: 4,
-              fontSize: 13,
-            }}
           />
         </div>
         <div>
-          <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>
-            To
-          </label>
+          <label className="label" htmlFor="filter-to">To</label>
           <input
+            id="filter-to"
             type="date"
+            className="input"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            style={{
-              padding: 6,
-              border: "1px solid #dadce0",
-              borderRadius: 4,
-              fontSize: 13,
-            }}
           />
         </div>
         <div>
-          <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>
-            Branch
-          </label>
+          <label className="label" htmlFor="filter-branch">Branch</label>
           <select
+            id="filter-branch"
+            className="select"
             value={branch}
             onChange={(e) => setBranch(e.target.value)}
-            style={{
-              padding: 6,
-              border: "1px solid #dadce0",
-              borderRadius: 4,
-              fontSize: 13,
-            }}
           >
             <option value="">All Branches</option>
             {branches.map((b) => (
@@ -206,7 +176,7 @@ function ReportsPage() {
       ) : (
         <>
           {/* Summary cards */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 28 }}>
+          <div className="stat-grid">
             <StatCard
               title="Total Revenue"
               value={`${Number(revenue).toLocaleString()} сум`}
@@ -226,8 +196,8 @@ function ReportsPage() {
           </div>
 
           {/* Staff Performance */}
-          <div style={{ marginBottom: 28 }}>
-            <h3 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 600 }}>
+          <div className="section">
+            <h3 className="section-title">
               👷 Staff Performance
             </h3>
             <Table
@@ -238,8 +208,8 @@ function ReportsPage() {
           </div>
 
           {/* Attendance Summary */}
-          <div>
-            <h3 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 600 }}>
+          <div className="section">
+            <h3 className="section-title">
               📋 Attendance Summary
             </h3>
             <Table

@@ -22,48 +22,20 @@ function SessionCard({ session, onClose, onHandover, actionLoading }) {
   const isLoading = actionLoading === session.id;
 
   return (
-    <div
-      style={{
-        background: "#fff",
-        border: `1px solid ${isOpen ? "#bbf7d0" : "#e5e7eb"}`,
-        borderRadius: 8,
-        padding: 16,
-        marginBottom: 12,
-      }}
-    >
+    <div className={`session-card${isOpen ? " session-open" : ""}`}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <div>
           <strong>Session #{session.id}</strong>
-          <span
-            style={{
-              marginLeft: 8,
-              padding: "2px 10px",
-              borderRadius: 12,
-              fontSize: 12,
-              fontWeight: 600,
-              color: "#fff",
-              backgroundColor: isOpen ? "#22c55e" : "#6b7280",
-            }}
-          >
+          <span className={`badge ${isOpen ? "badge-success" : "badge-muted"}`} style={{ marginLeft: 8 }}>
             {isOpen ? "Open" : "Closed"}
           </span>
         </div>
-        <span
-          style={{
-            padding: "2px 8px",
-            borderRadius: 4,
-            fontSize: 11,
-            fontWeight: 600,
-            color: "#fff",
-            backgroundColor: session.shift_type === "day" ? "#f59e0b" : "#6366f1",
-            textTransform: "uppercase",
-          }}
-        >
+        <span className="badge badge-sm" style={{ backgroundColor: session.shift_type === "day" ? "#f59e0b" : "#6366f1" }}>
           {session.shift_type}
         </span>
       </div>
 
-      <div style={{ fontSize: 13, color: "#6b7280", display: "flex", flexWrap: "wrap", gap: "4px 20px", marginBottom: 8 }}>
+      <div className="text-secondary" style={{ fontSize: 13, display: "flex", flexWrap: "wrap", gap: "4px 20px", marginBottom: 8 }}>
         <span><strong>Admin:</strong> {session.administrator_name || `#${session.administrator}`}</span>
         <span><strong>Opening:</strong> {formatMoney(session.opening_balance)}</span>
         {session.closing_balance != null && <span><strong>Closing:</strong> {formatMoney(session.closing_balance)}</span>}
@@ -76,7 +48,7 @@ function SessionCard({ session, onClose, onHandover, actionLoading }) {
         {session.closed_at && <span><strong>Closed:</strong> {new Date(session.closed_at).toLocaleString()}</span>}
       </div>
 
-      {session.note && <p style={{ fontSize: 13, color: "#374151", margin: "0 0 8px" }}>{session.note}</p>}
+      {session.note && <p className="text-secondary" style={{ fontSize: 13, margin: "0 0 8px" }}>{session.note}</p>}
 
       {isOpen && (
         <div style={{ display: "flex", gap: 8 }}>
@@ -213,13 +185,13 @@ function CashSessionPage() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h1 style={{ margin: 0 }}>Cash Sessions</h1>
+      <div className="page-header">
+        <h1>Cash Sessions</h1>
         <Button onClick={() => setOpenModal(true)}>+ Open Session</Button>
       </div>
 
       {sessions.length === 0 ? (
-        <p style={{ color: "#9ca3af", textAlign: "center", padding: 40 }}>No cash sessions.</p>
+        <p className="empty-state">No cash sessions.</p>
       ) : (
         sessions.map((s) => (
           <SessionCard
@@ -235,12 +207,12 @@ function CashSessionPage() {
       {/* Open Session Modal */}
       <Modal isOpen={openModal} onClose={() => setOpenModal(false)} title="Open Cash Session">
         <form onSubmit={handleOpenSubmit}>
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", marginBottom: 4, fontSize: 13, fontWeight: 500 }}>Shift Type *</label>
+          <div className="form-group">
+            <label className="label">Shift Type *</label>
             <select
+              className="select"
               value={openForm.shift_type}
               onChange={(e) => setOpenForm((p) => ({ ...p, shift_type: e.target.value }))}
-              style={{ width: "100%", padding: 8, border: "1px solid #dadce0", borderRadius: 4, fontSize: 14, boxSizing: "border-box" }}
             >
               <option value="day">Day</option>
               <option value="night">Night</option>
@@ -248,7 +220,7 @@ function CashSessionPage() {
           </div>
           <Input label="Opening Balance" type="number" value={openForm.opening_balance} onChange={(e) => setOpenForm((p) => ({ ...p, opening_balance: e.target.value }))} required min="0" step="1000" />
           <Input label="Note (optional)" value={openForm.note} onChange={(e) => setOpenForm((p) => ({ ...p, note: e.target.value }))} />
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+          <div className="form-actions">
             <Button type="submit" disabled={openSubmitting}>{openSubmitting ? "Opening..." : "Open Session"}</Button>
           </div>
         </form>
@@ -259,7 +231,7 @@ function CashSessionPage() {
         <form onSubmit={handleCloseSubmit}>
           <Input label="Closing Balance" type="number" value={closeForm.closing_balance} onChange={(e) => setCloseForm((p) => ({ ...p, closing_balance: e.target.value }))} required min="0" step="1000" />
           <Input label="Note (optional)" value={closeForm.note} onChange={(e) => setCloseForm((p) => ({ ...p, note: e.target.value }))} />
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+          <div className="form-actions">
             <Button type="submit">Close Session</Button>
           </div>
         </form>
@@ -268,12 +240,12 @@ function CashSessionPage() {
       {/* Handover Modal */}
       <Modal isOpen={handoverModal} onClose={() => setHandoverModal(false)} title="Handover Session">
         <form onSubmit={handleHandoverSubmit}>
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", marginBottom: 4, fontSize: 13, fontWeight: 500 }}>Next Admin *</label>
+          <div className="form-group">
+            <label className="label">Next Admin *</label>
             <select
+              className="select"
               value={handoverForm.handed_over_to}
               onChange={(e) => setHandoverForm((p) => ({ ...p, handed_over_to: e.target.value }))}
-              style={{ width: "100%", padding: 8, border: "1px solid #dadce0", borderRadius: 4, fontSize: 14, boxSizing: "border-box" }}
             >
               <option value="">Select admin</option>
               {admins.map((a) => (
@@ -283,7 +255,7 @@ function CashSessionPage() {
           </div>
           <Input label="Closing Balance" type="number" value={handoverForm.closing_balance} onChange={(e) => setHandoverForm((p) => ({ ...p, closing_balance: e.target.value }))} required min="0" step="1000" />
           <Input label="Note (optional)" value={handoverForm.note} onChange={(e) => setHandoverForm((p) => ({ ...p, note: e.target.value }))} />
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+          <div className="form-actions">
             <Button type="submit">Handover</Button>
           </div>
         </form>

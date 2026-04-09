@@ -40,85 +40,58 @@ function LoginPage() {
   return (
     <div style={{ maxWidth: 400, margin: "80px auto", padding: 24 }}>
       <h1>Login</h1>
-      <p style={{ marginBottom: 24, color: "#666" }}>
+      <p className="text-secondary" style={{ marginBottom: 24 }}>
         Sign in to the admin panel
       </p>
 
       {error && (
-        <div
-          style={{
-            padding: 12,
-            marginBottom: 16,
-            background: "#fef2f2",
-            color: "#dc2626",
-            borderRadius: 4,
-            border: "1px solid #fecaca",
-          }}
-        >
+        <div className="alert alert-error">
           {error}
         </div>
       )}
 
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: 16 }}>
-          <label htmlFor="phone" style={{ display: "block", marginBottom: 4 }}>
-            Phone
-          </label>
-          <input
-            id="phone"
-            type="text"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+998901234567"
-            disabled={loading}
-            style={{
-              width: "100%",
-              padding: 8,
-              border: "1px solid #ccc",
-              borderRadius: 4,
-            }}
-          />
-        </div>
+      <div className="card" style={{ padding: 32 }}>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="phone" className="label">
+              Phone
+            </label>
+            <input
+              id="phone"
+              type="text"
+              className="input"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+998901234567"
+              disabled={loading}
+            />
+          </div>
 
-        <div style={{ marginBottom: 24 }}>
-          <label
-            htmlFor="password"
-            style={{ display: "block", marginBottom: 4 }}
+          <div className="form-group">
+            <label htmlFor="password" className="label">
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              className="input"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter password"
+              disabled={loading}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn btn-primary"
+            style={{ width: "100%" }}
           >
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter password"
-            disabled={loading}
-            style={{
-              width: "100%",
-              padding: 8,
-              border: "1px solid #ccc",
-              borderRadius: 4,
-            }}
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            width: "100%",
-            padding: 10,
-            background: loading ? "#9ca3af" : "#1a73e8",
-            color: "#fff",
-            border: "none",
-            borderRadius: 4,
-            cursor: loading ? "not-allowed" : "pointer",
-          }}
-        >
-          {loading ? "Signing in..." : "Sign In"}
-        </button>
-      </form>
+            {loading ? "Signing in..." : "Sign In"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

@@ -12,35 +12,25 @@ const STATUS_LABELS = {
   canceled: "Canceled",
 };
 
-const STATUS_COLORS = {
-  pending: "#f59e0b",
-  paid: "#22c55e",
-  completed: "#6b7280",
-  canceled: "#ef4444",
+const BADGE_MAP = {
+  pending: "badge-warning",
+  paid: "badge-success",
+  completed: "badge-muted",
+  canceled: "badge-danger",
 };
 
 function InfoRow({ label, value }) {
   return (
-    <div style={{ display: "flex", padding: "10px 0", borderBottom: "1px solid #f0f0f0" }}>
-      <span style={{ width: 180, fontWeight: 500, color: "#6b7280", flexShrink: 0 }}>{label}</span>
-      <span style={{ color: "#1f2937" }}>{value ?? "—"}</span>
+    <div className="info-row">
+      <span className="info-row-label">{label}</span>
+      <span className="info-row-value">{value ?? "—"}</span>
     </div>
   );
 }
 
 function StatusBadge({ status }) {
   return (
-    <span
-      style={{
-        display: "inline-block",
-        padding: "4px 14px",
-        borderRadius: 14,
-        fontSize: 13,
-        fontWeight: 600,
-        color: "#fff",
-        backgroundColor: STATUS_COLORS[status] || "#6b7280",
-      }}
-    >
+    <span className={`badge ${BADGE_MAP[status] || "badge-muted"}`}>
       {STATUS_LABELS[status] || status}
     </span>
   );
@@ -107,25 +97,17 @@ function BookingDetailPage() {
   return (
     <div>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+      <div className="page-header">
         <Button variant="ghost" size="sm" onClick={() => navigate("/bookings")}>
           ← Back
         </Button>
-        <h1 style={{ margin: 0, flex: 1 }}>Booking #{booking.id}</h1>
+        <h1 style={{ flex: 1 }}>Booking #{booking.id}</h1>
         <StatusBadge status={booking.status} />
       </div>
 
       {/* Info card */}
-      <div
-        style={{
-          background: "#fff",
-          borderRadius: 8,
-          border: "1px solid #e5e7eb",
-          padding: "16px 24px",
-          marginBottom: 24,
-        }}
-      >
-        <h3 style={{ margin: "0 0 12px", fontSize: 15, color: "#374151" }}>Booking Details</h3>
+      <div className="card" style={{ marginBottom: 24 }}>
+        <h3 className="section-title">Booking Details</h3>
         <InfoRow label="Room" value={booking.room_number} />
         <InfoRow label="Client" value={booking.client_name} />
         <InfoRow label="Branch" value={booking.branch_name} />
@@ -136,7 +118,7 @@ function BookingDetailPage() {
         <InfoRow
           label="Final Price"
           value={
-            <strong style={{ color: "#059669" }}>{formatPrice(booking.final_price)}</strong>
+            <strong className="text-success">{formatPrice(booking.final_price)}</strong>
           }
         />
         <InfoRow label="Status" value={<StatusBadge status={booking.status} />} />
@@ -146,15 +128,8 @@ function BookingDetailPage() {
 
       {/* Actions */}
       {(booking.status === "pending" || booking.status === "paid") && (
-        <div
-          style={{
-            background: "#fff",
-            borderRadius: 8,
-            border: "1px solid #e5e7eb",
-            padding: "16px 24px",
-          }}
-        >
-          <h3 style={{ margin: "0 0 12px", fontSize: 15, color: "#374151" }}>Actions</h3>
+        <div className="card">
+          <h3 className="section-title">Actions</h3>
           <div style={{ display: "flex", gap: 12 }}>
             {booking.status === "pending" && (
               <Button variant="danger" disabled={actionLoading} onClick={handleCancel}>

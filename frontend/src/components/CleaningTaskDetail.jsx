@@ -9,9 +9,9 @@ const STATUS_LABELS = {
 
 function InfoRow({ label, value }) {
   return (
-    <div style={{ display: "flex", padding: "6px 0", borderBottom: "1px solid #f3f4f6" }}>
-      <span style={{ width: 140, fontWeight: 500, color: "#6b7280", fontSize: 13, flexShrink: 0 }}>{label}</span>
-      <span style={{ color: "#1f2937", fontSize: 13 }}>{value ?? "—"}</span>
+    <div className="info-row">
+      <span className="info-row-label">{label}</span>
+      <span className="info-row-value">{value ?? "—"}</span>
     </div>
   );
 }
@@ -42,11 +42,11 @@ function CleaningTaskDetail({ task, isOpen, onClose }) {
       />
 
       {/* Images */}
-      <h4 style={{ margin: "16px 0 8px", fontSize: 14, color: "#374151" }}>
+      <h4 className="section-title" style={{ margin: "16px 0 8px" }}>
         Photos ({images.length})
       </h4>
       {images.length === 0 ? (
-        <p style={{ fontSize: 13, color: "#9ca3af" }}>No photos uploaded yet.</p>
+        <p className="text-secondary" style={{ fontSize: 13 }}>No photos uploaded yet.</p>
       ) : (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {images.map((img) => (
@@ -65,7 +65,7 @@ function CleaningTaskDetail({ task, isOpen, onClose }) {
                   height: 100,
                   objectFit: "cover",
                   borderRadius: 6,
-                  border: "1px solid #e5e7eb",
+                  border: "1px solid var(--border)",
                 }}
               />
             </a>
@@ -74,37 +74,36 @@ function CleaningTaskDetail({ task, isOpen, onClose }) {
       )}
 
       {/* AI Results */}
-      <h4 style={{ margin: "16px 0 8px", fontSize: 14, color: "#374151" }}>
+      <h4 className="section-title" style={{ margin: "16px 0 8px" }}>
         AI Results ({aiResults.length})
       </h4>
       {aiResults.length === 0 ? (
-        <p style={{ fontSize: 13, color: "#9ca3af" }}>No AI analysis results.</p>
+        <p className="text-secondary" style={{ fontSize: 13 }}>No AI analysis results.</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {aiResults.map((result) => (
             <div
               key={result.id}
+              className="card"
               style={{
-                padding: "8px 12px",
-                borderRadius: 6,
-                fontSize: 13,
-                border: `1px solid ${result.result === "approved" ? "#bbf7d0" : "#fecaca"}`,
-                background: result.result === "approved" ? "#f0fdf4" : "#fef2f2",
+                borderColor: result.result === "approved"
+                  ? "var(--text-success, #22c55e)"
+                  : "var(--danger, #ef4444)",
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                <strong style={{ color: result.result === "approved" ? "#16a34a" : "#dc2626" }}>
+                <strong className={result.result === "approved" ? "text-success" : "text-accent"}>
                   {result.result === "approved" ? "✅ Approved" : "❌ Rejected"}
                 </strong>
-                <span style={{ fontSize: 12, color: "#9ca3af" }}>
+                <span className="text-secondary" style={{ fontSize: 12 }}>
                   {result.analyzed_at ? new Date(result.analyzed_at).toLocaleString() : ""}
                 </span>
               </div>
               {result.notes && (
-                <p style={{ margin: 0, color: "#374151" }}>{result.notes}</p>
+                <p style={{ margin: 0, color: "var(--text)" }}>{result.notes}</p>
               )}
               {result.model_version && (
-                <p style={{ margin: "4px 0 0", color: "#9ca3af", fontSize: 12 }}>
+                <p className="text-secondary" style={{ margin: "4px 0 0", fontSize: 12 }}>
                   Model: {result.model_version}
                 </p>
               )}

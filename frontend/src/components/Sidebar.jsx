@@ -33,29 +33,18 @@ const superAdminItems = [
   { to: "/super-admin/dashboard", label: "🛡️ Super Admin Dashboard" },
 ];
 
-const linkStyle = ({ isActive }) => ({
-  display: "block",
-  padding: "8px 12px",
-  borderRadius: 4,
-  color: isActive ? "#1a73e8" : "#333",
-  background: isActive ? "#e8f0fe" : "transparent",
-  fontWeight: isActive ? 600 : 400,
-  textDecoration: "none",
-  fontSize: 14,
-});
-
 function SectionLabel({ children }) {
-  return (
-    <li style={{ padding: "12px 12px 4px", fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-      {children}
-    </li>
-  );
+  return <li className="sidebar-section">{children}</li>;
 }
 
 function NavItems({ items, onNavigate }) {
   return items.map(({ to, label }) => (
-    <li key={to} style={{ marginBottom: 2 }}>
-      <NavLink to={to} style={linkStyle} onClick={onNavigate}>
+    <li key={to}>
+      <NavLink
+        to={to}
+        className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}
+        onClick={onNavigate}
+      >
         {label}
       </NavLink>
     </li>
@@ -72,34 +61,21 @@ function Sidebar({ isOpen, isMobile, onClose }) {
   const isDirector = hasRole("director");
   const isSuperAdmin = hasRole("super_admin");
 
-  // On mobile, close sidebar after clicking a link
   const handleNavigate = isMobile ? onClose : undefined;
 
   return (
     <aside className={`sidebar${isOpen ? " open" : ""}`}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <h3 style={{ margin: 0, fontSize: 18 }}>FamilyHostel</h3>
+      <div className="sidebar-brand">
+        <h3>FamilyHostel</h3>
         {isMobile && (
-          <button
-            onClick={onClose}
-            style={{
-              padding: "2px 8px",
-              background: "none",
-              border: "1px solid #dadce0",
-              borderRadius: 4,
-              cursor: "pointer",
-              fontSize: 16,
-              lineHeight: 1,
-            }}
-            aria-label="Close sidebar"
-          >
+          <button className="sidebar-close" onClick={onClose} aria-label="Close sidebar">
             ✕
           </button>
         )}
       </div>
 
       <nav style={{ flex: 1, overflowY: "auto" }}>
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        <ul className="sidebar-nav">
           <NavItems items={commonItems} onNavigate={handleNavigate} />
 
           {isStaff && (

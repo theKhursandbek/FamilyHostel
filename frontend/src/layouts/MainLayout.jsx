@@ -8,7 +8,6 @@ function MainLayout() {
   const [isMobile, setIsMobile] = useState(false);
   const location = useLocation();
 
-  // Detect mobile breakpoint
   const checkMobile = useCallback(() => {
     setIsMobile(globalThis.innerWidth <= 768);
   }, []);
@@ -19,19 +18,15 @@ function MainLayout() {
     return () => globalThis.removeEventListener("resize", checkMobile);
   }, [checkMobile]);
 
-  // Close sidebar on route change (mobile)
   useEffect(() => {
-    if (isMobile) {
-      setSidebarOpen(false);
-    }
+    if (isMobile) setSidebarOpen(false);
   }, [location.pathname, isMobile]);
 
   const toggleSidebar = () => setSidebarOpen((prev) => !prev);
   const closeSidebar = () => setSidebarOpen(false);
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", overflow: "hidden" }}>
-      {/* Backdrop for mobile drawer */}
+    <div className="layout">
       {isMobile && (
         <div
           className={`sidebar-backdrop${sidebarOpen ? " active" : ""}`}
@@ -39,19 +34,11 @@ function MainLayout() {
         />
       )}
 
-      <Sidebar
-        isOpen={sidebarOpen}
-        isMobile={isMobile}
-        onClose={closeSidebar}
-      />
+      <Sidebar isOpen={sidebarOpen} isMobile={isMobile} onClose={closeSidebar} />
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-        <Header
-          onToggleSidebar={toggleSidebar}
-          isMobile={isMobile}
-        />
-
-        <main className="layout-main" style={{ flex: 1, padding: 24, overflowX: "hidden" }}>
+      <div className="layout-body">
+        <Header onToggleSidebar={toggleSidebar} isMobile={isMobile} />
+        <main className="layout-main">
           <Outlet />
         </main>
       </div>

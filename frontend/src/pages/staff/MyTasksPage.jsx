@@ -46,9 +46,9 @@ function MyTasksPage() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: 20 }}>My Tasks</h1>
+      <div className="page-header"><h1>My Tasks</h1></div>
       {tasks.length === 0 ? (
-        <p style={{ color: "#9ca3af", textAlign: "center", padding: 40 }}>No tasks assigned to you.</p>
+        <p className="empty-state">No tasks assigned to you.</p>
       ) : (
         tasks.map((task) => (
           <CleaningTaskCard

@@ -6,10 +6,10 @@ import Table from "../../components/Table";
 import Loader from "../../components/Loader";
 import ErrorMessage from "../../components/ErrorMessage";
 
-const STATUS_COLORS = {
-  clean: "#22c55e",
-  damaged: "#ef4444",
-  needs_cleaning: "#f59e0b",
+const BADGE_MAP = {
+  clean: "badge-success",
+  damaged: "badge-danger",
+  needs_cleaning: "badge-warning",
 };
 
 const columns = [
@@ -18,16 +18,7 @@ const columns = [
     key: "status",
     label: "Status",
     render: (val) => (
-      <span
-        style={{
-          padding: "2px 10px",
-          borderRadius: 12,
-          fontSize: 12,
-          fontWeight: 600,
-          color: "#fff",
-          backgroundColor: STATUS_COLORS[val] || "#6b7280",
-        }}
-      >
+      <span className={`badge ${BADGE_MAP[val] || "badge-muted"}`}>
         {val === "needs_cleaning" ? "Needs Cleaning" : val?.charAt(0).toUpperCase() + val?.slice(1)}
       </span>
     ),
@@ -100,8 +91,8 @@ function RoomInspectionPage() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h1 style={{ margin: 0 }}>Room Inspections</h1>
+      <div className="page-header">
+        <h1>Room Inspections</h1>
         <Button onClick={() => setModalOpen(true)}>+ New Inspection</Button>
       </div>
 
@@ -109,14 +100,14 @@ function RoomInspectionPage() {
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="New Room Inspection">
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", marginBottom: 4, fontSize: 13, fontWeight: 500 }}>
+          <div className="form-group">
+            <label className="label">
               Room <span style={{ color: "#dc2626" }}>*</span>
             </label>
             <select
+              className="select"
               value={form.room}
               onChange={(e) => setForm((p) => ({ ...p, room: e.target.value }))}
-              style={{ width: "100%", padding: 8, border: "1px solid #dadce0", borderRadius: 4, fontSize: 14, boxSizing: "border-box" }}
             >
               <option value="">Select room</option>
               {rooms.map((r) => (
@@ -125,14 +116,14 @@ function RoomInspectionPage() {
             </select>
           </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", marginBottom: 4, fontSize: 13, fontWeight: 500 }}>
+          <div className="form-group">
+            <label className="label">
               Status <span style={{ color: "#dc2626" }}>*</span>
             </label>
             <select
+              className="select"
               value={form.status}
               onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
-              style={{ width: "100%", padding: 8, border: "1px solid #dadce0", borderRadius: 4, fontSize: 14, boxSizing: "border-box" }}
             >
               <option value="clean">Clean</option>
               <option value="damaged">Damaged</option>
@@ -140,18 +131,18 @@ function RoomInspectionPage() {
             </select>
           </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", marginBottom: 4, fontSize: 13, fontWeight: 500 }}>Notes</label>
+          <div className="form-group">
+            <label className="label">Notes</label>
             <textarea
+              className="textarea"
               value={form.notes}
               onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
               placeholder="Optional notes..."
               rows={3}
-              style={{ width: "100%", padding: 8, border: "1px solid #dadce0", borderRadius: 4, fontSize: 14, boxSizing: "border-box", resize: "vertical" }}
             />
           </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <div className="form-actions">
             <Button type="submit" disabled={creating}>{creating ? "Saving..." : "Save Inspection"}</Button>
           </div>
         </form>

@@ -109,17 +109,8 @@ function CleaningPage() {
   return (
     <div>
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 20,
-          flexWrap: "wrap",
-          gap: 12,
-        }}
-      >
-        <h1 style={{ margin: 0 }}>Cleaning Tasks</h1>
+      <div className="page-header">
+        <h1>Cleaning Tasks</h1>
 
         {/* Status filter */}
         <div style={{ display: "flex", gap: 4 }}>
@@ -127,16 +118,7 @@ function CleaningPage() {
             <button
               key={f.value}
               onClick={() => setStatusFilter(f.value)}
-              style={{
-                padding: "4px 12px",
-                borderRadius: 14,
-                border: "1px solid #dadce0",
-                background: statusFilter === f.value ? "#1a73e8" : "#fff",
-                color: statusFilter === f.value ? "#fff" : "#5f6368",
-                fontSize: 13,
-                fontWeight: statusFilter === f.value ? 600 : 400,
-                cursor: "pointer",
-              }}
+              className={`filter-chip${statusFilter === f.value ? " active" : ""}`}
             >
               {f.label}
             </button>
@@ -145,13 +127,13 @@ function CleaningPage() {
       </div>
 
       {/* Task count */}
-      <p style={{ margin: "0 0 12px", fontSize: 13, color: "#6b7280" }}>
+      <p className="text-muted" style={{ margin: "0 0 12px", fontSize: 13 }}>
         {tasks.length} task{tasks.length === 1 ? "" : "s"}
       </p>
 
       {/* Task list */}
       {tasks.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 40, color: "#9ca3af" }}>
+        <div className="empty-state">
           No cleaning tasks found.
         </div>
       ) : (

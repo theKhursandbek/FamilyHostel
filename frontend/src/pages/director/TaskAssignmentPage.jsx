@@ -7,11 +7,11 @@ import Modal from "../../components/Modal";
 import Loader from "../../components/Loader";
 import ErrorMessage from "../../components/ErrorMessage";
 
-const STATUS_COLORS = {
-  pending: "#f59e0b",
-  in_progress: "#3b82f6",
-  completed: "#22c55e",
-  retry_required: "#ef4444",
+const BADGE_MAP = {
+  pending: "badge-warning",
+  in_progress: "badge-info",
+  completed: "badge-success",
+  retry_required: "badge-danger",
 };
 const STATUS_LABELS = {
   pending: "Pending",
@@ -81,16 +81,7 @@ function TaskAssignmentPage() {
       key: "status",
       label: "Status",
       render: (val) => (
-        <span
-          style={{
-            padding: "2px 10px",
-            borderRadius: 12,
-            fontSize: 12,
-            fontWeight: 600,
-            color: "#fff",
-            backgroundColor: STATUS_COLORS[val] || "#6b7280",
-          }}
-        >
+        <span className={`badge ${BADGE_MAP[val] || "badge-muted"}`}>
           {STATUS_LABELS[val] || val}
         </span>
       ),
@@ -119,17 +110,17 @@ function TaskAssignmentPage() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: 20 }}>Task Assignment</h1>
+      <div className="page-header"><h1>Task Assignment</h1></div>
       <Table columns={columns} data={tasks} emptyMessage="No cleaning tasks" />
 
       <Modal isOpen={assignModal} onClose={() => setAssignModal(false)} title={`Assign — Room ${assignTarget?.room_number}`}>
         <form onSubmit={handleAssign}>
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", marginBottom: 4, fontSize: 13, fontWeight: 500 }}>Staff Member *</label>
+          <div className="form-group">
+            <label className="label">Staff Member *</label>
             <select
+              className="select"
               value={selectedStaff}
               onChange={(e) => setSelectedStaff(e.target.value)}
-              style={{ width: "100%", padding: 8, border: "1px solid #dadce0", borderRadius: 4, fontSize: 14, boxSizing: "border-box" }}
             >
               <option value="">Select staff</option>
               {staffList.map((s) => (
@@ -137,7 +128,7 @@ function TaskAssignmentPage() {
               ))}
             </select>
           </div>
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <div className="form-actions">
             <Button type="submit">Assign</Button>
           </div>
         </form>

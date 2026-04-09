@@ -7,10 +7,10 @@ import Table from "../../components/Table";
 import Loader from "../../components/Loader";
 import ErrorMessage from "../../components/ErrorMessage";
 
-const STATUS_COLORS = {
-  pending: "#f59e0b",
-  approved: "#22c55e",
-  rejected: "#ef4444",
+const BADGE_MAP = {
+  pending: "badge-warning",
+  approved: "badge-success",
+  rejected: "badge-danger",
 };
 
 const columns = [
@@ -21,17 +21,7 @@ const columns = [
     key: "status",
     label: "Status",
     render: (val) => (
-      <span
-        style={{
-          padding: "2px 10px",
-          borderRadius: 12,
-          fontSize: 12,
-          fontWeight: 600,
-          color: "#fff",
-          backgroundColor: STATUS_COLORS[val] || "#6b7280",
-          textTransform: "capitalize",
-        }}
-      >
+      <span className={`badge ${BADGE_MAP[val] || "badge-muted"}`} style={{ textTransform: "capitalize" }}>
         {val}
       </span>
     ),
@@ -102,8 +92,8 @@ function DaysOffPage() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h1 style={{ margin: 0 }}>Days Off Requests</h1>
+      <div className="page-header">
+        <h1>Days Off Requests</h1>
         <Button onClick={() => setModalOpen(true)}>+ New Request</Button>
       </div>
 
@@ -114,7 +104,7 @@ function DaysOffPage() {
           <Input label="Start Date" type="date" value={form.start_date} onChange={handleChange("start_date")} required error={formErrors.start_date} />
           <Input label="End Date" type="date" value={form.end_date} onChange={handleChange("end_date")} required error={formErrors.end_date} />
           <Input label="Reason (optional)" value={form.reason} onChange={handleChange("reason")} placeholder="Why do you need time off?" />
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+          <div className="form-actions">
             <Button type="submit" disabled={creating}>{creating ? "Submitting..." : "Submit Request"}</Button>
           </div>
         </form>
