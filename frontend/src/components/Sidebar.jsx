@@ -5,6 +5,8 @@ const commonItems = [
   { to: "/dashboard", label: "📊 Dashboard" },
   { to: "/bookings", label: "📋 Bookings" },
   { to: "/cleaning", label: "🧹 Cleaning" },
+  { to: "/reports", label: "📈 Reports" },
+  { to: "/salary", label: "💰 Salary" },
 ];
 
 const staffItems = [

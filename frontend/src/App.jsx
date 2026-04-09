@@ -5,8 +5,11 @@ import DashboardPage from "./pages/DashboardPage";
 import BookingsPage from "./pages/BookingsPage";
 import BookingDetailPage from "./pages/BookingDetailPage";
 import CleaningPage from "./pages/CleaningPage";
-import ReportsPage from "./pages/ReportsPage";
+import ReportsPage from "./pages/reports/ReportsPage";
 import ProtectedRoute from "./components/ProtectedRoute";
+
+// Salary page
+import SalaryPage from "./pages/salary/SalaryPage";
 
 // Staff pages
 import MyTasksPage from "./pages/staff/MyTasksPage";
@@ -45,6 +48,7 @@ function App() {
         <Route path="bookings/:id" element={<BookingDetailPage />} />
         <Route path="cleaning" element={<CleaningPage />} />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="salary" element={<SalaryPage />} />
 
         {/* Staff routes */}
         <Route path="staff/my-tasks" element={<MyTasksPage />} />

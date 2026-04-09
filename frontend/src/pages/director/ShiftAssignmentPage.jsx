@@ -13,13 +13,13 @@ const SHIFT_LABELS = {
 const columns = [
   {
     key: "account_name",
-    title: "User",
-    render: (row) => row.account_name || row.account_full_name || `#${row.account}`,
+    label: "User",
+    render: (val, row) => val || row.account_full_name || `#${row.account}`,
   },
   {
     key: "role",
-    title: "Role",
-    render: (row) => {
+    label: "Role",
+    render: (val, row) => {
       const roles = row.account_roles || [];
       if (roles.includes("administrator")) return "Admin";
       if (roles.includes("staff")) return "Staff";
@@ -28,17 +28,17 @@ const columns = [
   },
   {
     key: "branch_name",
-    title: "Branch",
-    render: (row) => row.branch_name || `Branch #${row.branch}`,
+    label: "Branch",
+    render: (val, row) => val || `Branch #${row.branch}`,
   },
   {
     key: "shift_type",
-    title: "Shift",
-    render: (row) => SHIFT_LABELS[row.shift_type] || row.shift_type,
+    label: "Shift",
+    render: (val) => SHIFT_LABELS[val] || val,
   },
   {
     key: "date",
-    title: "Date",
+    label: "Date",
   },
 ];
 
