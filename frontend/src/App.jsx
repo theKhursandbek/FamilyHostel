@@ -73,6 +73,9 @@ function App() {
 
         {/* Super Admin routes */}
         <Route path="super-admin/dashboard" element={<SuperAdminDashboard />} />
+
+        {/* 404 catch-all */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
     </Routes>
   );

@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { getRooms } from "../services/bookingService";
+import { useToast } from "../context/ToastContext";
 import Input from "./Input";
 import Button from "./Button";
 
 function BookingForm({ onSubmit, loading = false }) {
+  const toast = useToast();
   const [rooms, setRooms] = useState([]);
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [form, setForm] = useState({
@@ -25,12 +27,13 @@ function BookingForm({ onSubmit, loading = false }) {
         setRooms(roomList);
       } catch {
         setRooms([]);
+        toast.error("Failed to load rooms");
       } finally {
         setRoomsLoading(false);
       }
     }
     fetchRooms();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleChange = (field) => (e) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));

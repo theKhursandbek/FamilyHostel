@@ -71,27 +71,20 @@ function SalaryPage() {
     fetchSalaries();
   }, [fetchSalaries]);
 
+  if (loading) return <Loader />;
+  if (error) return <ErrorMessage message={error} onRetry={fetchSalaries} />;
+
   return (
     <div>
       <div className="page-header">
         <h1>💰 Salary Records</h1>
       </div>
 
-      {error && (
-        <div style={{ marginBottom: 16 }}>
-          <ErrorMessage message={error} onRetry={fetchSalaries} />
-        </div>
-      )}
-
-      {loading ? (
-        <Loader />
-      ) : (
-        <Table
-          columns={columns}
-          data={salaries}
-          emptyMessage="No salary records found"
-        />
-      )}
+      <Table
+        columns={columns}
+        data={salaries}
+        emptyMessage="No salary records found"
+      />
     </div>
   );
 }

@@ -92,7 +92,7 @@ function ReportsPage() {
       link.download = `report_${dateFrom || "all"}_${dateTo || "all"}.csv`;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      link.remove();
       globalThis.URL.revokeObjectURL(url);
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to export CSV");

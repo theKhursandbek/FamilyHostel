@@ -52,6 +52,7 @@ function ShiftAssignmentPage() {
 
   const fetchShifts = useCallback(async () => {
     try {
+      setLoading(true);
       setError(null);
       const data = await getShifts({ ordering: "-date" });
       const list = data.results ?? data;

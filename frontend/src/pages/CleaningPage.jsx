@@ -101,6 +101,7 @@ function CleaningPage() {
       setDetailTask(data);
     } catch {
       setDetailTask(null);
+      setDetailOpen(false);
       toast.error("Failed to load task details");
     } finally {
       setDetailLoading(false);

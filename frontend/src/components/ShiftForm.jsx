@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { getAccounts, getBranches } from "../services/shiftService";
+import { useToast } from "../context/ToastContext";
 import Input from "./Input";
 import Button from "./Button";
 
 function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
+  const toast = useToast();
   const [accounts, setAccounts] = useState([]);
   const [branches, setBranches] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -30,12 +32,13 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
       } catch {
         setAccounts([]);
         setBranches([]);
+        toast.error("Failed to load accounts and branches");
       } finally {
         setDataLoading(false);
       }
     }
     fetchData();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Filter accounts by selected role
   const filteredAccounts = accounts.filter((acc) => {
