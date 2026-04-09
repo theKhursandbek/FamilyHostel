@@ -3,6 +3,7 @@ import MainLayout from "./layouts/MainLayout";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import BookingsPage from "./pages/BookingsPage";
+import BookingDetailPage from "./pages/BookingDetailPage";
 import CleaningPage from "./pages/CleaningPage";
 import StaffPage from "./pages/StaffPage";
 import ReportsPage from "./pages/ReportsPage";
@@ -26,6 +27,7 @@ function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="bookings" element={<BookingsPage />} />
+        <Route path="bookings/:id" element={<BookingDetailPage />} />
         <Route path="cleaning" element={<CleaningPage />} />
         <Route path="staff" element={<StaffPage />} />
         <Route path="reports" element={<ReportsPage />} />

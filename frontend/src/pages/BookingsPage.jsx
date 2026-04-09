@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { getBookings, createBooking, cancelBooking } from "../services/bookingService";
+import { useNavigate } from "react-router-dom";
+import { getBookings, createBooking, cancelBooking, completeBooking } from "../services/bookingService";
 import Table from "../components/Table";
 import Modal from "../components/Modal";
 import BookingForm from "../components/BookingForm";
@@ -9,18 +10,16 @@ import ErrorMessage from "../components/ErrorMessage";
 
 const STATUS_LABELS = {
   pending: "Pending",
-  checked_in: "Checked In",
+  paid: "Paid",
   completed: "Completed",
-  cancelled: "Cancelled",
-  no_show: "No Show",
+  canceled: "Canceled",
 };
 
 const STATUS_COLORS = {
   pending: "#f59e0b",
-  checked_in: "#22c55e",
+  paid: "#22c55e",
   completed: "#6b7280",
-  cancelled: "#ef4444",
-  no_show: "#8b5cf6",
+  canceled: "#ef4444",
 };
 
 const columns = [
@@ -55,12 +54,14 @@ const columns = [
 ];
 
 function BookingsPage() {
+  const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [cancellingId, setCancellingId] = useState(null);
+  const [completingId, setCompletingId] = useState(null);
 
   const fetchBookings = useCallback(async () => {
     setLoading(true);
@@ -111,25 +112,55 @@ function BookingsPage() {
     }
   };
 
+  const handleComplete = async (booking) => {
+    if (booking.status !== "paid") return;
+    if (!globalThis.confirm(`Complete booking for room ${booking.room_number}?`)) return;
+    setCompletingId(booking.id);
+    try {
+      await completeBooking(booking.id);
+      fetchBookings();
+    } catch (err) {
+      alert(err.response?.data?.detail || "Failed to complete booking");
+    } finally {
+      setCompletingId(null);
+    }
+  };
+
   const columnsWithActions = [
     ...columns,
     {
       key: "_actions",
       label: "",
-      render: (_, row) =>
-        row.status === "pending" ? (
-          <Button
-            variant="danger"
-            size="sm"
-            disabled={cancellingId === row.id}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleCancel(row);
-            }}
-          >
-            {cancellingId === row.id ? "…" : "Cancel"}
-          </Button>
-        ) : null,
+      render: (_, row) => (
+        <div style={{ display: "flex", gap: 6 }}>
+          {row.status === "pending" && (
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={cancellingId === row.id}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCancel(row);
+              }}
+            >
+              {cancellingId === row.id ? "…" : "Cancel"}
+            </Button>
+          )}
+          {row.status === "paid" && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={completingId === row.id}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleComplete(row);
+              }}
+            >
+              {completingId === row.id ? "…" : "Complete"}
+            </Button>
+          )}
+        </div>
+      ),
     },
   ];
 
@@ -154,6 +185,7 @@ function BookingsPage() {
         columns={columnsWithActions}
         data={bookings}
         emptyMessage="No bookings found"
+        onRowClick={(row) => navigate(`/bookings/${row.id}`)}
       />
 
       <Modal

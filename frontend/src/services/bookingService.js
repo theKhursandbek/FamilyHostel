@@ -37,6 +37,15 @@ export async function cancelBooking(id) {
 }
 
 /**
+ * Complete a paid booking.
+ * POST /api/v1/bookings/bookings/{id}/complete/
+ */
+export async function completeBooking(id) {
+  const response = await api.post(`/bookings/bookings/${id}/complete/`);
+  return response.data;
+}
+
+/**
  * Fetch rooms list (for booking form dropdown).
  * GET /api/v1/branches/rooms/
  */
