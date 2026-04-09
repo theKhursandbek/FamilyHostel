@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { getTasks, assignTask } from "../../services/cleaningService";
 import { getAccounts } from "../../services/directorService";
+import { useToast } from "../../context/ToastContext";
 import Button from "../../components/Button";
 import Table from "../../components/Table";
 import Modal from "../../components/Modal";
@@ -21,6 +22,7 @@ const STATUS_LABELS = {
 };
 
 function TaskAssignmentPage() {
+  const toast = useToast();
   const [tasks, setTasks] = useState([]);
   const [staffList, setStaffList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -62,14 +64,15 @@ function TaskAssignmentPage() {
 
   const handleAssign = async (e) => {
     e.preventDefault();
-    if (!selectedStaff) return alert("Select a staff member");
+    if (!selectedStaff) { toast.warning("Select a staff member"); return; }
     setActionLoading(assignTarget.id);
     try {
       await assignTask(assignTarget.id, Number(selectedStaff));
       setAssignModal(false);
+      toast.success("Task assigned");
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.detail || "Failed to assign");
+      toast.error(err.response?.data?.detail || "Failed to assign");
     } finally {
       setActionLoading(null);
     }
@@ -129,7 +132,7 @@ function TaskAssignmentPage() {
             </select>
           </div>
           <div className="form-actions">
-            <Button type="submit">Assign</Button>
+            <Button type="submit" disabled={!!actionLoading}>{actionLoading ? "Assigning..." : "Assign"}</Button>
           </div>
         </form>
       </Modal>

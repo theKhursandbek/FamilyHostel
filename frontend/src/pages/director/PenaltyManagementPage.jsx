@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getPenalties, createPenalty, deletePenalty, getAccounts } from "../../services/directorService";
+import { useToast } from "../../context/ToastContext";
 import Button from "../../components/Button";
 import Input from "../../components/Input";
 import Modal from "../../components/Modal";
@@ -10,6 +11,7 @@ import ErrorMessage from "../../components/ErrorMessage";
 const TYPE_LABELS = { late: "Late", absence: "Absence" };
 
 function PenaltyManagementPage() {
+  const toast = useToast();
   const [penalties, setPenalties] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,8 +41,8 @@ function PenaltyManagementPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.account) return alert("Select a staff member");
-    if (!form.penalty_amount) return alert("Amount is required");
+    if (!form.account) { toast.warning("Select a staff member"); return; }
+    if (!form.penalty_amount) { toast.warning("Amount is required"); return; }
     setCreating(true);
     try {
       await createPenalty({
@@ -52,10 +54,11 @@ function PenaltyManagementPage() {
       });
       setModalOpen(false);
       setForm({ account: "", type: "late", count: "1", penalty_amount: "", reason: "" });
+      toast.success("Penalty created");
       fetchData();
     } catch (err) {
       const detail = err.response?.data;
-      alert(typeof detail === "string" ? detail : detail?.detail || "Failed to create penalty");
+      toast.error(typeof detail === "string" ? detail : detail?.detail || "Failed to create penalty");
     } finally {
       setCreating(false);
     }
@@ -66,9 +69,10 @@ function PenaltyManagementPage() {
     setDeletingId(id);
     try {
       await deletePenalty(id);
+      toast.success("Penalty deleted");
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.detail || "Failed to delete");
+      toast.error(err.response?.data?.detail || "Failed to delete");
     } finally {
       setDeletingId(null);
     }

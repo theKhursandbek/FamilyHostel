@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getBooking, cancelBooking, completeBooking } from "../services/bookingService";
+import { useToast } from "../context/ToastContext";
 import Button from "../components/Button";
 import Loader from "../components/Loader";
 import ErrorMessage from "../components/ErrorMessage";
@@ -39,6 +40,7 @@ function StatusBadge({ status }) {
 function BookingDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const toast = useToast();
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -66,9 +68,10 @@ function BookingDetailPage() {
     setActionLoading(true);
     try {
       await cancelBooking(id);
+      toast.success("Booking canceled");
       fetchBooking();
     } catch (err) {
-      alert(err.response?.data?.detail || "Failed to cancel booking");
+      toast.error(err.response?.data?.detail || "Failed to cancel booking");
     } finally {
       setActionLoading(false);
     }
@@ -79,9 +82,10 @@ function BookingDetailPage() {
     setActionLoading(true);
     try {
       await completeBooking(id);
+      toast.success("Booking completed");
       fetchBooking();
     } catch (err) {
-      alert(err.response?.data?.detail || "Failed to complete booking");
+      toast.error(err.response?.data?.detail || "Failed to complete booking");
     } finally {
       setActionLoading(false);
     }
@@ -89,7 +93,7 @@ function BookingDetailPage() {
 
   if (loading) return <Loader />;
   if (error) return <ErrorMessage message={error} onRetry={fetchBooking} />;
-  if (!booking) return null;
+  if (!booking) return <div className="empty-state">Booking not found.</div>;
 
   const formatPrice = (val) =>
     val === null || val === undefined ? "—" : `${Number(val).toLocaleString()} сум`;

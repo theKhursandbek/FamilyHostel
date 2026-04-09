@@ -6,6 +6,7 @@ import {
   handoverCashSession,
   getAccounts,
 } from "../../services/adminService";
+import { useToast } from "../../context/ToastContext";
 import Button from "../../components/Button";
 import Input from "../../components/Input";
 import Modal from "../../components/Modal";
@@ -65,6 +66,7 @@ function SessionCard({ session, onClose, onHandover, actionLoading }) {
 }
 
 function CashSessionPage() {
+  const toast = useToast();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -106,7 +108,7 @@ function CashSessionPage() {
   // Open session
   const handleOpenSubmit = async (e) => {
     e.preventDefault();
-    if (!openForm.opening_balance) return alert("Opening balance is required");
+    if (!openForm.opening_balance) { toast.warning("Opening balance is required"); return; }
     setOpenSubmitting(true);
     try {
       await openCashSession({
@@ -116,10 +118,11 @@ function CashSessionPage() {
       });
       setOpenModal(false);
       setOpenForm({ shift_type: "day", opening_balance: "", note: "" });
+      toast.success("Cash session opened");
       fetchSessions();
     } catch (err) {
       const detail = err.response?.data;
-      alert(typeof detail === "string" ? detail : detail?.detail || "Failed to open session");
+      toast.error(typeof detail === "string" ? detail : detail?.detail || "Failed to open session");
     } finally {
       setOpenSubmitting(false);
     }
@@ -134,14 +137,15 @@ function CashSessionPage() {
 
   const handleCloseSubmit = async (e) => {
     e.preventDefault();
-    if (!closeForm.closing_balance) return alert("Closing balance is required");
+    if (!closeForm.closing_balance) { toast.warning("Closing balance is required"); return; }
     setActionLoading(closeTarget.id);
     try {
       await closeCashSession(closeTarget.id, closeForm);
       setCloseModal(false);
+      toast.success("Cash session closed");
       fetchSessions();
     } catch (err) {
-      alert(err.response?.data?.detail || "Failed to close session");
+      toast.error(err.response?.data?.detail || "Failed to close session");
     } finally {
       setActionLoading(null);
     }
@@ -157,13 +161,14 @@ function CashSessionPage() {
       setAdmins((data.results ?? data).filter((a) => a.roles?.includes("administrator")));
     } catch {
       setAdmins([]);
+      toast.error("Failed to load admin list");
     }
   };
 
   const handleHandoverSubmit = async (e) => {
     e.preventDefault();
-    if (!handoverForm.handed_over_to) return alert("Select next admin");
-    if (!handoverForm.closing_balance) return alert("Closing balance is required");
+    if (!handoverForm.handed_over_to) { toast.warning("Select next admin"); return; }
+    if (!handoverForm.closing_balance) { toast.warning("Closing balance is required"); return; }
     setActionLoading(handoverTarget.id);
     try {
       await handoverCashSession(handoverTarget.id, {
@@ -172,9 +177,10 @@ function CashSessionPage() {
         note: handoverForm.note,
       });
       setHandoverModal(false);
+      toast.success("Session handed over");
       fetchSessions();
     } catch (err) {
-      alert(err.response?.data?.detail || "Failed to handover session");
+      toast.error(err.response?.data?.detail || "Failed to handover session");
     } finally {
       setActionLoading(null);
     }
@@ -232,7 +238,7 @@ function CashSessionPage() {
           <Input label="Closing Balance" type="number" value={closeForm.closing_balance} onChange={(e) => setCloseForm((p) => ({ ...p, closing_balance: e.target.value }))} required min="0" step="1000" />
           <Input label="Note (optional)" value={closeForm.note} onChange={(e) => setCloseForm((p) => ({ ...p, note: e.target.value }))} />
           <div className="form-actions">
-            <Button type="submit">Close Session</Button>
+            <Button type="submit" disabled={!!actionLoading}>{actionLoading ? "Closing..." : "Close Session"}</Button>
           </div>
         </form>
       </Modal>
@@ -256,7 +262,7 @@ function CashSessionPage() {
           <Input label="Closing Balance" type="number" value={handoverForm.closing_balance} onChange={(e) => setHandoverForm((p) => ({ ...p, closing_balance: e.target.value }))} required min="0" step="1000" />
           <Input label="Note (optional)" value={handoverForm.note} onChange={(e) => setHandoverForm((p) => ({ ...p, note: e.target.value }))} />
           <div className="form-actions">
-            <Button type="submit">Handover</Button>
+            <Button type="submit" disabled={!!actionLoading}>{actionLoading ? "Handing over..." : "Handover"}</Button>
           </div>
         </form>
       </Modal>

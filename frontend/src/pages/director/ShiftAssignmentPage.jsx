@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getShifts, createShift } from "../../services/shiftService";
+import { useToast } from "../../context/ToastContext";
 import ShiftForm from "../../components/ShiftForm";
 import Table from "../../components/Table";
 import Loader from "../../components/Loader";
@@ -43,11 +44,11 @@ const columns = [
 ];
 
 function ShiftAssignmentPage() {
+  const toast = useToast();
   const [shifts, setShifts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
-  const [successMsg, setSuccessMsg] = useState("");
 
   const fetchShifts = useCallback(async () => {
     try {
@@ -70,18 +71,16 @@ function ShiftAssignmentPage() {
     try {
       setSubmitLoading(true);
       setError(null);
-      setSuccessMsg("");
       await createShift(formData);
-      setSuccessMsg("Shift assigned successfully!");
+      toast.success("Shift assigned successfully!");
       await fetchShifts();
-      setTimeout(() => setSuccessMsg(""), 3000);
     } catch (err) {
       const data = err.response?.data;
       const msg =
         data?.detail ||
         data?.non_field_errors?.[0] ||
         (typeof data === "object" ? Object.values(data).flat().join(". ") : "Failed to assign shift");
-      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmitLoading(false);
     }
@@ -103,17 +102,10 @@ function ShiftAssignmentPage() {
         />
       </div>
 
-      {/* Success message */}
-      {successMsg && (
-        <div className="alert alert-success">
-          ✅ {successMsg}
-        </div>
-      )}
-
       {/* Error message */}
       {error && (
         <div style={{ marginBottom: 16 }}>
-          <ErrorMessage message={error} />
+          <ErrorMessage message={error} onRetry={fetchShifts} />
         </div>
       )}
 

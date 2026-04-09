@@ -46,7 +46,7 @@ function DashboardPage() {
   }
 
   if (!data) {
-    return null;
+    return <div className="empty-state">No dashboard data available.</div>;
   }
 
   return (

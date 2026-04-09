@@ -9,6 +9,7 @@ import {
   overrideTask,
 } from "../services/cleaningService";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { useSocket } from "../hooks/useSocket";
 import CleaningTaskCard from "../components/CleaningTaskCard";
 import CleaningTaskDetail from "../components/CleaningTaskDetail";
@@ -25,6 +26,7 @@ const STATUS_FILTERS = [
 
 function CleaningPage() {
   const { user } = useAuth();
+  const toast = useToast();
   const isDirector = user?.roles?.includes("director") ?? false;
 
   const [tasks, setTasks] = useState([]);
@@ -67,6 +69,7 @@ function CleaningPage() {
     setActionLoading(taskId);
     try {
       await action();
+      toast.success("Task updated");
       fetchTasks();
     } catch (err) {
       const detail = err.response?.data;
@@ -74,7 +77,7 @@ function CleaningPage() {
         typeof detail === "string"
           ? detail
           : detail?.detail || detail?.reason?.[0] || "Action failed";
-      alert(msg);
+      toast.error(msg);
     } finally {
       setActionLoading(null);
     }
@@ -98,6 +101,7 @@ function CleaningPage() {
       setDetailTask(data);
     } catch {
       setDetailTask(null);
+      toast.error("Failed to load task details");
     } finally {
       setDetailLoading(false);
     }

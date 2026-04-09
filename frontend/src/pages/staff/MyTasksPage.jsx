@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
-import { getTasks } from "../../services/cleaningService";
+import { getTasks, assignTask, completeTask, uploadImages, retryTask } from "../../services/cleaningService";
+import { useToast } from "../../context/ToastContext";
 import CleaningTaskCard from "../../components/CleaningTaskCard";
 import Loader from "../../components/Loader";
 import ErrorMessage from "../../components/ErrorMessage";
-import { assignTask, completeTask, uploadImages, retryTask } from "../../services/cleaningService";
 
 function MyTasksPage() {
+  const toast = useToast();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -32,10 +33,11 @@ function MyTasksPage() {
     setActionLoading(taskId);
     try {
       await action();
+      toast.success("Task updated");
       fetchTasks();
     } catch (err) {
       const detail = err.response?.data;
-      alert(typeof detail === "string" ? detail : detail?.detail || "Action failed");
+      toast.error(typeof detail === "string" ? detail : detail?.detail || "Action failed");
     } finally {
       setActionLoading(null);
     }

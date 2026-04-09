@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getRoomInspections, createRoomInspection, getRooms } from "../../services/adminService";
+import { useToast } from "../../context/ToastContext";
 import Button from "../../components/Button";
 import Modal from "../../components/Modal";
 import Table from "../../components/Table";
@@ -33,6 +34,7 @@ const columns = [
 ];
 
 function RoomInspectionPage() {
+  const toast = useToast();
   const [inspections, setInspections] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -65,7 +67,7 @@ function RoomInspectionPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.room) {
-      alert("Please select a room");
+      toast.warning("Please select a room");
       return;
     }
     setCreating(true);
@@ -77,10 +79,11 @@ function RoomInspectionPage() {
       });
       setModalOpen(false);
       setForm({ room: "", status: "clean", notes: "" });
+      toast.success("Inspection saved");
       fetchData();
     } catch (err) {
       const detail = err.response?.data;
-      alert(typeof detail === "string" ? detail : detail?.detail || "Failed to create inspection");
+      toast.error(typeof detail === "string" ? detail : detail?.detail || "Failed to create inspection");
     } finally {
       setCreating(false);
     }

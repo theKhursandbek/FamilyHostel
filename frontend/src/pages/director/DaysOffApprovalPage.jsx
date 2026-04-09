@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getAllDayOffRequests, approveDayOff, rejectDayOff } from "../../services/directorService";
+import { useToast } from "../../context/ToastContext";
 import Button from "../../components/Button";
 import Table from "../../components/Table";
 import Loader from "../../components/Loader";
@@ -12,6 +13,7 @@ const BADGE_MAP = {
 };
 
 function DaysOffApprovalPage() {
+  const toast = useToast();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -42,9 +44,10 @@ function DaysOffApprovalPage() {
       } else {
         await rejectDayOff(id);
       }
+      toast.success(`Request ${action === "approve" ? "approved" : "rejected"}`);
       fetchRequests();
     } catch (err) {
-      alert(err.response?.data?.detail || `Failed to ${action}`);
+      toast.error(err.response?.data?.detail || `Failed to ${action}`);
     } finally {
       setActionLoading(null);
     }

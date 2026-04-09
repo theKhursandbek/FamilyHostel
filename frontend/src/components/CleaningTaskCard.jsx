@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import Button from "./Button";
+import { useToast } from "../context/ToastContext";
 
 const STATUS_LABELS = {
   pending: "Pending",
@@ -33,6 +34,7 @@ function CleaningTaskCard({
   actionLoading,
 }) {
   const fileRef = useRef(null);
+  const toast = useToast();
   const [overrideReason, setOverrideReason] = useState("");
   const [showOverrideInput, setShowOverrideInput] = useState(false);
 
@@ -48,7 +50,7 @@ function CleaningTaskCard({
 
   const handleOverrideSubmit = () => {
     if (overrideReason.trim().length < 5) {
-      alert("Reason must be at least 5 characters");
+      toast.warning("Reason must be at least 5 characters");
       return;
     }
     onOverride(task.id, overrideReason.trim());

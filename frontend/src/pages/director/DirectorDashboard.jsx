@@ -74,7 +74,7 @@ function DirectorDashboard() {
 
   if (loading) return <Loader message="Loading director dashboard..." />;
   if (error) return <ErrorMessage message={error} onRetry={fetchDashboard} />;
-  if (!data) return null;
+  if (!data) return <div className="empty-state">No dashboard data available.</div>;
 
   const revenueToday = data.revenue_today ?? data.revenue?.today ?? 0;
   const revenueMonth = data.revenue_month ?? data.revenue?.month ?? 0;
@@ -137,18 +137,16 @@ function DirectorDashboard() {
       </div>
 
       {/* Pending Issues */}
-      {pendingIssues.length > 0 && (
-        <div className="section">
-          <h3 className="section-title">
-            ⚠️ Pending Issues
-          </h3>
-          <Table
-            columns={issueColumns}
-            data={pendingIssues}
-            emptyMessage="No pending issues"
-          />
-        </div>
-      )}
+      <div className="section">
+        <h3 className="section-title">
+          ⚠️ Pending Issues
+        </h3>
+        <Table
+          columns={issueColumns}
+          data={pendingIssues}
+          emptyMessage="No pending issues — all clear!"
+        />
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getDayOffRequests, createDayOffRequest } from "../../services/staffService";
+import { useToast } from "../../context/ToastContext";
 import Button from "../../components/Button";
 import Input from "../../components/Input";
 import Modal from "../../components/Modal";
@@ -30,6 +31,7 @@ const columns = [
 ];
 
 function DaysOffPage() {
+  const toast = useToast();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -78,10 +80,11 @@ function DaysOffPage() {
       await createDayOffRequest(form);
       setModalOpen(false);
       setForm({ start_date: "", end_date: "", reason: "" });
+      toast.success("Day-off request submitted");
       fetchRequests();
     } catch (err) {
       const detail = err.response?.data;
-      alert(typeof detail === "string" ? detail : detail?.detail || detail?.non_field_errors?.[0] || "Failed to create request");
+      toast.error(typeof detail === "string" ? detail : detail?.detail || detail?.non_field_errors?.[0] || "Failed to create request");
     } finally {
       setCreating(false);
     }

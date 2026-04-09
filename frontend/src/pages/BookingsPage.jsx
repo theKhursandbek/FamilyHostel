@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { getBookings, createBooking, cancelBooking, completeBooking } from "../services/bookingService";
+import { useToast } from "../context/ToastContext";
 import Table from "../components/Table";
 import Modal from "../components/Modal";
 import BookingForm from "../components/BookingForm";
@@ -45,6 +46,7 @@ const columns = [
 
 function BookingsPage() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -75,6 +77,7 @@ function BookingsPage() {
     try {
       await createBooking(formData);
       setIsModalOpen(false);
+      toast.success("Booking created successfully");
       fetchBookings();
     } catch (err) {
       const detail = err.response?.data;
@@ -82,7 +85,7 @@ function BookingsPage() {
         typeof detail === "string"
           ? detail
           : detail?.detail || detail?.non_field_errors?.[0] || "Failed to create booking";
-      alert(msg);
+      toast.error(msg);
     } finally {
       setCreating(false);
     }
@@ -94,9 +97,10 @@ function BookingsPage() {
     setCancellingId(booking.id);
     try {
       await cancelBooking(booking.id);
+      toast.success("Booking canceled");
       fetchBookings();
     } catch (err) {
-      alert(err.response?.data?.detail || "Failed to cancel booking");
+      toast.error(err.response?.data?.detail || "Failed to cancel booking");
     } finally {
       setCancellingId(null);
     }
@@ -108,9 +112,10 @@ function BookingsPage() {
     setCompletingId(booking.id);
     try {
       await completeBooking(booking.id);
+      toast.success("Booking completed");
       fetchBookings();
     } catch (err) {
-      alert(err.response?.data?.detail || "Failed to complete booking");
+      toast.error(err.response?.data?.detail || "Failed to complete booking");
     } finally {
       setCompletingId(null);
     }

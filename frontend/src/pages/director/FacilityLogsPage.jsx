@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getFacilityLogs, createFacilityLog, updateFacilityLog } from "../../services/directorService";
+import { useToast } from "../../context/ToastContext";
 import Button from "../../components/Button";
 import Input from "../../components/Input";
 import Modal from "../../components/Modal";
@@ -11,6 +12,7 @@ const TYPE_LABELS = { gas: "Gas", water: "Water", electricity: "Electricity", re
 const BADGE_MAP = { open: "badge-warning", resolved: "badge-success" };
 
 function FacilityLogsPage() {
+  const toast = useToast();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -38,7 +40,7 @@ function FacilityLogsPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.description.trim()) return alert("Description is required");
+    if (!form.description.trim()) { toast.warning("Description is required"); return; }
     setCreating(true);
     try {
       const payload = { type: form.type, description: form.description };
@@ -46,10 +48,11 @@ function FacilityLogsPage() {
       await createFacilityLog(payload);
       setModalOpen(false);
       setForm({ type: "water", description: "", cost: "" });
+      toast.success("Facility log created");
       fetchLogs();
     } catch (err) {
       const detail = err.response?.data;
-      alert(typeof detail === "string" ? detail : detail?.detail || "Failed to create log");
+      toast.error(typeof detail === "string" ? detail : detail?.detail || "Failed to create log");
     } finally {
       setCreating(false);
     }
@@ -60,9 +63,10 @@ function FacilityLogsPage() {
     setTogglingId(log.id);
     try {
       await updateFacilityLog(log.id, { status: newStatus });
+      toast.success(`Log marked as ${newStatus}`);
       fetchLogs();
     } catch (err) {
-      alert(err.response?.data?.detail || "Failed to update status");
+      toast.error(err.response?.data?.detail || "Failed to update status");
     } finally {
       setTogglingId(null);
     }

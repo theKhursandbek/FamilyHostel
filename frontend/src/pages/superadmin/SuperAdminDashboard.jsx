@@ -62,7 +62,7 @@ function SuperAdminDashboard() {
 
   if (loading) return <Loader message="Loading super admin dashboard..." />;
   if (error) return <ErrorMessage message={error} onRetry={fetchDashboard} />;
-  if (!data) return null;
+  if (!data) return <div className="empty-state">No dashboard data available.</div>;
 
   const totalBranches = data.total_branches ?? data.branches_count ?? 0;
   const totalRevenue = data.total_revenue ?? 0;
@@ -115,18 +115,16 @@ function SuperAdminDashboard() {
       </div>
 
       {/* System Activity */}
-      {activityLog.length > 0 && (
-        <div className="section">
-          <h3 className="section-title">
-            📜 Recent System Activity
-          </h3>
-          <Table
-            columns={activityColumns}
-            data={activityLog}
-            emptyMessage="No recent activity"
-          />
-        </div>
-      )}
+      <div className="section">
+        <h3 className="section-title">
+          📜 Recent System Activity
+        </h3>
+        <Table
+          columns={activityColumns}
+          data={activityLog}
+          emptyMessage="No recent activity"
+        />
+      </div>
     </div>
   );
 }

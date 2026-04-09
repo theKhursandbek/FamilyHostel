@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getReports, exportCSV, getBranches } from "../../services/reportService";
+import { useToast } from "../../context/ToastContext";
 import StatCard from "../../components/StatCard";
 import Table from "../../components/Table";
 import Button from "../../components/Button";
@@ -28,6 +29,7 @@ const attendanceColumns = [
 ];
 
 function ReportsPage() {
+  const toast = useToast();
   const [report, setReport] = useState(null);
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -67,8 +69,9 @@ function ReportsPage() {
       setBranches(list);
     } catch {
       setBranches([]);
+      toast.warning("Could not load branches");
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     fetchBranches();
@@ -92,7 +95,7 @@ function ReportsPage() {
       document.body.removeChild(link);
       globalThis.URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to export CSV");
+      toast.error(err.response?.data?.detail || "Failed to export CSV");
     } finally {
       setExporting(false);
     }
