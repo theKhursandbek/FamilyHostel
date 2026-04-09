@@ -10,7 +10,9 @@ const USER_KEY = "user";
  */
 export async function login(phone, password) {
   const response = await api.post("/auth/login/", { phone, password });
-  const { access, refresh, user } = response.data;
+  // Backend wraps responses: { success: true, data: { access, refresh, user } }
+  const payload = response.data.data || response.data;
+  const { access, refresh, user } = payload;
 
   localStorage.setItem(TOKEN_KEY, access);
   localStorage.setItem(REFRESH_KEY, refresh);
@@ -29,13 +31,15 @@ export async function refreshToken() {
   }
 
   const response = await api.post("/auth/token/refresh/", { refresh });
-  const { access } = response.data;
+  // Backend wraps responses: { success: true, data: { access, ... } }
+  const payload = response.data.data || response.data;
+  const { access } = payload;
 
   localStorage.setItem(TOKEN_KEY, access);
 
   // If the backend rotates refresh tokens, store the new one
-  if (response.data.refresh) {
-    localStorage.setItem(REFRESH_KEY, response.data.refresh);
+  if (payload.refresh) {
+    localStorage.setItem(REFRESH_KEY, payload.refresh);
   }
 
   return access;

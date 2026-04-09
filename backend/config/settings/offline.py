@@ -7,7 +7,7 @@ from .development import *  # noqa: F401,F403  # NOSONAR — standard Django set
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": ":memory:",
+        "NAME": BASE_DIR / "db.sqlite3",  # noqa: F405
     }
 }
 
