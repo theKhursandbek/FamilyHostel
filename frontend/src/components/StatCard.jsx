@@ -1,3 +1,5 @@
+import PropTypes from "prop-types";
+
 function StatCard({ title, value, subtitle }) {
   return (
     <div className="stat-card">
@@ -7,5 +9,11 @@ function StatCard({ title, value, subtitle }) {
     </div>
   );
 }
+
+StatCard.propTypes = {
+  title: PropTypes.string.isRequired,
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+  subtitle: PropTypes.string,
+};
 
 export default StatCard;

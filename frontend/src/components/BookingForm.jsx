@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import PropTypes from "prop-types";
 import { getRooms } from "../services/bookingService";
 import { useToast } from "../context/ToastContext";
 import Input from "./Input";
@@ -165,5 +166,10 @@ function BookingForm({ onSubmit, loading = false }) {
     </form>
   );
 }
+
+BookingForm.propTypes = {
+  onSubmit: PropTypes.func.isRequired,
+  loading: PropTypes.bool,
+};
 
 export default BookingForm;

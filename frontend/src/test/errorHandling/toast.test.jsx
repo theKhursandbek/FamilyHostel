@@ -14,6 +14,12 @@ function ToastTrigger() {
   );
 }
 
+// Component that intentionally uses useToast outside provider
+function BadComponent() {
+  useToast();
+  return null;
+}
+
 describe("ToastContext – error handling", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -116,10 +122,6 @@ describe("ToastContext – error handling", () => {
   });
 
   it("throws when useToast is called outside ToastProvider", () => {
-    function BadComponent() {
-      useToast();
-      return null;
-    }
     expect(() => render(<BadComponent />)).toThrow(
       "useToast must be used within a ToastProvider"
     );

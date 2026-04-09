@@ -51,8 +51,8 @@ describe("Modal", () => {
         <p>Body</p>
       </Modal>
     );
-    // Backdrop is the element with class "modal-backdrop"
-    const backdrop = document.querySelector(".modal-backdrop");
+    // Backdrop is now a button with aria-label
+    const backdrop = screen.getByLabelText("Close modal");
     fireEvent.click(backdrop);
     expect(onClose).toHaveBeenCalledTimes(1);
   });

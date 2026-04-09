@@ -104,10 +104,11 @@ function RoomInspectionPage() {
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="New Room Inspection">
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="label">
+            <label htmlFor="inspection-room" className="label">
               Room <span style={{ color: "#dc2626" }}>*</span>
             </label>
             <select
+              id="inspection-room"
               className="select"
               value={form.room}
               onChange={(e) => setForm((p) => ({ ...p, room: e.target.value }))}
@@ -120,10 +121,11 @@ function RoomInspectionPage() {
           </div>
 
           <div className="form-group">
-            <label className="label">
+            <label htmlFor="inspection-status" className="label">
               Status <span style={{ color: "#dc2626" }}>*</span>
             </label>
             <select
+              id="inspection-status"
               className="select"
               value={form.status}
               onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
@@ -135,8 +137,9 @@ function RoomInspectionPage() {
           </div>
 
           <div className="form-group">
-            <label className="label">Notes</label>
+            <label htmlFor="inspection-notes" className="label">Notes</label>
             <textarea
+              id="inspection-notes"
               className="textarea"
               value={form.notes}
               onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}

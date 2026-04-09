@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import PropTypes from "prop-types";
 import * as authService from "../services/auth";
 
 const AuthContext = createContext(null);
@@ -42,6 +43,10 @@ export function AuthProvider({ children }) {
     </AuthContext.Provider>
   );
 }
+
+AuthProvider.propTypes = {
+  children: PropTypes.node.isRequired,
+};
 
 export function useAuth() {
   const context = useContext(AuthContext);

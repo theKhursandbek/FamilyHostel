@@ -95,7 +95,7 @@ function TaskAssignmentPage() {
       key: "_actions",
       label: "",
       render: (_, row) =>
-        row.status !== "completed" ? (
+        row.status === "completed" ? null : (
           <Button
             variant="secondary"
             size="sm"
@@ -104,7 +104,7 @@ function TaskAssignmentPage() {
           >
             {row.assigned_to_name ? "Reassign" : "Assign"}
           </Button>
-        ) : null,
+        ),
     },
   ];
 
@@ -119,8 +119,9 @@ function TaskAssignmentPage() {
       <Modal isOpen={assignModal} onClose={() => setAssignModal(false)} title={`Assign — Room ${assignTarget?.room_number}`}>
         <form onSubmit={handleAssign}>
           <div className="form-group">
-            <label className="label">Staff Member *</label>
+            <label className="label" htmlFor="assign-staff">Staff Member *</label>
             <select
+              id="assign-staff"
               className="select"
               value={selectedStaff}
               onChange={(e) => setSelectedStaff(e.target.value)}

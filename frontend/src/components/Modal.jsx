@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import PropTypes from "prop-types";
 
 function Modal({ isOpen, onClose, title, children }) {
   useEffect(() => {
@@ -14,7 +15,12 @@ function Modal({ isOpen, onClose, title, children }) {
 
   return (
     <div className="modal-overlay">
-      <div className="modal-backdrop" onClick={onClose} />
+      <button
+        type="button"
+        className="modal-backdrop"
+        aria-label="Close modal"
+        onClick={onClose}
+      />
       <div className="modal-content">
         <div className="modal-header">
           <h2>{title}</h2>
@@ -25,5 +31,12 @@ function Modal({ isOpen, onClose, title, children }) {
     </div>
   );
 }
+
+Modal.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  title: PropTypes.string.isRequired,
+  children: PropTypes.node,
+};
 
 export default Modal;

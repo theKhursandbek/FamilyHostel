@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import PropTypes from "prop-types";
 import { getAccounts, getBranches } from "../services/shiftService";
 import { useToast } from "../context/ToastContext";
 import Input from "./Input";
@@ -225,5 +226,11 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
     </form>
   );
 }
+
+ShiftForm.propTypes = {
+  onSubmit: PropTypes.func.isRequired,
+  loading: PropTypes.bool,
+  existingShifts: PropTypes.array,
+};
 
 export default ShiftForm;

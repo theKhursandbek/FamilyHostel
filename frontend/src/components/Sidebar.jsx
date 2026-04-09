@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import PropTypes from "prop-types";
 import { useAuth } from "../context/AuthContext";
 
 const commonItems = [
@@ -37,6 +38,10 @@ function SectionLabel({ children }) {
   return <li className="sidebar-section">{children}</li>;
 }
 
+SectionLabel.propTypes = {
+  children: PropTypes.node.isRequired,
+};
+
 function NavItems({ items, onNavigate }) {
   return items.map(({ to, label }) => (
     <li key={to}>
@@ -50,6 +55,16 @@ function NavItems({ items, onNavigate }) {
     </li>
   ));
 }
+
+NavItems.propTypes = {
+  items: PropTypes.arrayOf(
+    PropTypes.shape({
+      to: PropTypes.string.isRequired,
+      label: PropTypes.string.isRequired,
+    })
+  ).isRequired,
+  onNavigate: PropTypes.func,
+};
 
 function Sidebar({ isOpen, isMobile, onClose }) {
   const { user } = useAuth();
@@ -110,5 +125,11 @@ function Sidebar({ isOpen, isMobile, onClose }) {
     </aside>
   );
 }
+
+Sidebar.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  isMobile: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+};
 
 export default Sidebar;

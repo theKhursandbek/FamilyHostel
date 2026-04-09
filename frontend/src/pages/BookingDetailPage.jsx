@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import PropTypes from "prop-types";
 import { getBooking, cancelBooking, completeBooking } from "../services/bookingService";
 import { useToast } from "../context/ToastContext";
 import Button from "../components/Button";
@@ -29,6 +30,11 @@ function InfoRow({ label, value }) {
   );
 }
 
+InfoRow.propTypes = {
+  label: PropTypes.string.isRequired,
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.node]),
+};
+
 function StatusBadge({ status }) {
   return (
     <span className={`badge ${BADGE_MAP[status] || "badge-muted"}`}>
@@ -36,6 +42,10 @@ function StatusBadge({ status }) {
     </span>
   );
 }
+
+StatusBadge.propTypes = {
+  status: PropTypes.string.isRequired,
+};
 
 function BookingDetailPage() {
   const { id } = useParams();

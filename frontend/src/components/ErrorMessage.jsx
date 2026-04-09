@@ -1,3 +1,5 @@
+import PropTypes from "prop-types";
+
 function ErrorMessage({ message = "Something went wrong.", onRetry }) {
   return (
     <div className="alert alert-error">
@@ -10,5 +12,10 @@ function ErrorMessage({ message = "Something went wrong.", onRetry }) {
     </div>
   );
 }
+
+ErrorMessage.propTypes = {
+  message: PropTypes.string,
+  onRetry: PropTypes.func,
+};
 
 export default ErrorMessage;

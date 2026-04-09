@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import PropTypes from "prop-types";
 import {
   getCashSessions,
   openCashSession,
@@ -64,6 +65,24 @@ function SessionCard({ session, onClose, onHandover, actionLoading }) {
     </div>
   );
 }
+
+SessionCard.propTypes = {
+  session: PropTypes.shape({
+    id: PropTypes.number.isRequired,
+    shift_type: PropTypes.string,
+    administrator: PropTypes.number,
+    administrator_name: PropTypes.string,
+    opening_balance: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    closing_balance: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    difference: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    opened_at: PropTypes.string,
+    closed_at: PropTypes.string,
+    note: PropTypes.string,
+  }).isRequired,
+  onClose: PropTypes.func.isRequired,
+  onHandover: PropTypes.func.isRequired,
+  actionLoading: PropTypes.number,
+};
 
 function CashSessionPage() {
   const toast = useToast();
@@ -214,8 +233,9 @@ function CashSessionPage() {
       <Modal isOpen={openModal} onClose={() => setOpenModal(false)} title="Open Cash Session">
         <form onSubmit={handleOpenSubmit}>
           <div className="form-group">
-            <label className="label">Shift Type *</label>
+            <label className="label" htmlFor="session-shift-type">Shift Type *</label>
             <select
+              id="session-shift-type"
               className="select"
               value={openForm.shift_type}
               onChange={(e) => setOpenForm((p) => ({ ...p, shift_type: e.target.value }))}
@@ -247,8 +267,9 @@ function CashSessionPage() {
       <Modal isOpen={handoverModal} onClose={() => setHandoverModal(false)} title="Handover Session">
         <form onSubmit={handleHandoverSubmit}>
           <div className="form-group">
-            <label className="label">Next Admin *</label>
+            <label className="label" htmlFor="handover-next-admin">Next Admin *</label>
             <select
+              id="handover-next-admin"
               className="select"
               value={handoverForm.handed_over_to}
               onChange={(e) => setHandoverForm((p) => ({ ...p, handed_over_to: e.target.value }))}

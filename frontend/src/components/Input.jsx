@@ -1,3 +1,5 @@
+import PropTypes from "prop-types";
+
 function Input({
   label,
   id,
@@ -34,5 +36,18 @@ function Input({
     </div>
   );
 }
+
+Input.propTypes = {
+  label: PropTypes.string,
+  id: PropTypes.string,
+  type: PropTypes.string,
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  onChange: PropTypes.func,
+  placeholder: PropTypes.string,
+  required: PropTypes.bool,
+  disabled: PropTypes.bool,
+  error: PropTypes.string,
+  className: PropTypes.string,
+};
 
 export default Input;

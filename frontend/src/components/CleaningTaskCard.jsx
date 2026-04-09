@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import PropTypes from "prop-types";
 import Button from "./Button";
 import { useToast } from "../context/ToastContext";
 
@@ -191,10 +192,11 @@ function CleaningTaskCard({
       {showOverrideInput && (
         <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "flex-end" }}>
           <div style={{ flex: 1 }}>
-            <label className="label" style={{ fontSize: 12 }}>
+            <label htmlFor={`override-reason-${task.id}`} className="label" style={{ fontSize: 12 }}>
               Override reason (min 5 chars)
             </label>
             <input
+              id={`override-reason-${task.id}`}
               type="text"
               className="input"
               value={overrideReason}
@@ -220,5 +222,25 @@ function CleaningTaskCard({
     </div>
   );
 }
+
+CleaningTaskCard.propTypes = {
+  task: PropTypes.shape({
+    id: PropTypes.number.isRequired,
+    status: PropTypes.string.isRequired,
+    room_number: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    branch_name: PropTypes.string,
+    priority: PropTypes.string,
+    assigned_to_name: PropTypes.string,
+    retry_count: PropTypes.number,
+  }).isRequired,
+  isDirector: PropTypes.bool,
+  onAssign: PropTypes.func.isRequired,
+  onComplete: PropTypes.func.isRequired,
+  onUpload: PropTypes.func.isRequired,
+  onRetry: PropTypes.func.isRequired,
+  onOverride: PropTypes.func.isRequired,
+  onViewDetail: PropTypes.func.isRequired,
+  actionLoading: PropTypes.number,
+};
 
 export default CleaningTaskCard;

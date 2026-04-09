@@ -1,3 +1,4 @@
+import PropTypes from "prop-types";
 import Modal from "./Modal";
 
 const STATUS_LABELS = {
@@ -15,6 +16,11 @@ function InfoRow({ label, value }) {
     </div>
   );
 }
+
+InfoRow.propTypes = {
+  label: PropTypes.string.isRequired,
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+};
 
 function CleaningTaskDetail({ task, isOpen, onClose }) {
   if (!task) return null;
@@ -59,7 +65,7 @@ function CleaningTaskDetail({ task, isOpen, onClose }) {
             >
               <img
                 src={img.image_url}
-                alt={`Cleaning photo ${img.id}`}
+                alt={`Cleaning result ${img.id}`}
                 style={{
                   width: 100,
                   height: 100,
@@ -114,5 +120,11 @@ function CleaningTaskDetail({ task, isOpen, onClose }) {
     </Modal>
   );
 }
+
+CleaningTaskDetail.propTypes = {
+  task: PropTypes.object,
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+};
 
 export default CleaningTaskDetail;

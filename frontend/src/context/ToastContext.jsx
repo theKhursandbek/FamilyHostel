@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useMemo } from "react";
+import PropTypes from "prop-types";
 
 const ToastContext = createContext(null);
 
@@ -7,20 +8,18 @@ let toastId = 0;
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
+  const removeToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
   const addToast = useCallback((message, type = "success", duration = 4000) => {
     const id = ++toastId;
     setToasts((prev) => [...prev, { id, message, type }]);
     if (duration > 0) {
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, duration);
+      setTimeout(() => removeToast(id), duration);
     }
     return id;
-  }, []);
-
-  const removeToast = useCallback((id) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+  }, [removeToast]);
 
   const success = useCallback((msg) => addToast(msg, "success"), [addToast]);
   const error = useCallback((msg) => addToast(msg, "error", 6000), [addToast]);
@@ -74,5 +73,20 @@ function ToastContainer({ toasts, onRemove }) {
     </div>
   );
 }
+
+ToastProvider.propTypes = {
+  children: PropTypes.node.isRequired,
+};
+
+ToastContainer.propTypes = {
+  toasts: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.number.isRequired,
+      message: PropTypes.string.isRequired,
+      type: PropTypes.string.isRequired,
+    })
+  ).isRequired,
+  onRemove: PropTypes.func.isRequired,
+};
 
 export default ToastContext;

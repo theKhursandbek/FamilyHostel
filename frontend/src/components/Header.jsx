@@ -1,3 +1,4 @@
+import PropTypes from "prop-types";
 import { useAuth } from "../context/AuthContext";
 
 function Header({ onToggleSidebar, isMobile }) {
@@ -25,5 +26,10 @@ function Header({ onToggleSidebar, isMobile }) {
     </header>
   );
 }
+
+Header.propTypes = {
+  onToggleSidebar: PropTypes.func.isRequired,
+  isMobile: PropTypes.bool.isRequired,
+};
 
 export default Header;

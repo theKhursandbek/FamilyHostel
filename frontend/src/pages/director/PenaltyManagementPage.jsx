@@ -131,8 +131,9 @@ function PenaltyManagementPage() {
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Create Penalty">
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="label">Staff Member *</label>
+            <label className="label" htmlFor="penalty-staff">Staff Member *</label>
             <select
+              id="penalty-staff"
               className="select"
               value={form.account}
               onChange={(e) => setForm((p) => ({ ...p, account: e.target.value }))}
@@ -145,8 +146,9 @@ function PenaltyManagementPage() {
           </div>
 
           <div className="form-group">
-            <label className="label">Type *</label>
+            <label className="label" htmlFor="penalty-type">Type *</label>
             <select
+              id="penalty-type"
               className="select"
               value={form.type}
               onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}

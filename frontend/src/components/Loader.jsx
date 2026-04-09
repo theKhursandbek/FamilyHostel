@@ -1,3 +1,5 @@
+import PropTypes from "prop-types";
+
 function Loader({ message = "Loading..." }) {
   return (
     <div className="loader">
@@ -6,5 +8,9 @@ function Loader({ message = "Loading..." }) {
     </div>
   );
 }
+
+Loader.propTypes = {
+  message: PropTypes.string,
+};
 
 export default Loader;

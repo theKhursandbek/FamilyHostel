@@ -27,14 +27,14 @@ function LoginPage() {
     try {
       await login(phone.trim(), password);
     } catch (err) {
-      if (!err.response) {
-        setError("Network error. Please check your connection.");
-      } else {
+      if (err.response) {
         const detail =
           err.response.data?.non_field_errors?.[0] ||
           err.response.data?.detail ||
           "Invalid credentials. Please try again.";
         setError(detail);
+      } else {
+        setError("Network error. Please check your connection.");
       }
     } finally {
       setLoading(false);

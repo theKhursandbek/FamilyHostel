@@ -28,8 +28,10 @@ function MainLayout() {
   return (
     <div className="layout">
       {isMobile && (
-        <div
+        <button
+          type="button"
           className={`sidebar-backdrop${sidebarOpen ? " active" : ""}`}
+          aria-label="Close sidebar"
           onClick={closeSidebar}
         />
       )}

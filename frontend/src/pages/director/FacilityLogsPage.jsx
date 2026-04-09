@@ -105,16 +105,26 @@ function FacilityLogsPage() {
     {
       key: "_actions",
       label: "",
-      render: (_, row) => (
-        <Button
-          variant={row.status === "open" ? "secondary" : "ghost"}
-          size="sm"
-          disabled={togglingId === row.id}
-          onClick={(e) => { e.stopPropagation(); toggleStatus(row); }}
-        >
-          {togglingId === row.id ? "…" : row.status === "open" ? "Resolve" : "Re-open"}
-        </Button>
-      ),
+      render: (_, row) => {
+        let label;
+        if (togglingId === row.id) {
+          label = "…";
+        } else if (row.status === "open") {
+          label = "Resolve";
+        } else {
+          label = "Re-open";
+        }
+        return (
+          <Button
+            variant={row.status === "open" ? "secondary" : "ghost"}
+            size="sm"
+            disabled={togglingId === row.id}
+            onClick={(e) => { e.stopPropagation(); toggleStatus(row); }}
+          >
+            {label}
+          </Button>
+        );
+      },
     },
   ];
 
@@ -133,8 +143,9 @@ function FacilityLogsPage() {
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="New Facility Log">
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="label">Type *</label>
+            <label className="label" htmlFor="facility-type">Type *</label>
             <select
+              id="facility-type"
               className="select"
               value={form.type}
               onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
@@ -147,8 +158,9 @@ function FacilityLogsPage() {
           </div>
 
           <div className="form-group">
-            <label className="label">Description *</label>
+            <label className="label" htmlFor="facility-description">Description *</label>
             <textarea
+              id="facility-description"
               className="textarea"
               value={form.description}
               onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}

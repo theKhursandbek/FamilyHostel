@@ -1,3 +1,5 @@
+import PropTypes from "prop-types";
+
 function Table({ columns, data, onRowClick, emptyMessage = "No data found." }) {
   if (!data || data.length === 0) {
     return <div className="table-empty">{emptyMessage}</div>;
@@ -32,5 +34,18 @@ function Table({ columns, data, onRowClick, emptyMessage = "No data found." }) {
     </div>
   );
 }
+
+Table.propTypes = {
+  columns: PropTypes.arrayOf(
+    PropTypes.shape({
+      key: PropTypes.string.isRequired,
+      label: PropTypes.string.isRequired,
+      render: PropTypes.func,
+    })
+  ).isRequired,
+  data: PropTypes.array,
+  onRowClick: PropTypes.func,
+  emptyMessage: PropTypes.string,
+};
 
 export default Table;
