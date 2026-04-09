@@ -5,9 +5,23 @@ import DashboardPage from "./pages/DashboardPage";
 import BookingsPage from "./pages/BookingsPage";
 import BookingDetailPage from "./pages/BookingDetailPage";
 import CleaningPage from "./pages/CleaningPage";
-import StaffPage from "./pages/StaffPage";
 import ReportsPage from "./pages/ReportsPage";
 import ProtectedRoute from "./components/ProtectedRoute";
+
+// Staff pages
+import MyTasksPage from "./pages/staff/MyTasksPage";
+import DaysOffPage from "./pages/staff/DaysOffPage";
+import PenaltiesViewPage from "./pages/staff/PenaltiesViewPage";
+
+// Admin pages
+import RoomInspectionPage from "./pages/admin/RoomInspectionPage";
+import CashSessionPage from "./pages/admin/CashSessionPage";
+
+// Director pages
+import DaysOffApprovalPage from "./pages/director/DaysOffApprovalPage";
+import TaskAssignmentPage from "./pages/director/TaskAssignmentPage";
+import PenaltyManagementPage from "./pages/director/PenaltyManagementPage";
+import FacilityLogsPage from "./pages/director/FacilityLogsPage";
 
 function App() {
   return (
@@ -29,8 +43,22 @@ function App() {
         <Route path="bookings" element={<BookingsPage />} />
         <Route path="bookings/:id" element={<BookingDetailPage />} />
         <Route path="cleaning" element={<CleaningPage />} />
-        <Route path="staff" element={<StaffPage />} />
         <Route path="reports" element={<ReportsPage />} />
+
+        {/* Staff routes */}
+        <Route path="staff/my-tasks" element={<MyTasksPage />} />
+        <Route path="staff/days-off" element={<DaysOffPage />} />
+        <Route path="staff/penalties" element={<PenaltiesViewPage />} />
+
+        {/* Admin routes */}
+        <Route path="admin/inspections" element={<RoomInspectionPage />} />
+        <Route path="admin/cash-sessions" element={<CashSessionPage />} />
+
+        {/* Director routes */}
+        <Route path="director/days-off" element={<DaysOffApprovalPage />} />
+        <Route path="director/assignments" element={<TaskAssignmentPage />} />
+        <Route path="director/penalties" element={<PenaltyManagementPage />} />
+        <Route path="director/facility-logs" element={<FacilityLogsPage />} />
       </Route>
     </Routes>
   );
