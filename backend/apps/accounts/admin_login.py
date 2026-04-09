@@ -64,7 +64,8 @@ class AdminLoginView(APIView):
         serializer = AdminLoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        account = serializer.validated_data["account"]
+        data: dict = serializer.validated_data  # type: ignore[assignment]
+        account = data["account"]
         refresh = RefreshToken.for_user(account)
 
         return Response(
