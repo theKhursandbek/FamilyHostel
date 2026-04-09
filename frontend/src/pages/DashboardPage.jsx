@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getAdminDashboard } from "../services/dashboardService";
+import { useSocket } from "../hooks/useSocket";
 import StatCard from "../components/StatCard";
 import Loader from "../components/Loader";
 import ErrorMessage from "../components/ErrorMessage";
@@ -27,6 +28,14 @@ function DashboardPage() {
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
+
+  // Real-time updates via WebSocket
+  useSocket("admin", {
+    booking_created: () => fetchDashboard(),
+    payment_completed: () => fetchDashboard(),
+    cleaning_task_updated: () => fetchDashboard(),
+    attendance_updated: () => fetchDashboard(),
+  });
 
   if (loading) {
     return <Loader message="Loading dashboard..." />;

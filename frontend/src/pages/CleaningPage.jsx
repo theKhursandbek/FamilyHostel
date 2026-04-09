@@ -9,6 +9,7 @@ import {
   overrideTask,
 } from "../services/cleaningService";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../hooks/useSocket";
 import CleaningTaskCard from "../components/CleaningTaskCard";
 import CleaningTaskDetail from "../components/CleaningTaskDetail";
 import Loader from "../components/Loader";
@@ -55,6 +56,12 @@ function CleaningPage() {
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
+
+  // Real-time updates via WebSocket
+  const wsChannel = isDirector ? "director" : "admin";
+  useSocket(wsChannel, {
+    cleaning_task_updated: () => fetchTasks(),
+  });
 
   const withAction = async (taskId, action) => {
     setActionLoading(taskId);

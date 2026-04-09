@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getDirectorDashboard } from "../../services/dashboardService";
+import { useSocket } from "../../hooks/useSocket";
 import StatCard from "../../components/StatCard";
 import Table from "../../components/Table";
 import Loader from "../../components/Loader";
@@ -71,6 +72,14 @@ function DirectorDashboard() {
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
+
+  // Real-time updates via WebSocket
+  useSocket("director", {
+    booking_created: () => fetchDashboard(),
+    payment_completed: () => fetchDashboard(),
+    cleaning_task_updated: () => fetchDashboard(),
+    attendance_updated: () => fetchDashboard(),
+  });
 
   if (loading) return <Loader message="Loading director dashboard..." />;
   if (error) return <ErrorMessage message={error} onRetry={fetchDashboard} />;
