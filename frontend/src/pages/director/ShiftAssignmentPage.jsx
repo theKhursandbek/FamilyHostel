@@ -7,8 +7,8 @@ import Loader from "../../components/Loader";
 import ErrorMessage from "../../components/ErrorMessage";
 
 const SHIFT_LABELS = {
-  day: "☀️ Day",
-  night: "🌙 Night",
+  day: "Day",
+  night: "Night",
 };
 
 const columns = [
@@ -89,7 +89,7 @@ function ShiftAssignmentPage() {
 
   return (
     <div>
-      <div className="page-header"><h1>📅 Shift Assignments</h1></div>
+      <div className="page-header"><h1>Shift Assignments</h1></div>
 
       {/* Form section */}
       <div className="card" style={{ maxWidth: 480 }}>

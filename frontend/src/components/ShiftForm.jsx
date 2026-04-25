@@ -1,15 +1,34 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import PropTypes from "prop-types";
 import { getAccounts, getBranches } from "../services/shiftService";
 import { useToast } from "../context/ToastContext";
 import Input from "./Input";
 import Button from "./Button";
+import Select from "./Select";
+
+function toListArray(d) {
+  if (Array.isArray(d)) return d;
+  if (Array.isArray(d?.results)) return d.results;
+  if (Array.isArray(d?.data)) return d.data;
+  return [];
+}
+
+const ROLE_OPTIONS = [
+  { value: "staff", label: "Staff" },
+  { value: "admin", label: "Admin" },
+];
+
+const SHIFT_TYPE_OPTIONS = [
+  { value: "day", label: "Day" },
+  { value: "night", label: "Night" },
+];
 
 function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
   const toast = useToast();
   const [accounts, setAccounts] = useState([]);
   const [branches, setBranches] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [form, setForm] = useState({
     account: "",
     role: "staff",
@@ -19,29 +38,30 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
   });
   const [errors, setErrors] = useState({});
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const [accountsData, branchesData] = await Promise.all([
-          getAccounts(),
-          getBranches(),
-        ]);
-        const accountList = accountsData.results ?? accountsData;
-        const branchList = branchesData.results ?? branchesData;
-        setAccounts(accountList);
-        setBranches(branchList);
-      } catch {
-        setAccounts([]);
-        setBranches([]);
-        toast.error("Failed to load accounts and branches");
-      } finally {
-        setDataLoading(false);
-      }
+  const fetchData = useCallback(async () => {
+    setDataLoading(true);
+    setLoadError(false);
+    try {
+      const [accountsData, branchesData] = await Promise.all([
+        getAccounts(),
+        getBranches(),
+      ]);
+      setAccounts(toListArray(accountsData));
+      setBranches(toListArray(branchesData));
+    } catch {
+      setAccounts([]);
+      setBranches([]);
+      setLoadError(true);
+      toast.error("Failed to load accounts and branches");
+    } finally {
+      setDataLoading(false);
     }
-    fetchData();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [toast]);
 
-  // Filter accounts by selected role
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
   const filteredAccounts = accounts.filter((acc) => {
     const roles = acc.roles || [];
     if (form.role === "staff") return roles.includes("staff");
@@ -49,19 +69,28 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
     return true;
   });
 
-  const handleChange = (field) => (e) => {
-    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+  const accountOptions = filteredAccounts.map((acc) => ({
+    value: acc.id,
+    label: acc.full_name || acc.phone || `Account #${acc.id}`,
+  }));
+
+  const branchOptions = branches.map((b) => ({
+    value: b.id,
+    label: b.name || `Branch #${b.id}`,
+  }));
+
+  const setField = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: "", general: "" }));
   };
 
-  const checkDuplicate = () => {
-    return existingShifts.some(
+  const checkDuplicate = () =>
+    existingShifts.some(
       (s) =>
         String(s.account) === String(form.account) &&
         s.date === form.date &&
         s.shift_type === form.shift_type
     );
-  };
 
   const checkAdminConflict = () => {
     if (form.role !== "admin") return false;
@@ -112,105 +141,92 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
   return (
     <form onSubmit={handleSubmit}>
       {errors.general && (
-        <div className="alert alert-warning">
-          ⚠️ {errors.general}
+        <div className="alert alert-warning">{errors.general}</div>
+      )}
+
+      {loadError && (
+        <div
+          className="alert alert-error"
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
+        >
+          <span>Could not load accounts &amp; branches. Check your connection.</span>
+          <Button type="button" variant="ghost" onClick={fetchData} disabled={dataLoading}>
+            Retry
+          </Button>
         </div>
       )}
 
-      {/* Role selector */}
       <div className="form-group">
         <label htmlFor="role" className="label">
-          Role <span style={{ color: "var(--danger)" }}>*</span>
+          Role <span style={{ color: "var(--brand-danger)" }}>*</span>
         </label>
-        <select
+        <Select
           id="role"
           value={form.role}
-          onChange={(e) => {
-            setForm((prev) => ({ ...prev, role: e.target.value, account: "" }));
+          onChange={(v) => {
+            setForm((prev) => ({ ...prev, role: v, account: "" }));
             setErrors((prev) => ({ ...prev, account: "", general: "" }));
           }}
-          className="select"
-        >
-          <option value="staff">Staff</option>
-          <option value="admin">Admin</option>
-        </select>
+          options={ROLE_OPTIONS}
+        />
       </div>
 
-      {/* Account selector */}
       <div className="form-group">
         <label htmlFor="account" className="label">
-          Account <span style={{ color: "var(--danger)" }}>*</span>
+          Account <span style={{ color: "var(--brand-danger)" }}>*</span>
         </label>
-        <select
+        <Select
           id="account"
           value={form.account}
-          onChange={handleChange("account")}
-          disabled={dataLoading}
-          className={`select${errors.account ? " error" : ""}`}
-        >
-          <option value="">
-            {dataLoading ? "Loading..." : "Select account"}
-          </option>
-          {filteredAccounts.map((acc) => (
-            <option key={acc.id} value={acc.id}>
-              {acc.full_name || acc.phone || `Account #${acc.id}`}
-            </option>
-          ))}
-        </select>
-        {errors.account && (
-          <p className="form-error">{errors.account}</p>
-        )}
+          onChange={(v) => setField("account", v)}
+          options={accountOptions}
+          loading={dataLoading}
+          disabled={loadError && !dataLoading}
+          placeholder={loadError ? "Unavailable — retry above" : "Select account"}
+          emptyText={
+            form.role === "staff" ? "No staff accounts found" : "No admin accounts found"
+          }
+          error={Boolean(errors.account)}
+        />
+        {errors.account && <p className="form-error">{errors.account}</p>}
       </div>
 
-      {/* Branch selector */}
       <div className="form-group">
         <label htmlFor="branch" className="label">
-          Branch <span style={{ color: "var(--danger)" }}>*</span>
+          Branch <span style={{ color: "var(--brand-danger)" }}>*</span>
         </label>
-        <select
+        <Select
           id="branch"
           value={form.branch}
-          onChange={handleChange("branch")}
-          disabled={dataLoading}
-          className={`select${errors.branch ? " error" : ""}`}
-        >
-          <option value="">
-            {dataLoading ? "Loading..." : "Select branch"}
-          </option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name || `Branch #${b.id}`}
-            </option>
-          ))}
-        </select>
-        {errors.branch && (
-          <p className="form-error">{errors.branch}</p>
-        )}
+          onChange={(v) => setField("branch", v)}
+          options={branchOptions}
+          loading={dataLoading}
+          disabled={loadError && !dataLoading}
+          placeholder={loadError ? "Unavailable — retry above" : "Select branch"}
+          emptyText="No branches found"
+          error={Boolean(errors.branch)}
+        />
+        {errors.branch && <p className="form-error">{errors.branch}</p>}
       </div>
 
-      {/* Shift type */}
       <div className="form-group">
         <label htmlFor="shift_type" className="label">
-          Shift Type <span style={{ color: "var(--danger)" }}>*</span>
+          Shift Type <span style={{ color: "var(--brand-danger)" }}>*</span>
         </label>
-        <select
+        <Select
           id="shift_type"
           value={form.shift_type}
-          onChange={handleChange("shift_type")}
-          className="select"
-        >
-          <option value="day">Day</option>
-          <option value="night">Night</option>
-        </select>
+          onChange={(v) => setField("shift_type", v)}
+          options={SHIFT_TYPE_OPTIONS}
+        />
       </div>
 
-      {/* Date */}
       <Input
         label="Date"
         id="date"
         type="date"
         value={form.date}
-        onChange={handleChange("date")}
+        onChange={(e) => setField("date", e.target.value)}
         required
         error={errors.date}
       />

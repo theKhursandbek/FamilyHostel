@@ -74,11 +74,23 @@ class SecurityLoggingMiddleware:
     """
 
     # Map HTTP status → suspicious-activity type for the detection service.
+    # 401 is split based on the request path so that an expired JWT on a
+    # normal API call is not misclassified as a failed login attempt.
     _STATUS_TO_ACTIVITY: dict[int, str] = {
-        401: "failed_login",
         403: "unauthorized_access",
         429: "rate_limit_exceeded",
     }
+
+    # Paths that are *real* authentication endpoints. Only a 401 on one of
+    # these counts as a failed_login attempt; any other 401 (expired token,
+    # missing auth header on a normal endpoint, …) is logged as a generic
+    # ``unauthorized_access`` so the suspicious-activity dashboard isn't
+    # flooded with noise from legitimate users whose session lapsed.
+    _LOGIN_PATH_PREFIXES: tuple[str, ...] = (
+        "/api/v1/auth/login/",
+        "/api/v1/auth/telegram/",
+        "/api/v1/auth/token/refresh/",
+    )
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -95,7 +107,7 @@ class SecurityLoggingMiddleware:
             user_info = self._resolve_user_info(user)
 
             self._log_event(status_code, client_ip, request.method, request.path, user_info, duration)
-            self._feed_detection(status_code, client_ip, user)
+            self._feed_detection(status_code, client_ip, user, request.path)
 
         return response
 
@@ -120,9 +132,19 @@ class SecurityLoggingMiddleware:
                 client_ip, method, path, user_info, status_code, duration,
             )
 
-    def _feed_detection(self, status_code, client_ip, user):
+    def _feed_detection(self, status_code, client_ip, user, path):
         """Feed event into the suspicious-activity detection service (Step 21.2)."""
-        activity_type = self._STATUS_TO_ACTIVITY.get(status_code)
+        if status_code == 401:
+            # Only count as failed_login when the request actually hit a
+            # login / token endpoint. Any other 401 is a generic auth issue
+            # (expired access token on a normal API call) and gets logged
+            # as ``unauthorized_access`` instead.
+            if any(path.startswith(p) for p in self._LOGIN_PATH_PREFIXES):
+                activity_type = "failed_login"
+            else:
+                activity_type = "unauthorized_access"
+        else:
+            activity_type = self._STATUS_TO_ACTIVITY.get(status_code)
         if not activity_type:
             return
         try:

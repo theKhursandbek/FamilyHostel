@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { getPenalties, createPenalty, deletePenalty, getAccounts } from "../../services/directorService";
 import { useToast } from "../../context/ToastContext";
 import Button from "../../components/Button";
+import Select from "../../components/Select";
 import Input from "../../components/Input";
 import Modal from "../../components/Modal";
 import Table from "../../components/Table";
@@ -132,30 +133,30 @@ function PenaltyManagementPage() {
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="label" htmlFor="penalty-staff">Staff Member *</label>
-            <select
+            <Select
               id="penalty-staff"
-              className="select"
               value={form.account}
-              onChange={(e) => setForm((p) => ({ ...p, account: e.target.value }))}
-            >
-              <option value="">Select staff</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.phone}{a.full_name ? ` — ${a.full_name}` : ""}</option>
-              ))}
-            </select>
+              onChange={(v) => setForm((p) => ({ ...p, account: v }))}
+              placeholder="Select staff"
+              options={accounts.map((a) => {
+                const suffix = a.full_name ? ` — ${a.full_name}` : "";
+                return { value: a.id, label: `${a.phone}${suffix}` };
+              })}
+              emptyText="No staff available"
+            />
           </div>
 
           <div className="form-group">
             <label className="label" htmlFor="penalty-type">Type *</label>
-            <select
+            <Select
               id="penalty-type"
-              className="select"
               value={form.type}
-              onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
-            >
-              <option value="late">Late</option>
-              <option value="absence">Absence</option>
-            </select>
+              onChange={(v) => setForm((p) => ({ ...p, type: v }))}
+              options={[
+                { value: "late", label: "Late" },
+                { value: "absence", label: "Absence" },
+              ]}
+            />
           </div>
 
           <Input label="Count" type="number" value={form.count} onChange={(e) => setForm((p) => ({ ...p, count: e.target.value }))} min="1" />

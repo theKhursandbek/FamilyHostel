@@ -31,6 +31,17 @@ function getWsBase() {
 
 const WS_BASE = getWsBase();
 
+/**
+ * Master switch — only attempt WebSocket connections when explicitly enabled.
+ *
+ * The backend's Channels routing is not wired yet, so every connect()
+ * attempt would 404 and the auto-reconnect loop would spam the server.
+ * Set VITE_WS_ENABLED=true in .env once the ASGI websocket consumers
+ * are deployed.
+ */
+const WS_ENABLED = String(import.meta.env.VITE_WS_ENABLED || "")
+  .toLowerCase() === "true";
+
 // Active connections keyed by path (e.g. "/ws/admin/")
 const connections = {};
 
@@ -50,6 +61,10 @@ const reconnectAttempts = {};
  * @returns {WebSocket|null}
  */
 export function connect(channel) {
+  if (!WS_ENABLED) {
+    return null;
+  }
+
   const path = `/ws/${channel}/`;
 
   // Prevent duplicate connections

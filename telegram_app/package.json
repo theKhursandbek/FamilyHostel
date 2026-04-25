@@ -1,0 +1,24 @@
+{
+  "name": "familyhostel-telegram-app",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "FamilyHostel Telegram Mini App — public branch/room browsing, client bookings, staff personal dashboard.",
+  "scripts": {
+    "dev": "vite --port 5174 --host",
+    "build": "vite build",
+    "preview": "vite preview --port 5174 --host",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "prop-types": "^15.8.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "vite": "^8.0.4"
+  }
+}

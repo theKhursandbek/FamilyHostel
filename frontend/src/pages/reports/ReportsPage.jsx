@@ -4,8 +4,16 @@ import { useToast } from "../../context/ToastContext";
 import StatCard from "../../components/StatCard";
 import Table from "../../components/Table";
 import Button from "../../components/Button";
+import Select from "../../components/Select";
 import Loader from "../../components/Loader";
 import ErrorMessage from "../../components/ErrorMessage";
+
+function toBranchArray(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.results)) return data.results;
+  if (Array.isArray(data?.branches)) return data.branches;
+  return [];
+}
 
 const performanceColumns = [
   { key: "staff_name", label: "Staff" },
@@ -65,8 +73,7 @@ function ReportsPage() {
   const fetchBranches = useCallback(async () => {
     try {
       const data = await getBranches();
-      const list = data.results ?? data;
-      setBranches(list);
+      setBranches(toBranchArray(data));
     } catch {
       setBranches([]);
       toast.warning("Could not load branches");
@@ -111,13 +118,13 @@ function ReportsPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>📊 Reports</h1>
+        <h1>Reports</h1>
         <Button
           variant="secondary"
           disabled={exporting || loading}
           onClick={handleExport}
         >
-          {exporting ? "Exporting..." : "📥 Download CSV"}
+          {exporting ? "Exporting..." : "Download CSV"}
         </Button>
       </div>
 
@@ -143,21 +150,19 @@ function ReportsPage() {
             onChange={(e) => setDateTo(e.target.value)}
           />
         </div>
-        <div>
+        <div style={{ minWidth: 200 }}>
           <label className="label" htmlFor="filter-branch">Branch</label>
-          <select
+          <Select
             id="filter-branch"
-            className="select"
             value={branch}
-            onChange={(e) => setBranch(e.target.value)}
-          >
-            <option value="">All Branches</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name || `Branch #${b.id}`}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setBranch(v)}
+            placeholder="All Branches"
+            options={[
+              { value: "", label: "All Branches" },
+              ...branches.map((b) => ({ value: b.id, label: b.name || `Branch #${b.id}` })),
+            ]}
+            emptyText="No branches"
+          />
         </div>
         <Button
           size="sm"
@@ -201,7 +206,7 @@ function ReportsPage() {
           {/* Staff Performance */}
           <div className="section">
             <h3 className="section-title">
-              👷 Staff Performance
+              Staff Performance
             </h3>
             <Table
               columns={performanceColumns}
@@ -213,7 +218,7 @@ function ReportsPage() {
           {/* Attendance Summary */}
           <div className="section">
             <h3 className="section-title">
-              📋 Attendance Summary
+              Attendance Summary
             </h3>
             <Table
               columns={attendanceColumns}

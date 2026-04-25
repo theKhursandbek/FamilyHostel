@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { getFacilityLogs, createFacilityLog, updateFacilityLog } from "../../services/directorService";
 import { useToast } from "../../context/ToastContext";
 import Button from "../../components/Button";
+import Select from "../../components/Select";
 import Input from "../../components/Input";
 import Modal from "../../components/Modal";
 import Table from "../../components/Table";
@@ -144,17 +145,17 @@ function FacilityLogsPage() {
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="label" htmlFor="facility-type">Type *</label>
-            <select
+            <Select
               id="facility-type"
-              className="select"
               value={form.type}
-              onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
-            >
-              <option value="gas">Gas</option>
-              <option value="water">Water</option>
-              <option value="electricity">Electricity</option>
-              <option value="repair">Repair</option>
-            </select>
+              onChange={(v) => setForm((p) => ({ ...p, type: v }))}
+              options={[
+                { value: "gas", label: "Gas" },
+                { value: "water", label: "Water" },
+                { value: "electricity", label: "Electricity" },
+                { value: "repair", label: "Repair" },
+              ]}
+            />
           </div>
 
           <div className="form-group">

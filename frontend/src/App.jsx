@@ -30,6 +30,11 @@ import DirectorDashboard from "./pages/director/DirectorDashboard";
 
 // Super Admin pages
 import SuperAdminDashboard from "./pages/superadmin/SuperAdminDashboard";
+import UserManagementPage from "./pages/superadmin/UserManagementPage";
+import SalarySettingsPage from "./pages/superadmin/SalarySettingsPage";
+import BranchesPage from "./pages/superadmin/BranchesPage";
+import ActivityLogPage from "./pages/superadmin/ActivityLogPage";
+import OverridePage from "./pages/superadmin/OverridePage";
 
 function App() {
   return (
@@ -73,6 +78,11 @@ function App() {
 
         {/* Super Admin routes */}
         <Route path="super-admin/dashboard" element={<SuperAdminDashboard />} />
+        <Route path="super-admin/users" element={<UserManagementPage />} />
+        <Route path="super-admin/branches" element={<BranchesPage />} />
+        <Route path="super-admin/salary-settings" element={<SalarySettingsPage />} />
+        <Route path="super-admin/activity" element={<ActivityLogPage />} />
+        <Route path="super-admin/override" element={<OverridePage />} />
 
         {/* 404 catch-all */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

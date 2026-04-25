@@ -179,6 +179,13 @@ class Staff(models.Model):
     full_name = models.CharField(max_length=255)
     hire_date = models.DateField()
     is_active = models.BooleanField(default=True)
+    salary_override = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Per-person salary override in UZS. If null, the role default from SystemSettings is used.",
+    )
 
     class Meta:
         db_table = "staff"
@@ -210,6 +217,13 @@ class Administrator(models.Model):
     )
     full_name = models.CharField(max_length=255)
     is_active = models.BooleanField(default=True)
+    salary_override = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Per-person shift-rate override in UZS. If null, the admin shift rate from SystemSettings is used.",
+    )
 
     class Meta:
         db_table = "administrators"
@@ -259,11 +273,15 @@ class Director(models.Model):
 
 class SuperAdmin(models.Model):
     """
-    Super Admin role — full system control.
+    Super Admin (CEO) role — full system control.
+
+    Business rule: at most 2 SuperAdmins are allowed in the system.
 
     Fields per README:
         - id, account_id (FK), full_name
     """
+
+    MAX_SUPERADMINS = 2
 
     account = models.OneToOneField(
         Account,
@@ -279,6 +297,24 @@ class SuperAdmin(models.Model):
 
     def __str__(self):
         return self.full_name
+
+    def clean(self):
+        super().clean()
+        # Only enforce on creation — updating existing rows is fine.
+        if self.pk is None:
+            existing = SuperAdmin.objects.count()
+            if existing >= self.MAX_SUPERADMINS:
+                from django.core.exceptions import ValidationError
+                raise ValidationError(
+                    f"Cannot create more than {self.MAX_SUPERADMINS} SuperAdmins. "
+                    f"Currently {existing} exist."
+                )
+
+    def save(self, *args, **kwargs):
+        # Run validation on every save so the cap is enforced even when
+        # callers bypass full_clean() (e.g. ORM .create(), serializers).
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 
 # ==============================================================================

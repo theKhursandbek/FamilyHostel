@@ -38,6 +38,22 @@ class PaymentSerializer(serializers.ModelSerializer):
 
 
 class IncomeRuleSerializer(serializers.ModelSerializer):
+    """
+    Threshold-based income percentage rule.
+
+    UX model: CEO sets `min_income` (the threshold above which the rule
+    applies) and `percent`. The legacy `max_income` field is kept for
+    backwards compatibility and defaults to a large sentinel — at
+    calculation time the rule with the **highest** ``min_income`` ≤
+    actual income wins.
+    """
+
+    SENTINEL_MAX = "999999999.99"
+
+    max_income = serializers.DecimalField(
+        max_digits=14, decimal_places=2, required=False,
+    )
+
     class Meta:
         model = IncomeRule
         fields = [
@@ -50,6 +66,21 @@ class IncomeRuleSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]
+
+    def validate(self, attrs):
+        # Ensure max_income is always populated; default to sentinel if omitted
+        # so the simplified threshold-only UI keeps the schema valid.
+        if attrs.get("max_income") is None:
+            attrs["max_income"] = self.SENTINEL_MAX
+        if attrs.get("min_income") is not None and attrs["min_income"] < 0:
+            raise serializers.ValidationError(
+                {"min_income": "Threshold cannot be negative."},
+            )
+        if attrs.get("percent") is not None and (attrs["percent"] < 0 or attrs["percent"] > 100):
+            raise serializers.ValidationError(
+                {"percent": "Percent must be between 0 and 100."},
+            )
+        return attrs
 
 
 class SalaryRecordSerializer(serializers.ModelSerializer):

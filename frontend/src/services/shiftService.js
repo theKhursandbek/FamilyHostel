@@ -1,12 +1,12 @@
 import api from "./api";
 
 export async function getShifts(params = {}) {
-  const response = await api.get("/shifts/", { params });
+  const response = await api.get("/staff/shifts/", { params });
   return response.data;
 }
 
 export async function createShift(data) {
-  const response = await api.post("/shifts/", data);
+  const response = await api.post("/staff/shifts/", data);
   return response.data;
 }
 

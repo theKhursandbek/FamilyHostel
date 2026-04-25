@@ -3,6 +3,7 @@ import { getTasks, assignTask } from "../../services/cleaningService";
 import { getAccounts } from "../../services/directorService";
 import { useToast } from "../../context/ToastContext";
 import Button from "../../components/Button";
+import Select from "../../components/Select";
 import Table from "../../components/Table";
 import Modal from "../../components/Modal";
 import Loader from "../../components/Loader";
@@ -120,17 +121,17 @@ function TaskAssignmentPage() {
         <form onSubmit={handleAssign}>
           <div className="form-group">
             <label className="label" htmlFor="assign-staff">Staff Member *</label>
-            <select
+            <Select
               id="assign-staff"
-              className="select"
               value={selectedStaff}
-              onChange={(e) => setSelectedStaff(e.target.value)}
-            >
-              <option value="">Select staff</option>
-              {staffList.map((s) => (
-                <option key={s.id} value={s.id}>{s.phone}{s.full_name ? ` — ${s.full_name}` : ""}</option>
-              ))}
-            </select>
+              onChange={(v) => setSelectedStaff(v)}
+              placeholder="Select staff"
+              options={staffList.map((s) => {
+                const suffix = s.full_name ? ` — ${s.full_name}` : "";
+                return { value: s.id, label: `${s.phone}${suffix}` };
+              })}
+              emptyText="No staff available"
+            />
           </div>
           <div className="form-actions">
             <Button type="submit" disabled={!!actionLoading}>{actionLoading ? "Assigning..." : "Assign"}</Button>

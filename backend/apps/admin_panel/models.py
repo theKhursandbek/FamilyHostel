@@ -100,8 +100,32 @@ class SystemSettings(models.Model):
         choices=SalaryCycle.choices,
         default=SalaryCycle.MONTHLY,
     )
-    shift_rate = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
-    per_room_rate = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    shift_rate = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("100000"),
+        help_text="Staff per-shift rate in UZS (used when salary mode = Shift-based).",
+    )
+    per_room_rate = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("15000"),
+        help_text="Staff per-cleaned-room rate in UZS (used when salary mode = Per-room).",
+    )
+
+    # ---- Per-role salary configuration (README §3.2/3.3/3.4) ------------
+    director_fixed_salary = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("2000000"),
+        help_text="Director's fixed monthly salary in UZS (default 2,000,000).",
+    )
+    admin_shift_rate = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("150000"),
+        help_text="Administrator's per-shift rate in UZS.",
+    )
 
     class Meta:
         db_table = "system_settings"

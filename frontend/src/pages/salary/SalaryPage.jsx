@@ -77,7 +77,7 @@ function SalaryPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>💰 Salary Records</h1>
+        <h1>Salary Records</h1>
       </div>
 
       <Table

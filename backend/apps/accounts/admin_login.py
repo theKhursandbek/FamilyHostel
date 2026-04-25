@@ -68,6 +68,31 @@ class AdminLoginView(APIView):
         account = data["account"]
         refresh = RefreshToken.for_user(account)
 
+        # Pull display name + branch from the highest-priority role profile.
+        # Order matters: superadmin > director > administrator > staff > client.
+        full_name = ""
+        branch_id = None
+        branch_name = ""
+        salary = None
+        for attr in (
+            "superadmin_profile",
+            "director_profile",
+            "administrator_profile",
+            "staff_profile",
+            "client_profile",
+        ):
+            profile = getattr(account, attr, None)
+            if profile is None:
+                continue
+            full_name = getattr(profile, "full_name", "") or ""
+            branch = getattr(profile, "branch", None)
+            if branch is not None:
+                branch_id = branch.id
+                branch_name = getattr(branch, "name", "") or ""
+            if hasattr(profile, "salary"):
+                salary = str(profile.salary)
+            break
+
         return Response(
             {
                 "access": str(refresh.access_token),
@@ -77,6 +102,10 @@ class AdminLoginView(APIView):
                     "phone": account.phone,
                     "telegram_id": account.telegram_id,
                     "roles": account.roles,
+                    "full_name": full_name,
+                    "branch_id": branch_id,
+                    "branch_name": branch_name,
+                    "salary": salary,
                 },
             },
             status=status.HTTP_200_OK,

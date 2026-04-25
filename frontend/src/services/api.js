@@ -35,8 +35,42 @@ function processQueue(error, token = null) {
   failedQueue = [];
 }
 
+// Auto-unwrap the backend's `{success: true, data: ...}` envelope so callers
+// can keep using `response.data.<field>` regardless of the StandardJSONRenderer.
+// Error responses ({success:false, error:{...}}) are left untouched so existing
+// `err.response?.data?.detail` checks keep working via the rejection branch.
+function unwrapEnvelope(response) {
+  const body = response?.data;
+  if (
+    body &&
+    typeof body === "object" &&
+    body.success === true &&
+    "data" in body
+  ) {
+    response.data = body.data;
+  }
+  return response;
+}
+
+// Normalise error envelopes so existing `err.response?.data?.detail` checks
+// surface the real backend message instead of the fallback string.
+function normaliseError(error) {
+  const body = error?.response?.data;
+  if (body && typeof body === "object" && body.success === false && body.error) {
+    const { message, code, details } = body.error;
+    error.response.data = {
+      ...body,
+      detail: message || code || "Request failed",
+      message,
+      code,
+      details,
+    };
+  }
+  return error;
+}
+
 api.interceptors.response.use(
-  (response) => response,
+  (response) => unwrapEnvelope(response),
   async (error) => {
     const originalRequest = error.config;
 
@@ -75,7 +109,7 @@ api.interceptors.response.use(
       }
     }
 
-    throw error;
+    throw normaliseError(error);
   }
 );
 

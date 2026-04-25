@@ -9,6 +9,7 @@ import {
 } from "../../services/adminService";
 import { useToast } from "../../context/ToastContext";
 import Button from "../../components/Button";
+import Select from "../../components/Select";
 import Input from "../../components/Input";
 import Modal from "../../components/Modal";
 import Loader from "../../components/Loader";
@@ -234,15 +235,15 @@ function CashSessionPage() {
         <form onSubmit={handleOpenSubmit}>
           <div className="form-group">
             <label className="label" htmlFor="session-shift-type">Shift Type *</label>
-            <select
+            <Select
               id="session-shift-type"
-              className="select"
               value={openForm.shift_type}
-              onChange={(e) => setOpenForm((p) => ({ ...p, shift_type: e.target.value }))}
-            >
-              <option value="day">Day</option>
-              <option value="night">Night</option>
-            </select>
+              onChange={(v) => setOpenForm((p) => ({ ...p, shift_type: v }))}
+              options={[
+                { value: "day", label: "Day" },
+                { value: "night", label: "Night" },
+              ]}
+            />
           </div>
           <Input label="Opening Balance" type="number" value={openForm.opening_balance} onChange={(e) => setOpenForm((p) => ({ ...p, opening_balance: e.target.value }))} required min="0" step="1000" />
           <Input label="Note (optional)" value={openForm.note} onChange={(e) => setOpenForm((p) => ({ ...p, note: e.target.value }))} />
@@ -268,17 +269,17 @@ function CashSessionPage() {
         <form onSubmit={handleHandoverSubmit}>
           <div className="form-group">
             <label className="label" htmlFor="handover-next-admin">Next Admin *</label>
-            <select
+            <Select
               id="handover-next-admin"
-              className="select"
               value={handoverForm.handed_over_to}
-              onChange={(e) => setHandoverForm((p) => ({ ...p, handed_over_to: e.target.value }))}
-            >
-              <option value="">Select admin</option>
-              {admins.map((a) => (
-                <option key={a.id} value={a.id}>{a.phone}{a.full_name ? ` — ${a.full_name}` : ""}</option>
-              ))}
-            </select>
+              onChange={(v) => setHandoverForm((p) => ({ ...p, handed_over_to: v }))}
+              placeholder="Select admin"
+              options={admins.map((a) => {
+                const suffix = a.full_name ? ` — ${a.full_name}` : "";
+                return { value: a.id, label: `${a.phone}${suffix}` };
+              })}
+              emptyText="No admins available"
+            />
           </div>
           <Input label="Closing Balance" type="number" value={handoverForm.closing_balance} onChange={(e) => setHandoverForm((p) => ({ ...p, closing_balance: e.target.value }))} required min="0" step="1000" />
           <Input label="Note (optional)" value={handoverForm.note} onChange={(e) => setHandoverForm((p) => ({ ...p, note: e.target.value }))} />

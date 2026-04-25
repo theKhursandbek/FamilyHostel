@@ -20,6 +20,15 @@ class AuditLogSerializer(serializers.ModelSerializer):
     account_email = serializers.EmailField(
         source="account.email", read_only=True, default=None,
     )
+    account_phone = serializers.CharField(
+        source="account.phone", read_only=True, default="",
+    )
+    account_telegram_id = serializers.IntegerField(
+        source="account.telegram_id", read_only=True, default=None,
+    )
+    account_name = serializers.SerializerMethodField()
+    is_reversible = serializers.SerializerMethodField()
+    restore_state = serializers.SerializerMethodField()
 
     class Meta:
         model = AuditLog
@@ -27,6 +36,9 @@ class AuditLogSerializer(serializers.ModelSerializer):
             "id",
             "account",
             "account_email",
+            "account_phone",
+            "account_telegram_id",
+            "account_name",
             "role",
             "action",
             "entity_type",
@@ -34,8 +46,41 @@ class AuditLogSerializer(serializers.ModelSerializer):
             "before_data",
             "after_data",
             "created_at",
+            "is_reversible",
+            "restore_state",
         ]
         read_only_fields = fields
+
+    @staticmethod
+    def get_account_name(obj):
+        acc = obj.account
+        if not acc:
+            return None
+        for attr in (
+            "superadmin_profile",
+            "director_profile",
+            "administrator_profile",
+            "staff_profile",
+            "client_profile",
+        ):
+            profile = getattr(acc, attr, None)
+            if profile and getattr(profile, "full_name", ""):
+                return profile.full_name
+        return None
+
+    @staticmethod
+    def get_is_reversible(obj):
+        from .restore_service import RestoreService
+
+        return RestoreService.is_reversible(obj)
+
+    @staticmethod
+    def get_restore_state(obj):
+        from .restore_service import RestoreService
+
+        if not RestoreService.is_reversible(obj):
+            return "not_reversible"
+        return RestoreService.state_of(obj)
 
 
 class SuspiciousActivitySerializer(serializers.ModelSerializer):

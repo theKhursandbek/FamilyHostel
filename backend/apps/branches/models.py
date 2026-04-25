@@ -26,6 +26,12 @@ class Branch(models.Model):
 
     name = models.CharField(max_length=255)
     location = models.CharField(max_length=500)
+    image = models.ImageField(
+        upload_to="branch_images/%Y/%m/%d/",
+        blank=True,
+        null=True,
+        help_text="Hero image shown on branch cards.",
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -86,6 +92,12 @@ class Room(models.Model):
         related_name="rooms",
     )
     room_number = models.CharField(max_length=20)
+    base_price = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text="Default nightly price in UZS (used for new bookings).",
+    )
     status = models.CharField(
         max_length=20,
         choices=RoomStatus.choices,
@@ -118,10 +130,24 @@ class RoomImage(models.Model):
         on_delete=models.CASCADE,
         related_name="images",
     )
-    image_url = models.URLField(max_length=500)
+    image = models.ImageField(
+        upload_to="room_images/%Y/%m/%d/",
+        blank=True,
+        null=True,
+        help_text="Uploaded room photo (preferred).",
+    )
+    image_url = models.URLField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="Legacy external URL — kept for back-compat.",
+    )
     is_primary = models.BooleanField(default=False)
     display_order = models.IntegerField(default=0)
     uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    # Business rule: max 3 images per room (README — CEO request).
+    MAX_IMAGES_PER_ROOM = 3
 
     class Meta:
         db_table = "room_images"

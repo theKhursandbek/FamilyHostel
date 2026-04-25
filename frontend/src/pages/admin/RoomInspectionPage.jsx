@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { getRoomInspections, createRoomInspection, getRooms } from "../../services/adminService";
 import { useToast } from "../../context/ToastContext";
 import Button from "../../components/Button";
+import Select from "../../components/Select";
 import Modal from "../../components/Modal";
 import Table from "../../components/Table";
 import Loader from "../../components/Loader";
@@ -105,35 +106,35 @@ function RoomInspectionPage() {
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="inspection-room" className="label">
-              Room <span style={{ color: "#dc2626" }}>*</span>
+              Room <span style={{ color: "var(--brand-danger)" }}>*</span>
             </label>
-            <select
+            <Select
               id="inspection-room"
-              className="select"
               value={form.room}
-              onChange={(e) => setForm((p) => ({ ...p, room: e.target.value }))}
-            >
-              <option value="">Select room</option>
-              {rooms.map((r) => (
-                <option key={r.id} value={r.id}>{r.room_number} — {r.room_type_name || "Room"}</option>
-              ))}
-            </select>
+              onChange={(v) => setForm((p) => ({ ...p, room: v }))}
+              placeholder="Select room"
+              options={rooms.map((r) => ({
+                value: r.id,
+                label: `${r.room_number} — ${r.room_type_name || "Room"}`,
+              }))}
+              emptyText="No rooms available"
+            />
           </div>
 
           <div className="form-group">
             <label htmlFor="inspection-status" className="label">
-              Status <span style={{ color: "#dc2626" }}>*</span>
+              Status <span style={{ color: "var(--brand-danger)" }}>*</span>
             </label>
-            <select
+            <Select
               id="inspection-status"
-              className="select"
               value={form.status}
-              onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
-            >
-              <option value="clean">Clean</option>
-              <option value="damaged">Damaged</option>
-              <option value="needs_cleaning">Needs Cleaning</option>
-            </select>
+              onChange={(v) => setForm((p) => ({ ...p, status: v }))}
+              options={[
+                { value: "clean", label: "Clean" },
+                { value: "damaged", label: "Damaged" },
+                { value: "needs_cleaning", label: "Needs Cleaning" },
+              ]}
+            />
           </div>
 
           <div className="form-group">

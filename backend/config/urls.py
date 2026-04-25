@@ -26,6 +26,7 @@ urlpatterns = [
     # API v1
     path("api/v1/auth/", include("apps.accounts.urls")),
     path("api/v1/branches/", include("apps.branches.urls")),
+    path("api/v1/public/", include("apps.branches.public_urls")),
     path("api/v1/bookings/", include("apps.bookings.urls")),
     path("api/v1/staff/", include("apps.staff.urls")),
     path("api/v1/cleaning/", include("apps.cleaning.urls")),

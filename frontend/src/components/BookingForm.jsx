@@ -1,14 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import PropTypes from "prop-types";
 import { getRooms } from "../services/bookingService";
 import { useToast } from "../context/ToastContext";
 import Input from "./Input";
 import Button from "./Button";
+import Select from "./Select";
 
 function BookingForm({ onSubmit, loading = false }) {
   const toast = useToast();
   const [rooms, setRooms] = useState([]);
   const [roomsLoading, setRoomsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [form, setForm] = useState({
     room: "",
     branch: "",
@@ -19,31 +21,41 @@ function BookingForm({ onSubmit, loading = false }) {
   });
   const [errors, setErrors] = useState({});
 
-  // Fetch available rooms
-  useEffect(() => {
-    async function fetchRooms() {
-      try {
-        const data = await getRooms({ status: "available", is_active: true });
-        const roomList = data.results ?? data;
-        setRooms(roomList);
-      } catch {
-        setRooms([]);
-        toast.error("Failed to load rooms");
-      } finally {
-        setRoomsLoading(false);
-      }
+  const fetchRooms = useCallback(async () => {
+    setRoomsLoading(true);
+    setLoadError(false);
+    try {
+      const data = await getRooms({ status: "available", is_active: true });
+      const roomList = data.results ?? data;
+      setRooms(Array.isArray(roomList) ? roomList : []);
+    } catch {
+      setRooms([]);
+      setLoadError(true);
+      toast.error("Failed to load rooms");
+    } finally {
+      setRoomsLoading(false);
     }
+  }, [toast]);
+
+  useEffect(() => {
     fetchRooms();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchRooms]);
+
+  const roomOptions = rooms.map((room) => {
+    const branchSuffix = room.branch_name ? ` (${room.branch_name})` : "";
+    return {
+      value: room.id,
+      label: `${room.room_number} \u2014 ${room.room_type_name || "Room"}${branchSuffix}`,
+    };
+  });
 
   const handleChange = (field) => (e) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
     setErrors((prev) => ({ ...prev, [field]: "" }));
   };
 
-  const handleRoomChange = (e) => {
-    const roomId = e.target.value;
-    const selected = rooms.find((r) => String(r.id) === roomId);
+  const handleRoomChange = (roomId) => {
+    const selected = rooms.find((r) => String(r.id) === String(roomId));
     setForm((prev) => ({
       ...prev,
       room: roomId,
@@ -85,31 +97,34 @@ function BookingForm({ onSubmit, loading = false }) {
 
   return (
     <form onSubmit={handleSubmit}>
-      {/* Room select */}
+      {loadError && (
+        <div
+          className="alert alert-error"
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
+        >
+          <span>Could not load available rooms.</span>
+          <Button type="button" variant="ghost" onClick={fetchRooms} disabled={roomsLoading}>
+            Retry
+          </Button>
+        </div>
+      )}
+
       <div className="form-group">
         <label htmlFor="room" className="label">
-          Room <span style={{ color: "var(--danger)" }}>*</span>
+          Room <span style={{ color: "var(--brand-danger)" }}>*</span>
         </label>
-        <select
+        <Select
           id="room"
           value={form.room}
           onChange={handleRoomChange}
-          disabled={roomsLoading}
-          className={`select${errors.room ? " error" : ""}`}
-        >
-          <option value="">
-            {roomsLoading ? "Loading rooms..." : "Select a room"}
-          </option>
-          {rooms.map((room) => (
-            <option key={room.id} value={room.id}>
-              {room.room_number} — {room.room_type_name || "Room"}
-              {room.branch_name ? ` (${room.branch_name})` : ""}
-            </option>
-          ))}
-        </select>
-        {errors.room && (
-          <p className="form-error">{errors.room}</p>
-        )}
+          options={roomOptions}
+          loading={roomsLoading}
+          disabled={loadError && !roomsLoading}
+          placeholder={loadError ? "Unavailable \u2014 retry above" : "Select a room"}
+          emptyText="No available rooms"
+          error={Boolean(errors.room)}
+        />
+        {errors.room && <p className="form-error">{errors.room}</p>}
       </div>
 
       <Input

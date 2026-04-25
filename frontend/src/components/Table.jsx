@@ -1,7 +1,22 @@
 import PropTypes from "prop-types";
 
+/**
+ * Coerce whatever the caller passes (array, paginated `{results: []}`,
+ * `null`, single object) into a plain array of rows so `.map` never throws.
+ */
+function toRows(data) {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === "object") {
+    if (Array.isArray(data.results)) return data.results;
+    if (Array.isArray(data.data)) return data.data;
+  }
+  return [];
+}
+
 function Table({ columns, data, onRowClick, emptyMessage = "No data found." }) {
-  if (!data || data.length === 0) {
+  const rows = toRows(data);
+
+  if (rows.length === 0) {
     return <div className="table-empty">{emptyMessage}</div>;
   }
 
@@ -16,7 +31,7 @@ function Table({ columns, data, onRowClick, emptyMessage = "No data found." }) {
           </tr>
         </thead>
         <tbody>
-          {data.map((row, idx) => (
+          {rows.map((row, idx) => (
             <tr
               key={row.id ?? idx}
               onClick={() => onRowClick?.(row)}
@@ -43,7 +58,8 @@ Table.propTypes = {
       render: PropTypes.func,
     })
   ).isRequired,
-  data: PropTypes.array,
+  // Accept array, paginated `{results: []}`, null, or undefined
+  data: PropTypes.oneOfType([PropTypes.array, PropTypes.object]),
   onRowClick: PropTypes.func,
   emptyMessage: PropTypes.string,
 };

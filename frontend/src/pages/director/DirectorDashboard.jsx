@@ -88,7 +88,7 @@ function DirectorDashboard() {
 
   return (
     <div>
-      <div className="page-header"><h1>🏢 Director Dashboard</h1></div>
+      <div className="page-header"><h1>Director Dashboard</h1></div>
 
       {/* Revenue & Booking cards */}
       <div className="stat-grid">
@@ -115,7 +115,7 @@ function DirectorDashboard() {
       {/* Staff Performance */}
       <div className="section">
         <h3 className="section-title">
-          👷 Staff Performance
+          Staff Performance
         </h3>
         <Table
           columns={performanceColumns}
@@ -127,7 +127,7 @@ function DirectorDashboard() {
       {/* Attendance */}
       <div className="section">
         <h3 className="section-title">
-          📋 Attendance Summary
+          Attendance Summary
         </h3>
         <Table
           columns={attendanceColumns}
@@ -139,7 +139,7 @@ function DirectorDashboard() {
       {/* Pending Issues */}
       <div className="section">
         <h3 className="section-title">
-          ⚠️ Pending Issues
+          Pending Issues
         </h3>
         <Table
           columns={issueColumns}

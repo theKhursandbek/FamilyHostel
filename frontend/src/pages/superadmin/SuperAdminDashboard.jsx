@@ -50,7 +50,7 @@ function SuperAdminDashboard() {
       const result = await getSuperAdminDashboard();
       setData(result);
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to load super admin dashboard.");
+      setError(err.response?.data?.detail || "Failed to load CEO dashboard.");
     } finally {
       setLoading(false);
     }
@@ -60,7 +60,7 @@ function SuperAdminDashboard() {
     fetchDashboard();
   }, [fetchDashboard]);
 
-  if (loading) return <Loader message="Loading super admin dashboard..." />;
+  if (loading) return <Loader message="Loading CEO dashboard..." />;
   if (error) return <ErrorMessage message={error} onRetry={fetchDashboard} />;
   if (!data) return <div className="empty-state">No dashboard data available.</div>;
 
@@ -74,7 +74,7 @@ function SuperAdminDashboard() {
 
   return (
     <div>
-      <div className="page-header"><h1>🛡️ Super Admin Dashboard</h1></div>
+      <div className="page-header"><h1>CEO Dashboard</h1></div>
 
       {/* Summary cards */}
       <div className="stat-grid">
@@ -105,7 +105,7 @@ function SuperAdminDashboard() {
       {/* Branch breakdown */}
       <div className="section">
         <h3 className="section-title">
-          🏢 Branch Overview
+          Branch Overview
         </h3>
         <Table
           columns={branchColumns}
@@ -117,7 +117,7 @@ function SuperAdminDashboard() {
       {/* System Activity */}
       <div className="section">
         <h3 className="section-title">
-          📜 Recent System Activity
+          Recent System Activity
         </h3>
         <Table
           columns={activityColumns}

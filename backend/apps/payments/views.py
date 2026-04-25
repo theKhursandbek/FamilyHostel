@@ -13,12 +13,35 @@ from rest_framework.permissions import IsAuthenticated
 from apps.accounts.permissions import IsAdminOrHigher
 
 from .filters import PaymentFilter
-from .models import Payment
-from .serializers import PaymentSerializer
+from .models import Payment, SalaryRecord
+from .serializers import PaymentSerializer, SalaryRecordSerializer
 from .services import record_payment
 from .stripe_service import construct_webhook_event, process_webhook_event
 
 logger = logging.getLogger(__name__)
+
+
+class SalaryRecordViewSet(viewsets.ReadOnlyModelViewSet):
+    """Read-only list/detail for salary records.
+
+    - Director / SuperAdmin / Admin: see all records.
+    - Staff: only their own records.
+    Filterable via ?account=&status=&period_start=&period_end=
+    """
+
+    serializer_class = SalaryRecordSerializer
+    permission_classes = [IsAuthenticated]
+    ordering_fields = ["created_at", "period_start", "period_end", "amount", "status"]
+    ordering = ["-period_end", "-created_at"]
+    filterset_fields = ["account", "status", "period_start", "period_end"]
+
+    def get_queryset(self):
+        qs = SalaryRecord.objects.select_related("account").all()
+        user = self.request.user
+        if not (getattr(user, "is_director", False) or getattr(user, "is_superadmin", False)
+                or getattr(user, "is_administrator", False)):
+            qs = qs.filter(account=user)
+        return qs
 
 
 class PaymentViewSet(viewsets.ModelViewSet):

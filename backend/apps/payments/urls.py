@@ -9,12 +9,13 @@ API endpoints:
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import PaymentViewSet, StripeWebhookView
+from .views import PaymentViewSet, SalaryRecordViewSet, StripeWebhookView
 
 app_name = "payments"
 
 router = DefaultRouter()
 router.register("payments", PaymentViewSet, basename="payment")
+router.register("salary", SalaryRecordViewSet, basename="salary-record")
 
 urlpatterns = [
     path("webhook/", StripeWebhookView.as_view(), name="stripe-webhook"),
