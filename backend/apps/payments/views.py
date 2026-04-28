@@ -26,6 +26,9 @@ from .stripe_service import construct_webhook_event, process_webhook_event
 
 logger = logging.getLogger(__name__)
 
+# Validation message used by every (year, month) query-string parser action.
+_YEAR_MONTH_REQUIRED_MSG = "year and month are required integers."
+
 
 # ---------------------------------------------------------------------------
 # Helpers — period parsing & branch scoping
@@ -349,7 +352,7 @@ class SalaryRecordViewSet(viewsets.ModelViewSet):
             month = int(request.data.get("month"))
         except (TypeError, ValueError):
             raise drf_serializers.ValidationError(
-                {"detail": "year and month are required integers."}
+                {"detail": _YEAR_MONTH_REQUIRED_MSG}
             )
         try:
             records = _do_pay(actor=request.user, year=year, month=month)
@@ -380,7 +383,7 @@ class SalaryRecordViewSet(viewsets.ModelViewSet):
             month = int(request.data.get("month"))
         except (TypeError, ValueError):
             raise drf_serializers.ValidationError(
-                {"detail": "year and month are required integers."}
+                {"detail": _YEAR_MONTH_REQUIRED_MSG}
             )
         reason = (request.data.get("reason") or "").strip()
         if not reason:

@@ -75,20 +75,39 @@ EXPENSE_HEADERS = [
     "Ремонт", "Коммуналка", "Прочие",
 ]
 
+# Payroll-row labels (Russian/Uzbek). Centralised so the same string
+# isn't repeated across the panel-builder, formula resolver and totals row.
+LBL_DAY = "День"
+LBL_NIGHT = "Ночь"
+LBL_TOTAL_SHIFT = "Общий смена"
+LBL_FIX = "Фикса"
+LBL_TOTAL_DAY = "Общий День"
+LBL_TOTAL_NIGHT = "Общий Ночь"
+LBL_BONUS = "Бонус"
+LBL_FINE = "Жарима"
+LBL_ADVANCE = "АВАНС"
+LBL_REMAINING_SALARY = "Ойлик остатка"
+LBL_TOTAL_SALARY = "Общий ойлик"
+LBL_BONUS_PLUS = "Бонус +"
+# Per-shift remainder header (one column at end of each shift block).
+LBL_LEFTOVER = "Остатка"
+# Lobar-only row inserted under the admin payroll panel for her director cut.
+LBL_DIRECTOR_SALARY = "Директор маоши"
+
 # (label, fill, font_color)
 ADMIN_PAYROLL_ROWS: list[tuple[str, Optional[str], str]] = [
-    ("День",          TEAL,       BLACK),
-    ("Ночь",          BLACK,      WHITE),
-    ("Общий смена",   GREEN,      BLACK),
-    ("Фикса",         RED_LIGHT,  RED_DEEP),
-    ("Общий День",    ORANGE,     BLACK),
-    ("Общий Ночь",    ORANGE,     BLACK),
-    ("Бонус",         RED_DEEP,   WHITE),
-    ("Жарима",        RED,        BLACK),
-    ("АВАНС",         BLUE_HDR,   WHITE),
-    ("Ойлик остатка", GREEN_DARK, WHITE),
-    ("Общий ойлик",   None,       BLACK),
-    ("Бонус +",       YELLOW,     BLACK),
+    (LBL_DAY,              TEAL,       BLACK),
+    (LBL_NIGHT,            BLACK,      WHITE),
+    (LBL_TOTAL_SHIFT,      GREEN,      BLACK),
+    (LBL_FIX,              RED_LIGHT,  RED_DEEP),
+    (LBL_TOTAL_DAY,        ORANGE,     BLACK),
+    (LBL_TOTAL_NIGHT,      ORANGE,     BLACK),
+    (LBL_BONUS,            RED_DEEP,   WHITE),
+    (LBL_FINE,             RED,        BLACK),
+    (LBL_ADVANCE,          BLUE_HDR,   WHITE),
+    (LBL_REMAINING_SALARY, GREEN_DARK, WHITE),
+    (LBL_TOTAL_SALARY,     None,       BLACK),
+    (LBL_BONUS_PLUS,       YELLOW,     BLACK),
 ]
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -237,7 +256,7 @@ def build_month_sheet(ws: Worksheet, data: MonthData) -> None:  # noqa: C901,PLR
     for c, name in zip(DAY_EXPENSE_COLS, EXPENSE_HEADERS):
         _style(ws.cell(row=2, column=c, value=name),
                bold=True, fill_color=RED, font_color=WHITE)
-    _style(ws.cell(row=2, column=DAY_REMAIN_COL, value="Остатка"),
+    _style(ws.cell(row=2, column=DAY_REMAIN_COL, value=LBL_LEFTOVER),
            bold=True, fill_color=GREEN)
 
     _style(ws.cell(row=2, column=NIGHT_ADMIN, value="Админ"),
@@ -247,7 +266,7 @@ def build_month_sheet(ws: Worksheet, data: MonthData) -> None:  # noqa: C901,PLR
     for c, name in zip(NIGHT_EXPENSE_COLS, EXPENSE_HEADERS):
         _style(ws.cell(row=2, column=c, value=name),
                bold=True, fill_color=RED, font_color=WHITE)
-    _style(ws.cell(row=2, column=NIGHT_REMAIN_COL, value="Остатка"),
+    _style(ws.cell(row=2, column=NIGHT_REMAIN_COL, value=LBL_LEFTOVER),
            bold=True, fill_color=GREEN)
 
     # Daily rows
@@ -352,7 +371,7 @@ def build_month_sheet(ws: Worksheet, data: MonthData) -> None:  # noqa: C901,PLR
         ("Коммуналка",     f"={_col(DAY_EXPENSE_COLS[4])}{total_row}+{_col(NIGHT_EXPENSE_COLS[4])}{total_row}", TEAL, None),
     ]
     pair2 = [
-        ("Остатка",  f"={_col(DAY_REMAIN_COL)}{total_row}+{_col(NIGHT_REMAIN_COL)}{total_row}", GREEN, None),
+        (LBL_LEFTOVER, f"={_col(DAY_REMAIN_COL)}{total_row}+{_col(NIGHT_REMAIN_COL)}{total_row}", GREEN, None),
         ("%",        pct_formula, GREEN_DARK, "0.0"),
         ("Моющий",   f"={_col(DAY_EXPENSE_COLS[1])}{total_row}+{_col(NIGHT_EXPENSE_COLS[1])}{total_row}", TEAL, None),
         ("Ремонт",   f"={_col(DAY_EXPENSE_COLS[3])}{total_row}+{_col(NIGHT_EXPENSE_COLS[3])}{total_row}", TEAL, None),
@@ -414,14 +433,14 @@ def build_month_sheet(ws: Worksheet, data: MonthData) -> None:  # noqa: C901,PLR
             ws.cell(row=r, column=c, value=value)
             _style(
                 ws.cell(row=r, column=c),
-                number_format=("0" if label in ("День", "Ночь", "Общий смена") else NUMFMT),
-                bold=(label in ("Бонус", "Ойлик остатка", "Общий ойлик")),
+                number_format=("0" if label in (LBL_DAY, LBL_NIGHT, LBL_TOTAL_SHIFT) else NUMFMT),
+                bold=(label in (LBL_BONUS, LBL_REMAINING_SALARY, LBL_TOTAL_SALARY)),
             )
 
     extra_used = 0
     if lobar_variant:
         r = 3 + len(ADMIN_PAYROLL_ROWS)
-        ws.cell(row=r, column=PANEL_LBL_COL, value="Директор маоши")
+        ws.cell(row=r, column=PANEL_LBL_COL, value=LBL_DIRECTOR_SALARY)
         _style(ws.cell(row=r, column=PANEL_LBL_COL),
                bold=True, fill_color=BLUE_HDR, font_color=WHITE)
         gm_name = panels[0].full_name
@@ -436,7 +455,7 @@ def build_month_sheet(ws: Worksheet, data: MonthData) -> None:  # noqa: C901,PLR
         for j in range(1, PANEL_COUNT):
             ws.cell(row=r, column=PANEL_FIRST_COL + j, value=None)
             _style(ws.cell(row=r, column=PANEL_FIRST_COL + j), fill_color="D9D9D9")
-        panel_row_for["Директор маоши"] = r
+        panel_row_for[LBL_DIRECTOR_SALARY] = r
         extra_used = 1
 
     # Final black ИТОГ row
@@ -453,10 +472,10 @@ def build_month_sheet(ws: Worksheet, data: MonthData) -> None:  # noqa: C901,PLR
             _style(ws.cell(row=final_row, column=c),
                    bold=True, fill_color=BLACK, font_color=WHITE)
             continue
-        oilik = panel_row_for["Ойлик остатка"]
-        bonusplus = panel_row_for["Бонус +"]
+        oilik = panel_row_for[LBL_REMAINING_SALARY]
+        bonusplus = panel_row_for[LBL_BONUS_PLUS]
         if lobar_variant and j == 0:
-            director = panel_row_for["Директор маоши"]
+            director = panel_row_for[LBL_DIRECTOR_SALARY]
             formula = f"={L}{oilik}+{L}{bonusplus}+{L}{director}"
         else:
             formula = f"={L}{oilik}+{L}{bonusplus}"
@@ -584,40 +603,40 @@ def _panel_value(*, label: str, panel: AdminPanelInputs,
     rng_night_total = f"{nt_}{data_start}:{nt_}{last_row}"
 
     L = col_letter
-    days_row = panel_row_for.get("День")
-    nights_row = panel_row_for.get("Ночь")
-    fix_row = panel_row_for.get("Фикса")
-    obd_row = panel_row_for.get("Общий День")
-    obn_row = panel_row_for.get("Общий Ночь")
-    bonus_row = panel_row_for.get("Бонус")
-    fine_row = panel_row_for.get("Жарима")
-    adv_row = panel_row_for.get("АВАНС")
+    days_row = panel_row_for.get(LBL_DAY)
+    nights_row = panel_row_for.get(LBL_NIGHT)
+    fix_row = panel_row_for.get(LBL_FIX)
+    obd_row = panel_row_for.get(LBL_TOTAL_DAY)
+    obn_row = panel_row_for.get(LBL_TOTAL_NIGHT)
+    bonus_row = panel_row_for.get(LBL_BONUS)
+    fine_row = panel_row_for.get(LBL_FINE)
+    adv_row = panel_row_for.get(LBL_ADVANCE)
 
-    if label == "День":
+    if label == LBL_DAY:
         return f"=COUNTA({rng_day_admin})" if lobar_variant else f'=COUNTIF({rng_day_admin},{name_quoted})'
-    if label == "Ночь":
+    if label == LBL_NIGHT:
         return f"=COUNTA({rng_night_admin})" if lobar_variant else f'=COUNTIF({rng_night_admin},{name_quoted})'
-    if label == "Общий смена":
+    if label == LBL_TOTAL_SHIFT:
         return f"={L}{days_row}+{L}{nights_row}"
-    if label == "Фикса":
-        return f"={L}{panel_row_for['Общий смена']}*{admin_shift_rate}"
-    if label == "Общий День":
+    if label == LBL_FIX:
+        return f"={L}{panel_row_for[LBL_TOTAL_SHIFT]}*{admin_shift_rate}"
+    if label == LBL_TOTAL_DAY:
         return f"=SUM({rng_day_total})" if lobar_variant else f'=SUMIF({rng_day_admin},{name_quoted},{rng_day_total})'
-    if label == "Общий Ночь":
+    if label == LBL_TOTAL_NIGHT:
         return f"=SUM({rng_night_total})" if lobar_variant else f'=SUMIF({rng_night_admin},{name_quoted},{rng_night_total})'
-    if label == "Бонус":
+    if label == LBL_BONUS:
         pct = panel.bonus_pct
         return f"=ROUND(({L}{obd_row}+{L}{obn_row})*{pct},0)"
-    if label == "Жарима":
+    if label == LBL_FINE:
         return float(panel.fine)
-    if label == "АВАНС":
+    if label == LBL_ADVANCE:
         return float(panel.advance)
-    if label == "Ойлик остатка":
+    if label == LBL_REMAINING_SALARY:
         return (f"={L}{fix_row}+{L}{bonus_row}"
                 f"-{L}{fine_row}-{L}{adv_row}")
-    if label == "Общий ойлик":
-        oilik_row = panel_row_for["Ойлик остатка"]
+    if label == LBL_TOTAL_SALARY:
+        oilik_row = panel_row_for[LBL_REMAINING_SALARY]
         return f"={L}{adv_row}+{L}{oilik_row}"
-    if label == "Бонус +":
+    if label == LBL_BONUS_PLUS:
         return float(panel.bonus_plus)
     return 0

@@ -58,6 +58,10 @@ __all__ = [
     "RestoreResult",
 ]
 
+# Audit-action suffixes appended when an action is restored. Centralised
+# here so the literals don't drift between query filters and exclude clauses.
+_UNDONE_SUFFIX = ".undone"
+_REDONE_SUFFIX = ".redone"
 
 # ---------------------------------------------------------------------------
 # Errors
@@ -175,7 +179,7 @@ class RestoreService:
             # lookups. Fall back to a Python-side scan over recent rows.
             latest = None
             for row in AuditLog.objects.filter(
-                action__endswith=".undone",
+                action__endswith=_UNDONE_SUFFIX,
             ).order_by("-created_at")[:50]:
                 data = row.after_data or {}
                 if isinstance(data, dict) and data.get("_undo_of") == audit.pk:
@@ -251,8 +255,8 @@ class RestoreService:
                 entity_id=audit.entity_id,
                 created_at__gt=audit.created_at,
             )
-            .exclude(action__endswith=".undone")
-            .exclude(action__endswith=".redone")
+            .exclude(action__endswith=_UNDONE_SUFFIX)
+            .exclude(action__endswith=_REDONE_SUFFIX)
             .exclude(pk=audit.pk)
             .order_by("created_at")
             .first()

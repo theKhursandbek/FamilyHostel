@@ -60,7 +60,7 @@ function SessionCard({
 }) {
   const isOpen = session.is_open ?? !session.closed_at;
   const isLoading = actionLoading === session.id;
-  const variance = session.variance != null ? Number(session.variance) : null;
+  const variance = session.variance == null ? null : Number(session.variance);
 
   return (
     <div

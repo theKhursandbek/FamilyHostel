@@ -28,10 +28,10 @@ from django.db import migrations, models
 def _audit_log(apps, account_id, before, after):
     """Best-effort audit entry; reports app may not be ready yet during tests."""
     try:
-        AuditLog = apps.get_model("reports", "AuditLog")
+        audit_log_model = apps.get_model("reports", "AuditLog")
     except LookupError:
         return
-    AuditLog.objects.create(
+    audit_log_model.objects.create(
         account_id=None,
         role="system",
         action="accounts.dual_role_collapsed",
@@ -43,18 +43,18 @@ def _audit_log(apps, account_id, before, after):
 
 
 def collapse_dual_roles_and_move_gm(apps, schema_editor):
-    Director = apps.get_model("accounts", "Director")
-    Administrator = apps.get_model("accounts", "Administrator")
-    SuperAdmin = apps.get_model("accounts", "SuperAdmin")
+    director_model = apps.get_model("accounts", "Director")
+    administrator_model = apps.get_model("accounts", "Administrator")
+    super_admin_model = apps.get_model("accounts", "SuperAdmin")
 
     # 1. Collapse dual-role accounts: prefer the Director row, drop the
     #    Administrator row. We process every account that has both rows,
     #    regardless of is_active state — the unified model does not need
     #    an Administrator row for any director.
     director_account_ids = set(
-        Director.objects.values_list("account_id", flat=True),
+        director_model.objects.values_list("account_id", flat=True),
     )
-    duplicates = Administrator.objects.filter(
+    duplicates = administrator_model.objects.filter(
         account_id__in=director_account_ids,
     )
     for admin in duplicates:
@@ -72,9 +72,9 @@ def collapse_dual_roles_and_move_gm(apps, schema_editor):
     # 2. Move GM flag from SuperAdmin → Director where the same Account holds
     #    both. (Lobar's account is currently SuperAdmin only and has no
     #    Director profile, so this is a no-op for her — handled manually.)
-    gm_super_admins = SuperAdmin.objects.filter(is_general_manager=True)
+    gm_super_admins = super_admin_model.objects.filter(is_general_manager=True)
     for sa in gm_super_admins:
-        director = Director.objects.filter(account_id=sa.account_id).first()
+        director = director_model.objects.filter(account_id=sa.account_id).first()
         if director is None:
             continue
         director.is_general_manager = True

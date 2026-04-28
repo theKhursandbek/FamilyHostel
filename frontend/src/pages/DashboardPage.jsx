@@ -46,6 +46,7 @@ function GreetingHero({ user }) {
 
 GreetingHero.propTypes = {
   user: PropTypes.shape({
+    full_name: PropTypes.string,
     phone: PropTypes.string,
     roles: PropTypes.arrayOf(PropTypes.string),
   }),

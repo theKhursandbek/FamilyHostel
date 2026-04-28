@@ -16,17 +16,17 @@ from django.db import migrations, models
 
 
 def copy_salary_to_override(apps, schema_editor):
-    Director = apps.get_model("accounts", "Director")
-    SystemSettings = apps.get_model("admin_panel", "SystemSettings")
+    director_model = apps.get_model("accounts", "Director")
+    settings_model = apps.get_model("admin_panel", "SystemSettings")
 
-    settings_obj = SystemSettings.objects.first()
+    settings_obj = settings_model.objects.first()
     default_salary = (
         Decimal(settings_obj.director_fixed_salary)
         if settings_obj is not None
         else Decimal("2000000")
     )
 
-    for director in Director.objects.all():
+    for director in director_model.objects.all():
         current = Decimal(director.salary or 0)
         # Only persist as override when it actually differs from the global
         # default — otherwise keep it NULL so future SystemSettings changes
@@ -38,7 +38,6 @@ def copy_salary_to_override(apps, schema_editor):
 
 def noop_reverse(apps, schema_editor):
     """Forward-only data move; reverse is a no-op (data stays in salary)."""
-    return
 
 
 class Migration(migrations.Migration):

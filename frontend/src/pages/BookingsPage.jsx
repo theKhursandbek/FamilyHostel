@@ -116,8 +116,9 @@ function BookingCard({ booking, onOpen, onExtend, onCancel, onComplete, onMarkPa
         <div className="booking-card__crest-wrap">
           <span className="booking-card__crest" aria-hidden>
             {String(booking.room_number ?? "·")}
-          </span>          {/* eslint-disable-next-line no-irregular-whitespace */}          <span className="booking-card__bid" aria-label={`Booking ID ${booking.id}`}>
-            № {booking.id}
+          </span>
+          <span className="booking-card__bid" aria-label={`Booking ID ${booking.id}`}>
+            #{booking.id}
           </span>
         </div>
         <div className="booking-card__head-body">

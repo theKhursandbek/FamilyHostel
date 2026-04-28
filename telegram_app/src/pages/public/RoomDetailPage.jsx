@@ -46,13 +46,13 @@ function RoomDetailPage() {
     hapticImpact("medium");
     if (!isAuthenticated) {
       navigate("/login");
-    } else if (!isClient) {
-      // Logged in as staff/admin via dev fallback — booking is a client action.
-      navigate("/me");
-    } else {
+    } else if (isClient) {
       // Real booking creation flow lives in the admin/web app for now;
       // the mini app navigates clients to their bookings list as feedback.
       navigate("/me/bookings");
+    } else {
+      // Logged in as staff/admin via dev fallback — booking is a client action.
+      navigate("/me");
     }
   };
 

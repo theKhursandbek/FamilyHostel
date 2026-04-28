@@ -29,6 +29,9 @@ XLSX_MIME = (
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
 
+# Repeated 400 detail used by every endpoint that parses a ?year= path arg.
+_INVALID_YEAR_MSG = "Invalid year"
+
 
 def _current_year() -> int:
     return dt.date.today().year
@@ -62,7 +65,7 @@ class WorkbookBranchView(APIView):
         try:
             year_i = int(year)
         except (TypeError, ValueError):
-            return Response({"detail": "Invalid year"}, status=400)
+            return Response({"detail": _INVALID_YEAR_MSG}, status=400)
 
         buf = build_branch_workbook(branch=branch, year=year_i, viewer=request.user)
         filename = f"branch_{branch.name}_{year_i}.xlsx".replace(" ", "_")
@@ -103,7 +106,7 @@ class WorkbookGeneralManagerView(APIView):
         try:
             year_i = int(year)
         except (TypeError, ValueError):
-            return Response({"detail": "Invalid year"}, status=400)
+            return Response({"detail": _INVALID_YEAR_MSG}, status=400)
 
         buf = build_lobar_workbook(year=year_i, viewer=request.user)
         # Q7 filename: gm_<FullName_with_underscores>_<Year>.xlsx
@@ -128,7 +131,7 @@ class WorkbookLobarView(APIView):
         try:
             year_i = int(year)
         except (TypeError, ValueError):
-            return Response({"detail": "Invalid year"}, status=400)
+            return Response({"detail": _INVALID_YEAR_MSG}, status=400)
         gm = (
             Director.objects.filter(is_general_manager=True, is_active=True)
             .order_by("pk").first()

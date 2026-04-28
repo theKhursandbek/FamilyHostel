@@ -18,25 +18,25 @@ function BottomNav() {
       {isStaff && (
         <NavLink to="/staff" className={({ isActive }) => (isActive ? "active" : "")}>
           <span className="nav-icon">🧹</span>
-          Tasks
+          <span className="nav-label">Tasks</span>
         </NavLink>
       )}
 
       <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>
         <span className="nav-icon">🏨</span>
-        Browse
+        <span className="nav-label">Browse</span>
       </NavLink>
 
       {isClient && (
         <NavLink to="/me/bookings" className={({ isActive }) => (isActive ? "active" : "")}>
           <span className="nav-icon">📅</span>
-          Bookings
+          <span className="nav-label">Bookings</span>
         </NavLink>
       )}
 
       <NavLink to="/me" className={({ isActive }) => (isActive ? "active" : "")}>
         <span className="nav-icon">👤</span>
-        Profile
+        <span className="nav-label">Profile</span>
       </NavLink>
     </nav>
   );

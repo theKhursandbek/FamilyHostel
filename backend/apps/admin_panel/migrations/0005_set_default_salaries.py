@@ -14,9 +14,9 @@ DEFAULTS = {
 def backfill_defaults(apps, schema_editor):
     """Bump existing zero values up to the new defaults so the singleton row
     reflects sensible starting salaries instead of zeros from earlier migrations."""
-    SystemSettings = apps.get_model("admin_panel", "SystemSettings")
+    settings_model = apps.get_model("admin_panel", "SystemSettings")
     zero = Decimal("0")
-    for obj in SystemSettings.objects.all():
+    for obj in settings_model.objects.all():
         changed = False
         for field, default in DEFAULTS.items():
             if getattr(obj, field) == zero:

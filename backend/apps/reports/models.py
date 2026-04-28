@@ -16,6 +16,10 @@ from decimal import Decimal
 from django.conf import settings
 from django.db import models
 
+# String reference used by every FK that points at the branches app's
+# Branch model. Centralised so refactors / app renames touch one place.
+_BRANCH_MODEL = "branches.Branch"
+
 
 class MonthlyReport(models.Model):
     """
@@ -27,7 +31,7 @@ class MonthlyReport(models.Model):
     """
 
     branch = models.ForeignKey(
-        "branches.Branch",
+        _BRANCH_MODEL,
         on_delete=models.CASCADE,
         related_name="monthly_reports",
     )
@@ -98,7 +102,7 @@ class FacilityLog(models.Model):
         CARD = "card", "Branch card (CEO swipe)"
 
     branch = models.ForeignKey(
-        "branches.Branch",
+        _BRANCH_MODEL,
         on_delete=models.CASCADE,
         related_name="facility_logs",
     )
@@ -313,7 +317,7 @@ class SalaryAdjustment(models.Model):
         related_name="salary_adjustments",
     )
     branch = models.ForeignKey(
-        "branches.Branch",
+        _BRANCH_MODEL,
         on_delete=models.CASCADE,
         related_name="salary_adjustments",
     )
@@ -349,5 +353,7 @@ class SalaryAdjustment(models.Model):
         verbose_name_plural = "Salary Adjustments"
 
     def __str__(self):
-        return f"{self.kind} {self.amount} — acc#{self.account_id} {self.year}-{self.month:02d}"
+        # ``account_id`` is a Django-generated FK accessor that Pyright's
+        # default stubs don't see; the value is fine at runtime.
+        return f"{self.kind} {self.amount} — acc#{self.account_id} {self.year}-{self.month:02d}"  # type: ignore[attr-defined]
 

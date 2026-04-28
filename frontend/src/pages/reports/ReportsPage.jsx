@@ -104,7 +104,7 @@ function ReportsPage() {
         item.director_id, item.year,
       );
       const safe = (item.director_name || `director_${item.director_id}`)
-        .replace(/\s+/g, "_");
+        .replaceAll(/\s+/g, "_");
       saveBlob(response, `gm_${safe}_${item.year}.xlsx`);
       toast.success("GM workbook downloaded");
     } catch (err) {

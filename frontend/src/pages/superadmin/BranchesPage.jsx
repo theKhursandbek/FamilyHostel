@@ -72,12 +72,10 @@ function BranchesPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // Resolve human-readable names from FK ids when rendering rows in the
-  // mixed branches/room-types/rooms tables below.
-  const branchName = (id) => branches.find((b) => b.id === id)?.name || `#${id}`;
+  // Resolve human-readable name for a room-type FK id when rendering rows
+  // in the rooms table below. (Branch names are rendered directly from the
+  // selected branch object so no helper is needed for them.)
   const typeName = (id) => roomTypes.find((t) => t.id === id)?.name || `#${id}`;
-  // Tag as intentional read so eslint's no-unused-vars rule sees a usage.
-  void branchName;
 
   // ---------------------------------------------- Open modals
   const openCreate = (kind) => {
@@ -88,14 +86,19 @@ function BranchesPage() {
       working_days_per_month: 26, monthly_expense_limit: "0",
     });
     if (kind === "room-type") setForm({ name: "" });
-    if (kind === "room") setForm({
-      branch: selectedBranchId ? String(selectedBranchId) : (branches[0] ? String(branches[0].id) : ""),
-      room_type: roomTypes[0] ? String(roomTypes[0].id) : "",
-      room_number: "",
-      base_price: "",
-      is_active: true,
-      image_files: [],
-    });
+    if (kind === "room") {
+      let defaultBranchId = "";
+      if (selectedBranchId) defaultBranchId = String(selectedBranchId);
+      else if (branches[0]) defaultBranchId = String(branches[0].id);
+      setForm({
+        branch: defaultBranchId,
+        room_type: roomTypes[0] ? String(roomTypes[0].id) : "",
+        room_number: "",
+        base_price: "",
+        is_active: true,
+        image_files: [],
+      });
+    }
   };
 
   const openEdit = (kind, row) => {
