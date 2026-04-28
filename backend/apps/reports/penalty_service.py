@@ -75,9 +75,15 @@ def update_penalty(*, penalty: Penalty, performed_by=None, **kwargs) -> Penalty:
     allowed = {"type", "count", "penalty_amount", "reason"}
     update_fields = ["updated_at"]
     for key, value in kwargs.items():
-        if key in allowed and value is not None:
-            setattr(penalty, key, value)
-            update_fields.append(key)
+        if key not in allowed:
+            continue
+        # ``type`` is nullable on the model — allow explicit None so callers
+        # can clear an existing category. For all other fields, ``None`` means
+        # "field not sent" (per CreatePenaltySerializer / UpdatePenalty rules).
+        if key != "type" and value is None:
+            continue
+        setattr(penalty, key, value)
+        update_fields.append(key)
 
     penalty.save(update_fields=update_fields)
 

@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions import (
+    IsAdminOrHigher,
     IsDirectorOrHigher,
     IsOwnerOrDirectorOrHigher,
     IsStaffOrHigher,
@@ -34,32 +35,89 @@ from .services import check_in, check_out, create_shift_assignment, get_salary_s
 class ShiftAssignmentViewSet(viewsets.ModelViewSet):
     """CRUD for shift assignments.
 
-    Permission Matrix (README Section 18):
-        - Assign shifts: Director ✅ | SuperAdmin ✅
+    Permission Matrix (April 2026 update):
+        - Assign shifts: Administrator ✅ (own branch only) | SuperAdmin ✅
         - Read: Staff and Admin can view their own shifts.
+
+    Note: Directors used to own shift assignment; per the new spec, this
+    moves to the Administrator (the on-shift floor manager).  Admins may
+    only assign Staff and other Admins from their own branch — never a
+    Director or someone from a different branch.
     """
 
     queryset = ShiftAssignment.objects.select_related(
         "account", "branch", "assigned_by", "assigned_by__account",
     )
     serializer_class = ShiftAssignmentSerializer
-    permission_classes = [IsAuthenticated, ReadOnly | IsDirectorOrHigher]
+    permission_classes = [IsAuthenticated, ReadOnly | IsAdminOrHigher]
     filterset_class = ShiftAssignmentFilter
     ordering_fields = ["date", "shift_type", "role", "created_at"]
     ordering = ["-date"]
     search_fields = ["account__phone"]
 
+    def get_queryset(self):
+        """Branch scope: SuperAdmin sees all, everyone else sees own branch only."""
+        from apps.accounts.branch_scope import scope_queryset_by_branch
+        return scope_queryset_by_branch(super().get_queryset(), self.request.user)
+
     def perform_create(self, serializer):
-        """Delegate creation to the service layer (one-admin-per-shift check)."""
+        """Delegate creation to the service layer (one-admin-per-shift check).
+
+        Adds two guards on top of the service-layer validation:
+            * The assigner must be Admin or SuperAdmin (Directors blocked).
+            * Target account must belong to the assigner's branch and must
+              not be a Director (admins can only assign admins / staff).
+        """
+        from apps.accounts.branch_scope import get_user_branch
+        user = self.request.user
+        if getattr(user, "is_director", False) and not getattr(user, "is_administrator", False):
+            raise drf_serializers.ValidationError(
+                {"detail": "Shift assignment is managed by Administrators, not Directors."}
+            )
+
         data = serializer.validated_data
-        assignment = create_shift_assignment(
-            account=data["account"],
-            role=data["role"],
-            branch=data["branch"],
-            shift_type=data["shift_type"],
-            date=data["date"],
-            assigned_by=data["assigned_by"],
+        target = data["account"]
+        target_branch = data["branch"]
+
+        # Branch guard — admins can't assign someone in a different branch.
+        my_branch = get_user_branch(user)
+        if my_branch is not None and target_branch.pk != my_branch.pk:
+            raise drf_serializers.ValidationError(
+                {"branch": "You can only create shifts for your own branch."}
+            )
+
+        # Role guard — admins cannot assign pure Directors or SuperAdmins.
+        # A Director who *also* has an Administrator profile is allowed (they
+        # work admin shifts in addition to managing the branch).
+        is_pure_director = (
+            getattr(target, "is_director", False)
+            and not getattr(target, "is_administrator", False)
         )
+        if is_pure_director or getattr(target, "is_superadmin", False):
+            raise drf_serializers.ValidationError(
+                {"account": "Pure Directors and SuperAdmins are not assigned shifts here."}
+            )
+
+        # Resolve assigned_by from the requesting user's director profile.
+        assigned_by = getattr(user, "director_profile", None)
+        if assigned_by is None:
+            raise drf_serializers.ValidationError(
+                {"assigned_by": "Only users with a director profile can assign shifts."}
+            )
+
+        try:
+            assignment = create_shift_assignment(
+                account=target,
+                role=data["role"],
+                branch=target_branch,
+                shift_type=data["shift_type"],
+                date=data["date"],
+                assigned_by=assigned_by,
+            )
+        except DjangoValidationError as exc:
+            raise drf_serializers.ValidationError(
+                getattr(exc, "message_dict", None) or {"detail": exc.messages}
+            )
         serializer.instance = assignment
 
 

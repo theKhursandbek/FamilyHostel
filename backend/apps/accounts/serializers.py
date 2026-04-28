@@ -5,7 +5,6 @@ Serializers for Account and all role tables (README Section 14.1, 14.2).
 """
 
 import time
-from decimal import Decimal
 
 from django.db import transaction
 from rest_framework import serializers
@@ -17,14 +16,6 @@ from .models import Account, Administrator, Client, Director, Staff, SuperAdmin
 # Roles a Super Admin can assign through the user-management UI.
 ROLE_CHOICES = ("staff", "administrator", "director", "superadmin")
 ROLES_NEEDING_BRANCH = {"staff", "administrator", "director"}
-
-# Pairs that may be combined on a single account via `also_role`.
-# Business rule (README §3.2): a Director can also serve as Administrator
-# of the same branch (and vice-versa). No other dual-role combos are allowed.
-DUAL_ROLE_PAIRS = {
-    "director": "administrator",
-    "administrator": "director",
-}
 
 
 def _profile_for(account: Account):
@@ -58,8 +49,13 @@ class AccountSerializer(serializers.ModelSerializer):
     Account representation used by the Super Admin user-management UI.
 
     Read fields expose the account + its primary role profile (full_name,
-    branch, salary). Write fields allow Super Admin to create accounts with
-    a role + role-specific data, change phone/password, and toggle status.
+    branch, is_general_manager). Write fields allow Super Admin to create
+    accounts with a role + role-specific data, change phone/password, toggle
+    status, and flag a Director as General Manager.
+
+    NOTE: dual-role accounts have been removed (April 2026 refactor). Every
+    Director now also performs Administrator duties for their branch via the
+    same Director profile — there is no separate Administrator row needed.
     """
 
     # ---- Read-only enriched fields ----------------------------------------
@@ -68,7 +64,9 @@ class AccountSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     branch_id = serializers.SerializerMethodField()
     branch_name = serializers.SerializerMethodField()
-    salary = serializers.SerializerMethodField()
+    is_general_manager = serializers.SerializerMethodField()
+    client_profile_id = serializers.SerializerMethodField()
+    staff_profile_id = serializers.SerializerMethodField()
 
     # ---- Write-only inputs (used on create / update) ----------------------
     password = serializers.CharField(
@@ -84,16 +82,13 @@ class AccountSerializer(serializers.ModelSerializer):
         write_only=True, required=False, allow_null=True,
         queryset=Branch.objects.all(),
     )
-    salary_input = serializers.DecimalField(
-        write_only=True, required=False, max_digits=12, decimal_places=2,
-    )
-    # Dual-role flag — when role_input='director', set also_role='administrator'
-    # to also create an Administrator profile on the same branch (and vice-versa).
-    # On update, pass also_role=None|''  to remove any secondary profile, or
-    # pass the partner role name to add it.
-    also_role = serializers.ChoiceField(
-        write_only=True, required=False, allow_null=True, allow_blank=True,
-        choices=("director", "administrator"),
+    is_general_manager_input = serializers.BooleanField(
+        write_only=True, required=False,
+        help_text=(
+            "When creating/updating a Director, marks them as General Manager "
+            "(extra salary bonus + personal yearly workbook). Ignored for "
+            "every other role."
+        ),
     )
 
     class Meta:
@@ -101,15 +96,17 @@ class AccountSerializer(serializers.ModelSerializer):
         fields = [
             # read
             "id", "telegram_id", "telegram_chat_id", "phone", "is_active",
-            "roles", "role", "full_name", "branch_id", "branch_name", "salary",
-            "created_at", "updated_at",
+            "roles", "role", "full_name", "branch_id", "branch_name",
+            "is_general_manager",
+            "client_profile_id", "staff_profile_id", "created_at", "updated_at",
             # write
-            "password", "role_input", "full_name_input", "branch", "salary_input",
-            "also_role",
+            "password", "role_input", "full_name_input", "branch",
+            "is_general_manager_input",
         ]
         read_only_fields = [
             "id", "telegram_id", "roles", "role", "full_name",
-            "branch_id", "branch_name", "salary", "created_at", "updated_at",
+            "branch_id", "branch_name", "is_general_manager",
+            "client_profile_id", "staff_profile_id", "created_at", "updated_at",
         ]
         extra_kwargs = {
             # Phone is the login identifier — required on create, editable later.
@@ -128,6 +125,14 @@ class AccountSerializer(serializers.ModelSerializer):
                 return role
         return None
 
+    def get_client_profile_id(self, obj: Account) -> int | None:
+        profile = getattr(obj, "client_profile", None)
+        return profile.pk if profile else None
+
+    def get_staff_profile_id(self, obj: Account) -> int | None:
+        profile = getattr(obj, "staff_profile", None)
+        return profile.pk if profile else None
+
     def get_full_name(self, obj: Account) -> str:
         _, profile = _profile_for(obj)
         return getattr(profile, "full_name", "") if profile else ""
@@ -141,10 +146,9 @@ class AccountSerializer(serializers.ModelSerializer):
         branch = getattr(profile, "branch", None) if profile else None
         return branch.name if branch else None
 
-    def get_salary(self, obj: Account):
-        if hasattr(obj, "director_profile"):
-            return str(obj.director_profile.salary)
-        return None
+    def get_is_general_manager(self, obj: Account) -> bool:
+        director = getattr(obj, "director_profile", None)
+        return bool(director and director.is_general_manager)
 
     # ------------------------------------------------------------------
     # Validation
@@ -164,13 +168,10 @@ class AccountSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         is_create = self.instance is None
         role = attrs.get("role_input")
-        also_role = attrs.get("also_role") or None
 
         if is_create:
             self._validate_create_required(attrs, role)
-
-        if also_role:
-            self._validate_also_role(role, also_role)
+            self._validate_one_director_per_branch(role, attrs.get("branch"))
 
         return attrs
 
@@ -195,27 +196,17 @@ class AccountSerializer(serializers.ModelSerializer):
                 {"branch": f"Branch is required for {role} role."},
             )
 
-    def _validate_also_role(self, role, also_role):
-        primary = role or self._current_primary_role()
-        if primary not in DUAL_ROLE_PAIRS:
+    @staticmethod
+    def _validate_one_director_per_branch(role, branch):
+        if role != "director" or branch is None:
+            return
+        if Director.objects.filter(branch=branch, is_active=True).exists():
             raise serializers.ValidationError({
-                "also_role": "Dual roles are only available for "
-                             "Director ↔ Administrator combinations.",
+                "branch": (
+                    f"Branch '{branch.name}' already has an active Director. "
+                    "Disable the existing one before creating a new one."
+                ),
             })
-        if DUAL_ROLE_PAIRS[primary] != also_role:
-            raise serializers.ValidationError({
-                "also_role": f"For a {primary} the secondary role must be "
-                             f"'{DUAL_ROLE_PAIRS[primary]}'.",
-            })
-
-    def _current_primary_role(self) -> str | None:
-        """Highest-privilege existing role on the instance (update flow)."""
-        if self.instance is None:
-            return None
-        for r in ("superadmin", "director", "administrator", "staff"):
-            if r in self.instance.roles:
-                return r
-        return None
 
     # ------------------------------------------------------------------
     # Create / update
@@ -226,8 +217,7 @@ class AccountSerializer(serializers.ModelSerializer):
         role = validated_data.pop("role_input")
         full_name = validated_data.pop("full_name_input")
         branch = validated_data.pop("branch", None)
-        salary = validated_data.pop("salary_input", None)
-        also_role = validated_data.pop("also_role", None) or None
+        is_gm = bool(validated_data.pop("is_general_manager_input", False))
 
         account = Account(
             telegram_id=_next_placeholder_telegram_id(),
@@ -238,36 +228,32 @@ class AccountSerializer(serializers.ModelSerializer):
         account.set_password(password)
         account.save()
 
-        self._create_role_profile(account, role, full_name, branch, salary)
-        if also_role:
-            # Same branch + same name; salary only applies to director profile.
-            self._create_role_profile(account, also_role, full_name, branch, salary)
+        self._create_role_profile(
+            account, role, full_name, branch, is_general_manager=is_gm,
+        )
         return account
 
     @transaction.atomic
     def update(self, instance: Account, validated_data):
         # Allow editing phone / password / is_active / chat_id and the
-        # full_name + salary on the existing role profile. Role itself is
-        # immutable in v1 (delete + recreate to switch roles), but the
-        # secondary "also_role" can be added or removed in-place.
+        # full_name on the existing role profile. Role itself is immutable
+        # in v1 (delete + recreate to switch roles). The General Manager
+        # flag is editable for Directors.
         password = validated_data.pop("password", None)
         full_name = validated_data.pop("full_name_input", None)
-        salary = validated_data.pop("salary_input", None)
-        also_role_provided = "also_role" in validated_data
-        also_role = validated_data.pop("also_role", None) or None
+        gm_provided = "is_general_manager_input" in validated_data
+        is_gm = bool(validated_data.pop("is_general_manager_input", False))
         # role_input / branch are accepted but ignored on update for safety.
         validated_data.pop("role_input", None)
         validated_data.pop("branch", None)
 
         self._apply_account_fields(instance, validated_data, password)
-        self._sync_profile_fields(instance, full_name, salary)
-
-        if also_role_provided:
-            primary = self._current_primary_role()
-            if primary in DUAL_ROLE_PAIRS:
-                self._sync_secondary_role(
-                    instance, primary, also_role, full_name, salary,
-                )
+        self._sync_profile_fields(instance, full_name)
+        if gm_provided:
+            director = getattr(instance, "director_profile", None)
+            if director is not None and director.is_general_manager != is_gm:
+                director.is_general_manager = is_gm
+                director.save(update_fields=["is_general_manager"])
 
         return instance
 
@@ -281,17 +267,13 @@ class AccountSerializer(serializers.ModelSerializer):
         instance.save()
 
     @classmethod
-    def _sync_profile_fields(cls, instance, full_name, salary):
+    def _sync_profile_fields(cls, instance, full_name):
+        if full_name is None:
+            return
         for profile in cls._all_profiles(instance):
-            changed = False
-            if full_name is not None and hasattr(profile, "full_name"):
+            if hasattr(profile, "full_name"):
                 profile.full_name = full_name
-                changed = True
-            if salary is not None and isinstance(profile, Director):
-                profile.salary = Decimal(salary)
-                changed = True
-            if changed:
-                profile.save()
+                profile.save(update_fields=["full_name"])
 
     @staticmethod
     def _all_profiles(account: Account):
@@ -302,36 +284,12 @@ class AccountSerializer(serializers.ModelSerializer):
                 result.append(getattr(account, attr))
         return result
 
-    @classmethod
-    def _sync_secondary_role(cls, account, primary, also_role,
-                             full_name, salary):
-        """Add or remove the partner role profile based on `also_role`."""
-        partner = DUAL_ROLE_PAIRS[primary]
-        partner_attr = f"{partner}_profile"
-        has_partner = hasattr(account, partner_attr)
-
-        if also_role:
-            if also_role != partner:
-                # Validation should have caught this, but be safe.
-                return
-            if has_partner:
-                return  # already present
-            # Reuse branch from the primary profile.
-            primary_profile = getattr(account, f"{primary}_profile")
-            cls._create_role_profile(
-                account, partner,
-                full_name or primary_profile.full_name,
-                primary_profile.branch,
-                salary,
-            )
-        elif has_partner:
-            getattr(account, partner_attr).delete()
-
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
     @staticmethod
-    def _create_role_profile(account, role, full_name, branch, salary):
+    def _create_role_profile(account, role, full_name, branch,
+                             *, is_general_manager: bool = False):
         if role == "superadmin":
             SuperAdmin.objects.create(account=account, full_name=full_name)
         elif role == "director":
@@ -339,7 +297,7 @@ class AccountSerializer(serializers.ModelSerializer):
                 account=account,
                 branch=branch,
                 full_name=full_name,
-                salary=Decimal(salary) if salary is not None else Decimal("2000000"),
+                is_general_manager=is_general_manager,
             )
         elif role == "administrator":
             Administrator.objects.create(

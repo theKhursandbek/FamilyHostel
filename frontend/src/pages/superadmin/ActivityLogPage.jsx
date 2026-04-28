@@ -47,6 +47,7 @@ const EMPTY_FILTERS = {
   action: "",
   entity_type: "",
   user: "",
+  search: "",
 };
 
 function toIsoOrEmpty(localValue) {
@@ -103,7 +104,7 @@ function ActivityLogPage() {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [pendingFilters, setPendingFilters] = useState(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState("20");
+  const [pageSize, setPageSize] = useState("10");
   const [audit, setAudit] = useState({
     results: [],
     count: 0,
@@ -137,6 +138,7 @@ function ActivityLogPage() {
     if (filters.action) q.action = filters.action;
     if (filters.entity_type) q.entity_type = filters.entity_type;
     if (filters.user) q.user = filters.user;
+    if (filters.search) q.search = filters.search;
     return q;
   }, [filters, page, pageSize]);
 
@@ -449,6 +451,15 @@ function AuditFilterBar({
           className="input"
           value={pending.created_before}
           onChange={(e) => onChange({ created_before: e.target.value })}
+        />
+      </FilterField>
+      <FilterField label="Search action">
+        <input
+          type="text"
+          className="input"
+          placeholder="e.g. cash_session, paid, refund"
+          value={pending.search}
+          onChange={(e) => onChange({ search: e.target.value })}
         />
       </FilterField>
       <FilterField label="Role">

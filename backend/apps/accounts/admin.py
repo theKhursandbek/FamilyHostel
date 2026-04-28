@@ -56,8 +56,11 @@ class AdministratorAdmin(admin.ModelAdmin):
 
 @admin.register(Director)
 class DirectorAdmin(admin.ModelAdmin):
-    list_display = ("id", "full_name", "branch", "salary", "is_active")
-    list_filter = ("is_active", "branch")
+    list_display = (
+        "id", "full_name", "branch", "salary_override",
+        "is_general_manager", "is_active",
+    )
+    list_filter = ("is_active", "is_general_manager", "branch")
     search_fields = ("full_name",)
 
 

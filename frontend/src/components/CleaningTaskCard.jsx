@@ -10,28 +10,33 @@ const STATUS_LABELS = {
   retry_required: "Retry Required",
 };
 
-const STATUS_COLORS = {
-  pending: "#f59e0b",
-  in_progress: "#3b82f6",
-  completed: "#22c55e",
-  retry_required: "#ef4444",
+const STATUS_TONE = {
+  pending: "is-pending",
+  in_progress: "is-progress",
+  completed: "is-completed",
+  retry_required: "is-retry",
 };
 
-const PRIORITY_COLORS = {
-  low: "#94a3b8",
-  normal: "#3b82f6",
-  high: "#ef4444",
+const PRIORITY_LABELS = {
+  low: "Low",
+  normal: "Normal",
+  high: "High",
 };
 
 function CleaningTaskCard({
   task,
+  isStaff = false,
   isDirector,
+  canManage = false,
+  canOverride = false,
   onAssign,
   onComplete,
   onUpload,
   onRetry,
   onOverride,
   onViewDetail,
+  onEdit,
+  onDelete,
   actionLoading,
 }) {
   const fileRef = useRef(null);
@@ -43,9 +48,7 @@ function CleaningTaskCard({
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
-    if (files.length > 0) {
-      onUpload(task.id, files);
-    }
+    if (files.length > 0) onUpload(task.id, files);
     e.target.value = "";
   };
 
@@ -59,56 +62,69 @@ function CleaningTaskCard({
     setOverrideReason("");
   };
 
-  return (
-    <div className={`task-card${task.status === "retry_required" ? " retry" : ""}`}>
-      {/* Header row */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-        <div>
-          <span style={{ fontWeight: 600, fontSize: 15 }}>
-            Room {task.room_number}
-          </span>
-          {task.branch_name && (
-            <span className="text-muted" style={{ fontSize: 13, marginLeft: 8 }}>
-              ({task.branch_name})
-            </span>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <span
-            className="badge badge-sm"
-            style={{ backgroundColor: PRIORITY_COLORS[task.priority] || "#94a3b8" }}
-          >
-            {task.priority}
-          </span>
-          <span
-            className="badge"
-            style={{ backgroundColor: STATUS_COLORS[task.status] || "#6b7280" }}
-          >
-            {STATUS_LABELS[task.status] || task.status}
-          </span>
-        </div>
-      </div>
+  const tone = STATUS_TONE[task.status] || "is-pending";
+  const isRetry = task.status === "retry_required";
 
-      {/* Info */}
-      <div className="text-muted" style={{ fontSize: 13, marginBottom: 10, display: "flex", flexWrap: "wrap", gap: "4px 16px" }}>
-        <span>
-          <strong>Staff:</strong> {task.assigned_to_name || "Unassigned"}
-        </span>
-        {task.retry_count > 0 && (
-          <span className="text-accent">
-            <strong>Retries:</strong> {task.retry_count}
+  return (
+    <article className={`clean-card ${tone}${isRetry ? " is-attention" : ""}`}>
+      <span className="clean-card__rail" aria-hidden />
+
+      <header className="clean-card__head">
+        <div className="clean-card__title-wrap">
+          <span className="clean-card__crest" aria-hidden>
+            {task.room_number ?? "·"}
           </span>
+          <div style={{ minWidth: 0 }}>
+            <h3 className="clean-card__title">
+              Housekeeping
+            </h3>
+            <div className="clean-card__ids">
+              <span className="id-chip" title="Cleaning task ID">
+                <span className="id-chip__hash">№</span>
+                <span className="id-chip__num">{task.id}</span>
+                <span className="id-chip__lbl">task</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <span className={`clean-card__status ${tone}`}>
+          {STATUS_LABELS[task.status] || task.status}
+        </span>
+      </header>
+
+      <div className="clean-card__plate">
+        <div className="clean-card__plate-cell">
+          <span className="clean-card__plate-lbl">Priority</span>
+          <span className={`prio-pill prio-${task.priority || "normal"}`}>
+            {PRIORITY_LABELS[task.priority] || task.priority || "Normal"}
+          </span>
+        </div>
+        <div className="clean-card__plate-cell">
+          <span className="clean-card__plate-lbl">Assigned</span>
+          <span className="clean-card__plate-val">
+            {task.assigned_to_name || (
+              <span className="clean-card__plate-val--muted">Unassigned</span>
+            )}
+          </span>
+        </div>
+        {task.retry_count > 0 && (
+          <div className="clean-card__plate-cell">
+            <span className="clean-card__plate-lbl">Retries</span>
+            <span className="clean-card__plate-val clean-card__plate-val--warn">
+              ×{task.retry_count}
+            </span>
+          </div>
         )}
       </div>
 
-      {/* Retry warning */}
-      {task.status === "retry_required" && (
-        <div className="alert alert-error">
-          ⚠️ AI rejected cleaning result. Task needs re-cleaning and new photo submission.
+      {isRetry && (
+        <div className="clean-card__alert">
+          <span aria-hidden>⚠️</span>
+          <span>AI rejected the result — re-clean the room and submit new photos.</span>
         </div>
       )}
 
-      {/* Hidden file input */}
       <input
         ref={fileRef}
         type="file"
@@ -118,44 +134,32 @@ function CleaningTaskCard({
         onChange={handleFileChange}
       />
 
-      {/* Actions */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-        {/* Assign — when pending */}
-        {task.status === "pending" && (
-          <Button
-            size="sm"
-            disabled={isActionLoading}
-            onClick={() => onAssign(task.id)}
-          >
+      <div className="clean-card__actions">
+        {/* ---- Staff-only operational buttons ---------------------------- */}
+        {isStaff && task.status === "pending" && (
+          <Button size="sm" disabled={isActionLoading} onClick={() => onAssign(task.id)}>
             {isActionLoading ? "…" : "Start Task"}
           </Button>
         )}
 
-        {/* Upload — when in_progress or retry_required */}
-        {(task.status === "in_progress" || task.status === "retry_required") && (
+        {isStaff && (task.status === "in_progress" || task.status === "retry_required") && (
           <Button
             variant="secondary"
             size="sm"
             disabled={isActionLoading}
             onClick={() => fileRef.current?.click()}
           >
-            📷 Upload Photos
+            Upload Photos
           </Button>
         )}
 
-        {/* Complete — when in_progress or retry_required */}
-        {(task.status === "in_progress" || task.status === "retry_required") && (
-          <Button
-            size="sm"
-            disabled={isActionLoading}
-            onClick={() => onComplete(task.id)}
-          >
+        {isStaff && (task.status === "in_progress" || task.status === "retry_required") && (
+          <Button size="sm" disabled={isActionLoading} onClick={() => onComplete(task.id)}>
             {isActionLoading ? "…" : "Complete"}
           </Button>
         )}
 
-        {/* Retry — when retry_required */}
-        {task.status === "retry_required" && (
+        {isStaff && isRetry && (
           <Button
             variant="danger"
             size="sm"
@@ -166,31 +170,52 @@ function CleaningTaskCard({
           </Button>
         )}
 
-        {/* Director Override — any non-completed status */}
-        {isDirector && task.status !== "completed" && !showOverrideInput && (
+        {/* ---- Admin / Director / SuperAdmin buttons --------------------- */}
+        {/* Override is the admin's force-approve path — mutually exclusive
+            with the staff Complete button (staff finishes the normal flow,
+            admin overrides only when the AI / staff workflow is stuck). */}
+        {!isStaff && (canOverride || isDirector) && task.status !== "completed" && task.status !== "pending" && !showOverrideInput && (
           <Button
             variant="ghost"
             size="sm"
             disabled={isActionLoading}
             onClick={() => setShowOverrideInput(true)}
           >
-            🔓 Override
+            Override
           </Button>
         )}
 
-        {/* View Detail */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onViewDetail(task.id)}
-        >
+        {/* Edit is allowed on anything that isn't completed (even when a
+            staff member is already assigned / working). */}
+        {canManage && onEdit && task.status !== "completed" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={isActionLoading}
+            onClick={() => onEdit(task)}
+          >
+            Edit
+          </Button>
+        )}
+
+        {canManage && onDelete && task.status === "pending" && (
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={isActionLoading}
+            onClick={() => onDelete(task)}
+          >
+            Delete
+          </Button>
+        )}
+
+        <Button variant="ghost" size="sm" onClick={() => onViewDetail(task.id)}>
           Details →
         </Button>
       </div>
 
-      {/* Override reason input */}
       {showOverrideInput && (
-        <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "flex-end" }}>
+        <div className="clean-card__override">
           <div style={{ flex: 1 }}>
             <label htmlFor={`override-reason-${task.id}`} className="label" style={{ fontSize: 12 }}>
               Override reason (min 5 chars)
@@ -219,13 +244,14 @@ function CleaningTaskCard({
           </Button>
         </div>
       )}
-    </div>
+    </article>
   );
 }
 
 CleaningTaskCard.propTypes = {
   task: PropTypes.shape({
     id: PropTypes.number.isRequired,
+    room: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     status: PropTypes.string.isRequired,
     room_number: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     branch_name: PropTypes.string,
@@ -234,12 +260,17 @@ CleaningTaskCard.propTypes = {
     retry_count: PropTypes.number,
   }).isRequired,
   isDirector: PropTypes.bool,
+  isStaff: PropTypes.bool,
+  canManage: PropTypes.bool,
+  canOverride: PropTypes.bool,
   onAssign: PropTypes.func.isRequired,
   onComplete: PropTypes.func.isRequired,
   onUpload: PropTypes.func.isRequired,
   onRetry: PropTypes.func.isRequired,
   onOverride: PropTypes.func.isRequired,
   onViewDetail: PropTypes.func.isRequired,
+  onEdit: PropTypes.func,
+  onDelete: PropTypes.func,
   actionLoading: PropTypes.number,
 };
 

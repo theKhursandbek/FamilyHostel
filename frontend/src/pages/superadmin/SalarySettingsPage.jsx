@@ -21,11 +21,6 @@ const SALARY_MODE_OPTIONS = [
   { value: "shift", label: "Shift-based" },
   { value: "per_room", label: "Per-room-based" },
 ];
-const SALARY_CYCLE_OPTIONS = [
-  { value: "weekly", label: "Weekly" },
-  { value: "biweekly", label: "Bi-weekly" },
-  { value: "monthly", label: "Monthly" },
-];
 
 const ROLE_CARDS = [
   { id: "director", title: "Director" },
@@ -87,11 +82,12 @@ function SalarySettingsPage() {
     try {
       const updated = await updateSystemSettings({
         salary_mode: settings.salary_mode,
-        salary_cycle: settings.salary_cycle,
-        shift_rate: settings.shift_rate || "0",
+        salary_cycle: "monthly",
+        staff_shift_rate: settings.staff_shift_rate || "0",
         per_room_rate: settings.per_room_rate || "0",
         director_fixed_salary: settings.director_fixed_salary || "0",
         admin_shift_rate: settings.admin_shift_rate || "0",
+        gm_bonus_percent: settings.gm_bonus_percent || "0",
       });
       setSettings(updated);
       toast.success("Salary settings updated. Applies on next cycle.");
@@ -137,6 +133,17 @@ function SalarySettingsPage() {
             step="10000"
             value={settings.director_fixed_salary ?? ""}
             onChange={(e) => handleSettingsChange("director_fixed_salary", e.target.value)}
+          />
+          <Input
+            id="gm-bonus-percent"
+            label="General Manager bonus (%)"
+            type="number"
+            min="0"
+            max="500"
+            step="0.5"
+            value={settings.gm_bonus_percent ?? ""}
+            onChange={(e) => handleSettingsChange("gm_bonus_percent", e.target.value)}
+            helperText="Applied on top of the fixed salary for directors flagged as General Manager."
           />
         </div>
         {formActions}
@@ -201,8 +208,8 @@ function SalarySettingsPage() {
             type="number"
             min="0"
             step="1000"
-            value={settings.shift_rate}
-            onChange={(e) => handleSettingsChange("shift_rate", e.target.value)}
+            value={settings.staff_shift_rate ?? ""}
+            onChange={(e) => handleSettingsChange("staff_shift_rate", e.target.value)}
           />
           <Input
             id="per-room-rate"
@@ -219,7 +226,7 @@ function SalarySettingsPage() {
       <PeopleSalaryList
         role="staff"
         unitLabel={settings.salary_mode === "per_room" ? "per-room rate" : "shift rate"}
-        refreshKey={`${settings.salary_mode}-${settings.shift_rate}-${settings.per_room_rate}`}
+        refreshKey={`${settings.salary_mode}-${settings.staff_shift_rate}-${settings.per_room_rate}`}
       />
     </>
   );
@@ -277,7 +284,7 @@ function SalarySettingsPage() {
     if (id === "staff") {
       const isPerRoom = settings.salary_mode === "per_room";
       return {
-        metric: `${Number((isPerRoom ? settings.per_room_rate : settings.shift_rate) || 0).toLocaleString()} UZS`,
+        metric: `${Number((isPerRoom ? settings.per_room_rate : settings.staff_shift_rate) || 0).toLocaleString()} UZS`,
         sub: isPerRoom ? "per room" : "per shift",
       };
     }
@@ -288,27 +295,6 @@ function SalarySettingsPage() {
     <div>
       <div className="page-header">
         <h1>Salary Settings</h1>
-      </div>
-
-      <div className="card" style={{ marginBottom: 24 }}>
-        <h3 style={{ marginTop: 0 }}>Global cycle</h3>
-        <p className="text-muted" style={{ marginTop: -4 }}>
-          Applies to all roles. Salaries are calculated and paid on this cycle.
-        </p>
-        <form onSubmit={saveSettings}>
-          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))" }}>
-            <div className="form-group">
-              <label className="label" htmlFor="salary-cycle">Salary cycle</label>
-              <Select
-                id="salary-cycle"
-                value={settings.salary_cycle}
-                onChange={(v) => handleSettingsChange("salary_cycle", v)}
-                options={SALARY_CYCLE_OPTIONS}
-              />
-            </div>
-          </div>
-          {formActions}
-        </form>
       </div>
 
       <h3 style={{ margin: "0 0 12px" }}>Configure by role</h3>

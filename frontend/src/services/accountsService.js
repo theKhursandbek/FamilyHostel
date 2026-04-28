@@ -38,10 +38,13 @@ export async function getAccount(id) {
  *     password: string,
  *     role_input: "staff" | "administrator" | "director" | "superadmin",
  *     full_name_input: string,
- *     branch?: number,
- *     salary_input?: number,
+ *     branch?: number,                  // required for staff/admin/director
+ *     is_general_manager_input?: boolean, // director only — extra bonus + personal report
  *     telegram_chat_id?: string,
  *   }
+ *
+ * Salary is no longer set at creation; it is computed from base wage rules
+ * (Branch.working_days_per_month × per-shift rate) plus adjustments.
  */
 export async function createAccount(payload) {
   const response = await api.post(BASE, payload);
@@ -49,8 +52,9 @@ export async function createAccount(payload) {
 }
 
 /**
- * Patch editable fields: phone, password, full_name_input, salary_input,
- * is_active, telegram_chat_id. Role is immutable (delete + recreate).
+ * Patch editable fields: phone, password, full_name_input,
+ * is_general_manager_input (director only), is_active, telegram_chat_id.
+ * Role is immutable (delete + recreate).
  */
 export async function updateAccount(id, payload) {
   const response = await api.patch(`${BASE}${id}/`, payload);
@@ -74,6 +78,20 @@ export async function enableAccount(id) {
 /** GET /api/v1/branches/ — used to populate the branch dropdown. */
 export async function listBranches() {
   const response = await api.get("/branches/branches/");
+  const data = unwrap(response);
+  return data?.results ?? data ?? [];
+}
+
+/**
+ * GET /auth/accounts/branches-available-for-director/ — branches that have NO
+ * active director yet. Used by the user-create modal to enforce the
+ * one-director-per-branch invariant at the UI level (the backend also enforces
+ * it via a partial unique constraint).
+ *
+ * @returns {Promise<Array<{id: number, name: string}>>}
+ */
+export async function listBranchesAvailableForDirector() {
+  const response = await api.get(`${BASE}branches-available-for-director/`);
   const data = unwrap(response);
   return data?.results ?? data ?? [];
 }

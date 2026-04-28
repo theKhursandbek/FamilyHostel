@@ -33,6 +33,11 @@ class CashSession(models.Model):
         DAY = "day", "Day"
         NIGHT = "night", "Night"
 
+    class VarianceStatus(models.TextChoices):
+        PENDING = "pending", "Pending review"
+        APPROVED = "approved", "Approved"
+        DISPUTED = "disputed", "Disputed"
+
     admin = models.ForeignKey(
         _ADMIN_FK,
         on_delete=models.CASCADE,
@@ -61,6 +66,24 @@ class CashSession(models.Model):
         blank=True,
         related_name="received_cash_sessions",
     )
+    variance_status = models.CharField(
+        max_length=20,
+        choices=VarianceStatus.choices,
+        default=VarianceStatus.APPROVED,
+        help_text=(
+            "Director-review state for any cash variance recorded at close. "
+            "Sessions that close with no variance default to 'approved'."
+        ),
+    )
+    reviewed_by = models.ForeignKey(
+        "accounts.Director",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_cash_sessions",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_comment = models.TextField(blank=True, default="")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -104,6 +127,16 @@ class SystemSettings(models.Model):
         max_digits=12,
         decimal_places=2,
         default=Decimal("100000"),
+        help_text=(
+            "DEPRECATED — kept for one-release backward compatibility. "
+            "Use `staff_shift_rate` instead. (Was originally the staff "
+            "per-shift rate.)"
+        ),
+    )
+    staff_shift_rate = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("100000"),
         help_text="Staff per-shift rate in UZS (used when salary mode = Shift-based).",
     )
     per_room_rate = models.DecimalField(
@@ -125,6 +158,16 @@ class SystemSettings(models.Model):
         decimal_places=2,
         default=Decimal("150000"),
         help_text="Administrator's per-shift rate in UZS.",
+    )
+    gm_bonus_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("0"),
+        help_text=(
+            "General Manager bonus as a percentage of the director's full "
+            "salary. Applied on top of the Director payout when "
+            "`Director.is_general_manager=True`. Default 0 (= no bonus)."
+        ),
     )
 
     class Meta:

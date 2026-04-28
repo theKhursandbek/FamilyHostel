@@ -6,17 +6,27 @@ import Input from "./Input";
 import Button from "./Button";
 import Select from "./Select";
 
+/**
+ * Walk-in booking form.
+ *
+ * Every booking made through the admin panel is for a brand-new guest who
+ * walks in off the street.  We capture identity (name, phone, passport) plus
+ * the room and dates, then submit one atomic walk-in payload to
+ * POST /bookings/bookings/walk-in/.
+ */
 function BookingForm({ onSubmit, loading = false }) {
   const toast = useToast();
   const [rooms, setRooms] = useState([]);
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [form, setForm] = useState({
+    full_name: "",
+    phone: "",
+    passport_number: "",
     room: "",
     branch: "",
     check_in_date: "",
     check_out_date: "",
-    price_at_booking: "",
     discount_amount: "0",
   });
   const [errors, setErrors] = useState({});
@@ -66,12 +76,12 @@ function BookingForm({ onSubmit, loading = false }) {
 
   const validate = () => {
     const newErrors = {};
+    if (!form.full_name.trim()) newErrors.full_name = "Full name is required";
+    if (!form.phone.trim()) newErrors.phone = "Phone is required";
+    if (!form.passport_number.trim()) newErrors.passport_number = "Passport number is required";
     if (!form.room) newErrors.room = "Room is required";
     if (!form.check_in_date) newErrors.check_in_date = "Check-in date is required";
     if (!form.check_out_date) newErrors.check_out_date = "Check-out date is required";
-    if (!form.price_at_booking || Number(form.price_at_booking) <= 0) {
-      newErrors.price_at_booking = "Price must be greater than 0";
-    }
     if (form.check_in_date && form.check_out_date && form.check_out_date <= form.check_in_date) {
       newErrors.check_out_date = "Check-out must be after check-in";
     }
@@ -86,11 +96,13 @@ function BookingForm({ onSubmit, loading = false }) {
     e.preventDefault();
     if (!validate()) return;
     onSubmit({
+      full_name: form.full_name.trim(),
+      phone: form.phone.trim(),
+      passport_number: form.passport_number.trim(),
       room: Number(form.room),
       branch: Number(form.branch),
       check_in_date: form.check_in_date,
       check_out_date: form.check_out_date,
-      price_at_booking: form.price_at_booking,
       discount_amount: form.discount_amount || "0",
     });
   };
@@ -109,6 +121,60 @@ function BookingForm({ onSubmit, loading = false }) {
         </div>
       )}
 
+      {/* --- Guest section --- */}
+      <div
+        style={{
+          marginBottom: 16,
+          padding: "12px 14px",
+          background: "var(--brand-cream, #fdfbf6)",
+          border: "1px solid rgba(31,42,68,0.12)",
+          borderRadius: 8,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: 0.6,
+            textTransform: "uppercase",
+            color: "var(--brand-navy, #1f2a44)",
+            marginBottom: 8,
+          }}
+        >
+          Guest details
+        </div>
+
+        <Input
+          label="Full Name"
+          id="full_name"
+          value={form.full_name}
+          onChange={handleChange("full_name")}
+          placeholder="e.g. Aliyev Botir"
+          required
+          error={errors.full_name}
+        />
+        <Input
+          label="Phone"
+          id="phone"
+          type="tel"
+          value={form.phone}
+          onChange={handleChange("phone")}
+          placeholder="+998 90 123 45 67"
+          required
+          error={errors.phone}
+        />
+        <Input
+          label="Passport Number"
+          id="passport_number"
+          value={form.passport_number}
+          onChange={handleChange("passport_number")}
+          placeholder="e.g. AA1234567"
+          required
+          error={errors.passport_number}
+        />
+      </div>
+
+      {/* --- Booking section --- */}
       <div className="form-group">
         <label htmlFor="room" className="label">
           Room <span style={{ color: "var(--brand-danger)" }}>*</span>
@@ -147,18 +213,34 @@ function BookingForm({ onSubmit, loading = false }) {
         error={errors.check_out_date}
       />
 
-      <Input
-        label="Price"
-        id="price_at_booking"
-        type="number"
-        value={form.price_at_booking}
-        onChange={handleChange("price_at_booking")}
-        placeholder="e.g. 150000"
-        required
-        error={errors.price_at_booking}
-        min="0"
-        step="1000"
-      />
+      {/* Room price (read-only — set when the room was created) */}
+      {(() => {
+        const selected = rooms.find((r) => String(r.id) === String(form.room));
+        const price = selected?.base_price;
+        return (
+          <div
+            style={{
+              margin: "4px 0 16px",
+              padding: "10px 14px",
+              background: "var(--brand-cream, #fdfbf6)",
+              border: "1px solid rgba(31,42,68,0.12)",
+              borderRadius: 8,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              color: "var(--brand-navy, #1f2a44)",
+              fontSize: 14,
+            }}
+          >
+            <span style={{ fontWeight: 600 }}>Room price (per night)</span>
+            <span style={{ fontWeight: 700 }}>
+              {price
+                ? `${Number(price).toLocaleString()} сум`
+                : "— select a room —"}
+            </span>
+          </div>
+        );
+      })()}
 
       <Input
         label="Discount (optional)"

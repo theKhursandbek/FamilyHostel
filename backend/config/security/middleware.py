@@ -87,9 +87,7 @@ class SecurityLoggingMiddleware:
     # ``unauthorized_access`` so the suspicious-activity dashboard isn't
     # flooded with noise from legitimate users whose session lapsed.
     _LOGIN_PATH_PREFIXES: tuple[str, ...] = (
-        "/api/v1/auth/login/",
-        "/api/v1/auth/telegram/",
-        "/api/v1/auth/token/refresh/",
+        "/api/v1/auth/",
     )
 
     def __init__(self, get_response):

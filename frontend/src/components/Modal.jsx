@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import PropTypes from "prop-types";
 
-function Modal({ isOpen, onClose, title, children }) {
+function Modal({ isOpen, onClose, title, children, size = "default" }) {
   useEffect(() => {
     if (!isOpen) return;
     const handleKey = (e) => {
@@ -21,7 +21,7 @@ function Modal({ isOpen, onClose, title, children }) {
         aria-label="Close modal"
         onClick={onClose}
       />
-      <div className="modal-content">
+      <div className={`modal-content modal-${size}`}>
         <div className="modal-header">
           <h2>{title}</h2>
           <button className="modal-close" onClick={onClose}>✕</button>
@@ -37,6 +37,7 @@ Modal.propTypes = {
   onClose: PropTypes.func.isRequired,
   title: PropTypes.string.isRequired,
   children: PropTypes.node,
+  size: PropTypes.oneOf(["default", "wide", "full"]),
 };
 
 export default Modal;

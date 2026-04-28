@@ -20,7 +20,7 @@ function PenaltyManagementPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-  const [form, setForm] = useState({ account: "", type: "late", count: "1", penalty_amount: "", reason: "" });
+  const [form, setForm] = useState({ account: "", type: "", count: "1", penalty_amount: "", reason: "" });
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -44,17 +44,21 @@ function PenaltyManagementPage() {
     e.preventDefault();
     if (!form.account) { toast.warning("Select a staff member"); return; }
     if (!form.penalty_amount) { toast.warning("Amount is required"); return; }
+    if (!form.reason.trim()) { toast.warning("Reason is required"); return; }
     setCreating(true);
     try {
-      await createPenalty({
+      const payload = {
         account: Number(form.account),
-        type: form.type,
         count: Number(form.count) || 1,
         penalty_amount: form.penalty_amount,
-        reason: form.reason,
-      });
+        reason: form.reason.trim(),
+      };
+      // ``type`` is optional per Phase 3 (REFACTOR_PLAN_2026_04 §2.1) — only
+      // include it when the user explicitly picked a category.
+      if (form.type) payload.type = form.type;
+      await createPenalty(payload);
       setModalOpen(false);
-      setForm({ account: "", type: "late", count: "1", penalty_amount: "", reason: "" });
+      setForm({ account: "", type: "", count: "1", penalty_amount: "", reason: "" });
       toast.success("Penalty created");
       fetchData();
     } catch (err) {
@@ -88,7 +92,7 @@ function PenaltyManagementPage() {
         return acc ? (acc.full_name || acc.phone) : `#${val}`;
       },
     },
-    { key: "type", label: "Type", render: (val) => TYPE_LABELS[val] || val },
+    { key: "type", label: "Type", render: (val) => (val ? (TYPE_LABELS[val] || val) : "—") },
     { key: "count", label: "Count" },
     {
       key: "penalty_amount",
@@ -137,22 +141,33 @@ function PenaltyManagementPage() {
               id="penalty-staff"
               value={form.account}
               onChange={(v) => setForm((p) => ({ ...p, account: v }))}
-              placeholder="Select staff"
-              options={accounts.map((a) => {
-                const suffix = a.full_name ? ` — ${a.full_name}` : "";
-                return { value: a.id, label: `${a.phone}${suffix}` };
-              })}
-              emptyText="No staff available"
+              placeholder="Select admin or staff"
+              options={accounts
+                .filter((a) => {
+                  // Penalties may only target Admins or Staff (not directors,
+                  // superadmins or pure clients). Backend enforces this too.
+                  const roles = Array.isArray(a.roles) ? a.roles : [];
+                  return roles.includes("administrator") || roles.includes("staff");
+                })
+                .map((a) => {
+                  const suffix = a.full_name ? ` — ${a.full_name}` : "";
+                  const roles = Array.isArray(a.roles) ? a.roles : [];
+                  const roleTag = roles.includes("administrator") ? " [Admin]" : " [Staff]";
+                  return { value: a.id, label: `${a.phone}${suffix}${roleTag}` };
+                })}
+              emptyText="No admins or staff available"
             />
           </div>
 
           <div className="form-group">
-            <label className="label" htmlFor="penalty-type">Type *</label>
+            <label className="label" htmlFor="penalty-type">Type (optional)</label>
             <Select
               id="penalty-type"
               value={form.type}
               onChange={(v) => setForm((p) => ({ ...p, type: v }))}
+              placeholder="— No category —"
               options={[
+                { value: "", label: "— No category —" },
                 { value: "late", label: "Late" },
                 { value: "absence", label: "Absence" },
               ]}
@@ -161,7 +176,13 @@ function PenaltyManagementPage() {
 
           <Input label="Count" type="number" value={form.count} onChange={(e) => setForm((p) => ({ ...p, count: e.target.value }))} min="1" />
           <Input label="Amount" type="number" value={form.penalty_amount} onChange={(e) => setForm((p) => ({ ...p, penalty_amount: e.target.value }))} required min="0" step="1000" />
-          <Input label="Reason (optional)" value={form.reason} onChange={(e) => setForm((p) => ({ ...p, reason: e.target.value }))} />
+          <Input
+            label="Reason *"
+            value={form.reason}
+            onChange={(e) => setForm((p) => ({ ...p, reason: e.target.value }))}
+            required
+            helperText="Required — explain why the penalty is being issued."
+          />
 
           <div className="form-actions">
             <Button type="submit" disabled={creating}>{creating ? "Saving..." : "Create Penalty"}</Button>

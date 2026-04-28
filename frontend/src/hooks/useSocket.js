@@ -15,9 +15,13 @@ import { connect, subscribe, disconnect } from "../services/socketService";
  *   });
  */
 export function useSocket(channel, handlers, enabled = true) {
-  // Use ref to avoid re-subscribing on every render
+  // Use a ref so the subscribe effect doesn't re-run when the caller passes
+  // a fresh handlers object on every render. Refs may not be written during
+  // render (React 19 rule), so we sync inside an effect.
   const handlersRef = useRef(handlers);
-  handlersRef.current = handlers;
+  useEffect(() => {
+    handlersRef.current = handlers;
+  });
 
   useEffect(() => {
     if (!enabled || !channel) return;
@@ -26,8 +30,11 @@ export function useSocket(channel, handlers, enabled = true) {
     connect(channel);
 
     // Subscribe to each event
-    const unsubscribers = Object.entries(handlersRef.current).map(
-      ([eventType, _handler]) =>
+    // Subscribe once per event-type; the handler itself is read from the
+    // ref at dispatch time so callers always see the latest closure without
+    // forcing this effect to re-run.
+    const unsubscribers = Object.keys(handlersRef.current).map(
+      (eventType) =>
         subscribe(channel, eventType, (data) => {
           // Always call the latest handler via ref
           handlersRef.current[eventType]?.(data);

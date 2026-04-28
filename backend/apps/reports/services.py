@@ -15,6 +15,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from django.db import transaction
+
 from apps.reports.models import AuditLog, Notification
 
 logger = logging.getLogger(__name__)
@@ -25,6 +27,18 @@ __all__ = [
     "notify_roles",
     "log_action",
 ]
+
+
+def _eager_celery() -> bool:
+    """True when Celery is configured to run tasks inline (test/offline).
+
+    In that mode we bypass ``transaction.on_commit`` + background-thread
+    dispatch so tests (and any non-atomic synchronous callers) can observe
+    the resulting Telegram / DB side-effects deterministically.
+    """
+    from django.conf import settings
+
+    return bool(getattr(settings, "CELERY_TASK_ALWAYS_EAGER", False))
 
 
 # ==============================================================================
@@ -61,11 +75,24 @@ def send_notification(
     )
 
     # --- Telegram push via Celery (Step 17 / README 26.4) ---
-    try:
-        from apps.reports.tasks import send_telegram_notification_task
-        send_telegram_notification_task.delay(account_id, message)  # type: ignore[attr-defined]
-    except Exception:
-        logger.exception("Telegram task dispatch failed for account #%s", account_id)
+    def _dispatch_single():
+        try:
+            from apps.reports.tasks import send_telegram_notification_task
+            send_telegram_notification_task.delay(account_id, message)  # type: ignore[attr-defined]
+        except Exception:
+            logger.exception("Telegram task dispatch failed for account #%s", account_id)
+
+    if _eager_celery():
+        # In tests / eager mode, dispatch directly so callers can observe
+        # side-effects without needing a real broker or commit boundary.
+        _dispatch_single()
+    else:
+        # In production, defer to commit and run in a daemon thread so a
+        # stalled broker can never block the HTTP request thread.
+        def _bg_single():
+            import threading
+            threading.Thread(target=_dispatch_single, daemon=True).start()
+        transaction.on_commit(_bg_single)
 
     return notification
 
@@ -121,11 +148,25 @@ def notify_role(
     )
 
     # --- Telegram push via Celery (Step 17 / README 26.4) ---
-    try:
-        from apps.reports.tasks import send_bulk_telegram_task
-        send_bulk_telegram_task.delay(account_ids, message)  # type: ignore[attr-defined]
-    except Exception:
-        logger.exception("Telegram bulk task dispatch failed for role=%s branch=%s", role, branch)
+    # Run in a background thread so a stalled / unreachable broker can never
+    # block the HTTP request thread that triggered this notification.
+    def _dispatch_bulk():
+        try:
+            from apps.reports.tasks import send_bulk_telegram_task
+            send_bulk_telegram_task.delay(account_ids, message)  # type: ignore[attr-defined]
+        except Exception:
+            logger.exception(
+                "Telegram bulk task dispatch failed for role=%s branch=%s",
+                role, branch,
+            )
+
+    if _eager_celery():
+        _dispatch_bulk()
+    else:
+        def _bg_bulk():
+            import threading
+            threading.Thread(target=_dispatch_bulk, daemon=True).start()
+        transaction.on_commit(_bg_bulk)
 
     return notifications
 

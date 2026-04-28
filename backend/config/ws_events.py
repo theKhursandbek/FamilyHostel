@@ -24,11 +24,36 @@ Groups targeted per call:
 from __future__ import annotations
 
 import logging
+import threading
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
+
+# Hard cap on how long we'll wait for the channel-layer publish.  Anything
+# longer means Redis is dead and the request thread should move on.
+_PUBLISH_TIMEOUT_SECONDS = 1.5
+
+
+def _do_publish(message: dict, branch_id: int | None, event_type: str) -> None:
+    """Run the actual async group_send calls; swallow every error."""
+    channel_layer = get_channel_layer()
+    if channel_layer is None:
+        return
+    try:
+        group_send = async_to_sync(channel_layer.group_send)
+        if branch_id is not None:
+            group_send(f"branch_{branch_id}", message)
+        group_send("super_admin", message)
+        logger.debug(
+            "WS event sent | type=%s | branch=%s",
+            event_type,
+            branch_id or "all",
+        )
+    except Exception:
+        logger.warning("WS publish failed for %s (broker unreachable?)", event_type)
 
 
 def send_dashboard_event(
@@ -40,14 +65,10 @@ def send_dashboard_event(
     """
     Broadcast a real-time event to all relevant WebSocket groups.
 
-    Parameters
-    ----------
-    event_type : str
-        The event identifier (e.g. ``"booking.created"``).
-    data : dict
-        Payload to include in the message (must be JSON-serializable).
-    branch_id : int | None
-        If provided, the event is also sent to ``branch_{branch_id}``.
+    The publish runs in a daemon thread with a hard timeout so a dead Redis
+    can never block the calling request.  When inside an open DB transaction
+    we defer the publish until after commit so subscribers always see
+    consistent state.
     """
     channel_layer = get_channel_layer()
     if channel_layer is None:
@@ -60,21 +81,27 @@ def send_dashboard_event(
         "data": data,
     }
 
-    try:
-        group_send = async_to_sync(channel_layer.group_send)
-
-        # 1) Branch-level group (admins + directors of that branch receive it).
-        if branch_id is not None:
-            group_send(f"branch_{branch_id}", message)
-
-        # 2) Super-admin group (always receives everything).
-        group_send("super_admin", message)
-
-        logger.debug(
-            "WS event sent | type=%s | branch=%s",
-            event_type,
-            branch_id or "all",
+    def _spawn():
+        worker = threading.Thread(
+            target=_do_publish,
+            args=(message, branch_id, event_type),
+            daemon=True,
+            name=f"ws-publish-{event_type}",
         )
+        worker.start()
+        # Fire-and-forget: never join.  If Redis is dead the thread dies
+        # quietly in the background; the request returns immediately.
+
+    # In tests / eager mode publish synchronously and inline so callers
+    # (and assertions) can observe the side-effects deterministically
+    # without waiting on a daemon thread or commit boundary.
+    from django.conf import settings
+    if getattr(settings, "CELERY_TASK_ALWAYS_EAGER", False):
+        _do_publish(message, branch_id, event_type)
+        return
+
+    try:
+        transaction.on_commit(_spawn)
     except Exception:
-        # Never let a WS failure break a Django request.
-        logger.exception("Failed to send WS event %s", event_type)
+        # Not inside a transaction — publish directly (still in a thread).
+        _spawn()

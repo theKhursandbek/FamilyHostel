@@ -33,6 +33,24 @@ class Branch(models.Model):
         help_text="Hero image shown on branch cards.",
     )
     is_active = models.BooleanField(default=True)
+    working_days_per_month = models.PositiveSmallIntegerField(
+        default=26,
+        help_text=(
+            "Number of working days the branch counts as one full month for "
+            "salary purposes. Used by the advance formula "
+            "(monthly_salary / working_days_per_month × worked_days_1st_to_15th). "
+            "CEO-editable. See REFACTOR_PLAN_2026_04 §3.4 / Q1."
+        ),
+    )
+    monthly_expense_limit = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=0,
+        help_text=(
+            "Per-branch cap on approved facility expenses for the calendar "
+            "month. CEO-editable. See REFACTOR_PLAN_2026_04 §7.1."
+        ),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -82,7 +82,15 @@ def generate_monthly_report(
             output_field=DecimalField(),
         ),
         total_count=Count("pk"),
-        open_count=Count("pk", filter=Q(status=FacilityLog.LogStatus.OPEN)),
+        open_count=Count(
+            "pk",
+            filter=Q(status__in=[
+                FacilityLog.LogStatus.PENDING,
+                FacilityLog.LogStatus.APPROVED_CASH,
+                FacilityLog.LogStatus.APPROVED_CARD,
+                FacilityLog.LogStatus.PAID,
+            ]),
+        ),
     )
 
     summary: dict[str, Any] = {

@@ -39,6 +39,12 @@ class Booking(models.Model):
         PAID = "paid", "Paid"
         CANCELED = "canceled", "Canceled"
 
+    class BookingSource(models.TextChoices):
+        """Where the booking originated (admin entry vs. self-service)."""
+        WALK_IN = "walk_in", "Walk-in"
+        MANUAL = "manual", "Manual (admin)"
+        TELEGRAM = "telegram", "Telegram bot"
+
     client = models.ForeignKey(
         "accounts.Client",
         on_delete=models.CASCADE,
@@ -81,6 +87,12 @@ class Booking(models.Model):
         choices=BookingStatus.choices,
         default=BookingStatus.PENDING,
     )
+    source = models.CharField(
+        max_length=20,
+        choices=BookingSource.choices,
+        default=BookingSource.MANUAL,
+        help_text="Origin channel — walk-in, manual admin entry, or Telegram bot.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -91,7 +103,7 @@ class Booking(models.Model):
         verbose_name_plural = "Bookings"
         constraints = [
             models.CheckConstraint(
-                check=models.Q(check_out_date__gt=models.F("check_in_date")),
+                condition=models.Q(check_out_date__gt=models.F("check_in_date")),
                 name="booking_checkout_after_checkin",
             ),
         ]

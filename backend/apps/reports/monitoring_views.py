@@ -104,13 +104,19 @@ class AuditLogViewSet(
               "entity_types": ["Penalty", ...]
             }
         """
+        from .audit_actions import ALL_ACTIONS
+
         qs = self.get_queryset().order_by()
         roles = sorted({
             v for v in qs.values_list("role", flat=True) if v
         })
-        actions = sorted({
-            v for v in qs.values_list("action", flat=True) if v
-        })
+        # Union of (a) the canonical catalogue defined in audit_actions.py and
+        # (b) any dynamic codes already present in the DB (e.g.
+        # ``salary_adjustment.bonus_created``, ``cash_session.disputed``).
+        actions = sorted(
+            set(ALL_ACTIONS)
+            | {v for v in qs.values_list("action", flat=True) if v},
+        )
         entity_types = sorted({
             v for v in qs.values_list("entity_type", flat=True) if v
         })

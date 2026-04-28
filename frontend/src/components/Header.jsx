@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import PropTypes from "prop-types";
-import { Menu, ChevronDown, LogOut, Repeat } from "lucide-react";
+import { Menu, ChevronDown, LogOut } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const ROLE_LABEL = {
@@ -10,27 +10,27 @@ const ROLE_LABEL = {
   staff: "Staff",
 };
 
-// Roles that may be switched between when an account holds both.
-const SWITCHABLE_ROLES = ["director", "administrator"];
+// Highest-privilege wins when picking the display role.
+const ROLE_PRIORITY = ["superadmin", "director", "administrator", "staff", "client"];
+function pickDisplayRole(roles) {
+  if (!Array.isArray(roles) || roles.length === 0) return null;
+  return ROLE_PRIORITY.find((r) => roles.includes(r)) || roles[0];
+}
 
 /**
  * Compact top app bar.
  *
  * - Hamburger appears only on mobile (sidebar is sticky on desktop).
- * - When the account holds two switchable roles (Director + Administrator),
- *   a Switch pill appears so the user can flip dashboards in one click.
  * - Right side shows a single user pill that opens a dropdown menu
  *   containing "Signed in as ..." + Sign out.
  */
 function Header({ onToggleSidebar, isMobile }) {
-  const { user, logout, activeRole, setActiveRole } = useAuth();
+  const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const wrapperRef = useRef(null);
 
   const userRoles = user?.roles || [];
-  const switchableHeld = SWITCHABLE_ROLES.filter((r) => userRoles.includes(r));
-  const canSwitch = switchableHeld.length === 2;
-  const displayRole = activeRole || userRoles[0];
+  const displayRole = pickDisplayRole(userRoles);
   const friendlyRole = ROLE_LABEL[displayRole] || "User";
   const fullName = user?.full_name?.trim() || friendlyRole;
   const phone = user?.phone || "";
@@ -40,15 +40,6 @@ function Header({ onToggleSidebar, isMobile }) {
     ? `${friendlyRole} of ${branchName} branch`
     : friendlyRole;
   const initial = (fullName || friendlyRole).charAt(0).toUpperCase();
-
-  const handleSwitchRole = () => {
-    if (!canSwitch) return;
-    const other = switchableHeld.find((r) => r !== activeRole) || switchableHeld[0];
-    setActiveRole(other);
-  };
-  const otherRoleLabel = canSwitch
-    ? ROLE_LABEL[switchableHeld.find((r) => r !== activeRole) || switchableHeld[0]]
-    : "";
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -83,23 +74,6 @@ function Header({ onToggleSidebar, isMobile }) {
 
       {user && (
         <div className="header-actions" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-          {canSwitch && (
-            <button
-              type="button"
-              className="header-role-switch"
-              onClick={handleSwitchRole}
-              title={`Switch to ${otherRoleLabel} dashboard`}
-              aria-label={`Switch to ${otherRoleLabel} dashboard`}
-            >
-              <Repeat size={14} strokeWidth={1.8} aria-hidden="true" />
-              {!isMobile && (
-                <span style={{ marginLeft: 6 }}>
-                  Switch to {otherRoleLabel}
-                </span>
-              )}
-            </button>
-          )}
-
           <div className="header-user-wrapper" ref={wrapperRef}>
           <button
             type="button"

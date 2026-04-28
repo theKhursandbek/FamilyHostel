@@ -951,25 +951,6 @@ a:hover { color: var(--brand-secondary); text-decoration: none; }
 }
 .header-toggle:hover { color: var(--brand-primary); border-color: var(--brand-primary); background: var(--accent-soft); }
 
-.header-role-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  border: 1px solid var(--brand-primary);
-  color: var(--brand-primary);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--transition);
-}
-.header-role-switch:hover {
-  background: var(--brand-primary);
-  color: #fff;
-}
-
 .header-user-wrapper { position: relative; }
 .header-user {
   display: inline-flex;
@@ -1193,3 +1174,1714 @@ a:hover { color: var(--brand-secondary); text-decoration: none; }
 @media (max-width: 768px) {
   .greeting h1 { font-size: 26px !important; }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   BOOKING WIZARD  (multi-step modal: Room → Dates → Cost → Guest)
+   ════════════════════════════════════════════════════════════════════════ */
+
+.modal-wide  { max-width: 880px !important; }
+.modal-full  { max-width: 1100px !important; }
+
+.wizard { display: flex; flex-direction: column; gap: 18px; }
+.wizard-body { min-height: 280px; }
+.wizard-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+.wizard-pane { display: flex; flex-direction: column; gap: 14px; }
+.wizard-hint { margin: 0; color: var(--text-secondary); font-size: 13px; }
+
+/* ── Step bar ── */
+.wizard-steps {
+  display: flex; align-items: center; gap: 0;
+  padding: 6px 4px 18px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.wizard-step {
+  display: flex; align-items: center; gap: 10px;
+  flex: 1; min-width: 0; position: relative;
+  color: var(--text-muted);
+}
+.wizard-step__dot {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700;
+  background: var(--bg-soft); color: var(--text-muted);
+  border: 1px solid var(--border);
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+.wizard-step__label {
+  font-size: 13px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.wizard-step__bar {
+  flex: 1; height: 2px; background: var(--border);
+  margin: 0 8px; border-radius: 2px;
+}
+.wizard-step--active .wizard-step__dot {
+  background: var(--brand-primary); color: #fff; border-color: var(--brand-primary);
+  box-shadow: 0 0 0 4px rgba(31,42,68,0.10);
+}
+.wizard-step--active .wizard-step__label { color: var(--brand-primary); }
+.wizard-step--done .wizard-step__dot {
+  background: var(--brand-success); color: #fff; border-color: var(--brand-success);
+}
+.wizard-step--done .wizard-step__label { color: var(--text-primary); }
+.wizard-step--done + .wizard-step .wizard-step__bar,
+.wizard-step--done .wizard-step__bar { background: var(--brand-success); }
+
+/* ── Room picker grid ── */
+.room-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+.room-pick-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 0; overflow: hidden;
+  cursor: pointer; text-align: left;
+  transition: transform var(--transition), border-color var(--transition), box-shadow var(--transition);
+  display: flex; flex-direction: column;
+}
+.room-pick-card:hover {
+  border-color: var(--brand-accent);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.room-pick-card.is-active {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px rgba(31,42,68,0.12), var(--shadow-md);
+}
+.room-pick-card__media {
+  position: relative;
+  width: 100%; height: 170px;
+  background: linear-gradient(135deg, #efeae0, #d8cfbf);
+  overflow: hidden;
+}
+.room-pick-card__media img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  transition: transform 0.5s ease;
+}
+.room-pick-card:hover .room-pick-card__media img { transform: scale(1.04); }
+.room-pick-card__placeholder {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 42px; color: rgba(31,42,68,0.35);
+}
+.room-pick-card__check {
+  position: absolute; top: 8px; right: 8px;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--brand-primary); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+.room-pick-card__nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(15,23,41,0.55); color: #fff;
+  border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity var(--transition), background var(--transition);
+}
+.room-pick-card:hover .room-pick-card__nav { opacity: 1; }
+.room-pick-card__nav:hover { background: rgba(15,23,41,0.85); }
+.room-pick-card__nav--prev { left: 8px; }
+.room-pick-card__nav--next { right: 8px; }
+.room-pick-card__zoom {
+  position: absolute; top: 8px; left: 8px;
+  width: 28px; height: 28px; border-radius: 6px;
+  background: rgba(15,23,41,0.55); color: #fff;
+  border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity var(--transition), background var(--transition);
+}
+.room-pick-card:hover .room-pick-card__zoom { opacity: 1; }
+.room-pick-card__zoom:hover { background: rgba(15,23,41,0.85); }
+.room-pick-card__count {
+  position: absolute; bottom: 8px; right: 8px;
+  background: rgba(15,23,41,0.65); color: #fff;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.4px;
+}
+.room-pick-card__dots {
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 4px;
+  pointer-events: none;
+}
+.room-pick-card__dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(255,255,255,0.55);
+  transition: background var(--transition), width var(--transition);
+}
+.room-pick-card__dot.is-active {
+  background: #fff; width: 14px; border-radius: 4px;
+}
+.room-pick-card__body {
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;
+}
+.room-pick-card__title {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.room-pick-card__num {
+  font-weight: 700; color: var(--brand-primary); font-size: 15px;
+}
+.room-pick-card__sub {
+  font-size: 12px; color: var(--text-muted);
+}
+.room-pick-card__meta {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 4px;
+  border-top: 1px dashed var(--border-soft);
+  padding-top: 8px;
+}
+.room-pick-card__meta li {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12px;
+}
+.room-pick-card__meta li span {
+  color: var(--text-muted);
+}
+.room-pick-card__meta li strong {
+  color: var(--text-primary); font-weight: 600;
+}
+.room-pick-card__status {
+  text-transform: capitalize;
+  color: var(--brand-success) !important;
+}
+.room-pick-card__price {
+  margin-top: 4px;
+  font-size: 17px; font-weight: 700; color: var(--brand-accent);
+  display: flex; align-items: baseline; gap: 4px;
+}
+.room-pick-card__per {
+  font-size: 11px; color: var(--text-muted); font-weight: 500;
+}
+
+/* ── Room summary banner (steps 2+) ── */
+.wizard-room-summary {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  background: var(--brand-cream, #fdfbf6);
+  border: 1px solid rgba(31,42,68,0.12);
+  border-radius: var(--radius-md);
+}
+.wizard-room-summary__title {
+  font-weight: 700; color: var(--brand-primary);
+}
+.wizard-room-summary__sub {
+  font-size: 12px; color: var(--text-muted); margin-top: 2px;
+}
+.wizard-room-summary__right {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+}
+.wizard-room-summary__price {
+  font-weight: 700; color: var(--brand-accent);
+}
+.wizard-room-summary__price span {
+  font-size: 11px; color: var(--text-muted); font-weight: 500;
+}
+.wizard-room-summary__photos {
+  background: none; border: none; padding: 0;
+  font-size: 12px; font-weight: 600;
+  color: var(--brand-primary);
+  cursor: pointer; text-decoration: underline;
+}
+.wizard-room-summary__photos:hover { color: var(--brand-accent); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   LIGHTBOX (full-screen image viewer)
+   ════════════════════════════════════════════════════════════════════════ */
+.lightbox {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  padding: 32px;
+  animation: lightbox-fade 0.18s ease-out;
+}
+@keyframes lightbox-fade { from { opacity: 0; } to { opacity: 1; } }
+.lightbox__backdrop {
+  position: absolute; inset: 0;
+  background: rgba(8, 12, 24, 0.92);
+  backdrop-filter: blur(6px);
+  border: none; padding: 0; cursor: zoom-out;
+}
+.lightbox__image {
+  position: relative;
+  max-width: 100%; max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+  z-index: 1;
+}
+.lightbox__close {
+  position: absolute; top: 18px; right: 18px;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255,255,255,0.12); color: #fff;
+  border: 1px solid rgba(255,255,255,0.18); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2; transition: background var(--transition);
+}
+.lightbox__close:hover { background: rgba(255,255,255,0.22); }
+.lightbox__nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 48px; height: 48px; border-radius: 50%;
+  background: rgba(255,255,255,0.12); color: #fff;
+  border: 1px solid rgba(255,255,255,0.18); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2; transition: background var(--transition);
+}
+.lightbox__nav:hover { background: rgba(255,255,255,0.22); }
+.lightbox__nav--prev { left: 18px; }
+.lightbox__nav--next { right: 18px; }
+.lightbox__caption {
+  position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 14px;
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 999px;
+  color: #fff; font-size: 13px;
+  z-index: 2;
+}
+.lightbox__title { font-weight: 600; }
+.lightbox__counter {
+  padding-left: 12px; border-left: 1px solid rgba(255,255,255,0.25);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 600px) {
+  .lightbox { padding: 12px; }
+  .lightbox__nav { width: 40px; height: 40px; }
+  .lightbox__nav--prev { left: 8px; }
+  .lightbox__nav--next { right: 8px; }
+}
+
+/* ── Cost summary card ── */
+.cost-summary {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  background: var(--bg-card);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.cost-summary--compact { padding: 12px 16px; }
+.cost-summary__row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 14px; color: var(--text-primary);
+}
+.cost-summary__row--input label { font-weight: 600; }
+.cost-summary__input {
+  max-width: 160px; text-align: right;
+}
+.cost-summary__divider {
+  height: 1px; background: var(--border-soft); margin: 4px 0;
+}
+.cost-summary__total {
+  font-size: 17px; font-weight: 700; color: var(--brand-primary);
+}
+.cost-summary__total span:last-child { color: var(--brand-accent); }
+
+/* ── Step 2 form row ── */
+.form-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+}
+@media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+
+/* ════════════════════════════════════════════════════════════════════════
+   BOOKINGS LIST — toolbar + card grid
+   ════════════════════════════════════════════════════════════════════════ */
+
+.bookings-toolbar {
+  display: flex; align-items: center; gap: 16px;
+  margin: 8px 0 18px; flex-wrap: wrap;
+}
+.bookings-filter { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+.bookings-filter__chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px; font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.bookings-filter__chip:hover { border-color: var(--brand-primary); color: var(--brand-primary); }
+.bookings-filter__chip.is-active {
+  background: var(--brand-primary); color: #fff; border-color: var(--brand-primary);
+}
+.bookings-filter__count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 22px; padding: 0 6px; height: 18px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.08); color: inherit;
+  font-size: 11px; font-weight: 700;
+}
+.bookings-filter__chip.is-active .bookings-filter__count {
+  background: rgba(255,255,255,0.22);
+}
+.bookings-search {
+  max-width: 280px;
+}
+
+.bookings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.booking-card {
+  display: flex; flex-direction: column; gap: 10px;
+  text-align: left;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: transform var(--transition), border-color var(--transition), box-shadow var(--transition);
+  font: inherit; color: inherit;
+}
+.booking-card:hover {
+  border-color: var(--brand-accent);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.booking-card__head {
+  display: flex; justify-content: space-between; align-items: center;
+}
+.booking-card__room {
+  font-weight: 700; font-size: 17px; color: var(--brand-primary);
+}
+.booking-card__guest {
+  font-weight: 600; color: var(--text-primary);
+}
+.booking-card__branch {
+  font-size: 12px; color: var(--text-muted); margin-top: -4px;
+}
+.booking-card__dates {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center; gap: 10px;
+  padding: 10px 12px;
+  background: var(--brand-cream, #fdfbf6);
+  border: 1px dashed rgba(31,42,68,0.18);
+  border-radius: var(--radius-md);
+  position: relative;
+}
+.booking-card__dlabel {
+  font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase;
+  color: var(--text-muted); font-weight: 700;
+}
+.booking-card__dval {
+  font-size: 13px; font-weight: 600; color: var(--brand-primary);
+}
+.booking-card__arrow {
+  color: var(--brand-accent); font-weight: 700; font-size: 16px;
+}
+.booking-card__nights {
+  position: absolute; right: 8px; top: -10px;
+  background: var(--brand-primary); color: #fff;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.4px;
+}
+.booking-card__foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+.booking-card__price {
+  display: flex; flex-direction: column; line-height: 1.2; min-width: 0;
+  flex: 1 1 auto;
+}
+.booking-card__plabel {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.4px;
+  text-transform: uppercase; color: var(--text-muted, #6b7280);
+}
+.booking-card__pval {
+  font-size: 17px; font-weight: 800; color: var(--brand-accent);
+  white-space: nowrap;
+}
+.booking-card__phint {
+  font-size: 11px; color: var(--text-muted, #6b7280); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.booking-card__btn {
+  white-space: nowrap !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  flex: 0 0 auto;
+}
+.booking-card__actions {
+  display: flex; gap: 6px;
+}
+
+/* ============================================================
+   Booking card — old-money / oligarch variant (.booking-card--lux)
+   Same vocabulary as the cleaning card, but distinct silhouette:
+   the crest carries the ROOM NUMBER, the title is the GUEST,
+   and the foot becomes a billing nameplate.
+   ============================================================ */
+.booking-card--lux {
+  position: relative;
+  gap: 14px;
+  padding: 20px 22px 18px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.65), rgba(255,255,255,0) 42%),
+    var(--bg-card, #fdfbf6);
+  border: 1px solid var(--border, #e3dccd);
+  border-radius: var(--radius, 14px);
+  box-shadow: var(--shadow-xs, 0 1px 2px rgba(31, 42, 68, 0.05));
+  overflow: hidden;
+}
+.booking-card--lux::before {
+  /* Inner gilt frame, matched to the cleaning card */
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(176, 141, 87, 0.18);
+  border-radius: calc(var(--radius, 14px) - 6px);
+  pointer-events: none;
+}
+.booking-card--lux:hover {
+  transform: translateY(-1px);
+  border-color: rgba(176, 141, 87, 0.55);
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(31, 42, 68, 0.06));
+}
+
+.booking-card--lux .booking-card__rail {
+  position: absolute; left: 0; top: 14px; bottom: 14px;
+  width: 2px;
+  background: var(--brand-accent, #b08d57);
+  opacity: 0.55;
+}
+.booking-card--lux.is-pending   .booking-card__rail { background: #b08d57; opacity: 0.55; }
+.booking-card--lux.is-paid      .booking-card__rail { background: #4a6a4d; opacity: 0.65; }
+.booking-card--lux.is-completed .booking-card__rail { background: #1f2a44; opacity: 0.7;  }
+.booking-card--lux.is-canceled  .booking-card__rail { background: #7a3a3a; opacity: 0.6;  }
+
+/* Head with crest + title + status nameplate */
+.booking-card--lux .booking-card__head {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 14px;
+  position: relative;
+}
+.booking-card--lux .booking-card__head-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.booking-card--lux .booking-card__title-wrap {
+  display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1 1 auto;
+}
+.booking-card--lux .booking-card__crest {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 44px; height: 44px;
+  padding: 0 8px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #fffaf0, #f5ebd6);
+  border: 1px solid rgba(176, 141, 87, 0.55);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    inset 0 -1px 0 rgba(176, 141, 87, 0.25);
+  color: var(--brand-primary, #1f2a44);
+  font-family: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  font-size: 20px; font-weight: 600;
+  font-variant-numeric: oldstyle-nums;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+.booking-card--lux .booking-card__title {
+  margin: 0;
+  font-family: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  font-size: 22px; font-weight: 500;
+  font-style: italic;                       /* italic — the human element */
+  color: var(--brand-primary, #1f2a44);
+  letter-spacing: 0.2px;
+  line-height: 1.15;
+  /* Single line; status sits ABOVE so the title gets the full body width.
+     If the name is longer than the card, ellipsize gracefully — hover
+     reveals the full name via the title attribute. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.booking-card--lux .booking-card__ids {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin-top: 6px;
+}
+.booking-card--lux .booking-card__branch {
+  font-size: 12px; color: var(--text-muted, #9b9b9e);
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic; font-weight: 500;
+  letter-spacing: 0.3px;
+}
+.booking-card--lux .booking-card__bid {
+  display: inline-block;
+  margin-top: 6px;
+  font-family: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  font-style: italic;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: oldstyle-nums;
+  letter-spacing: 0.4px;
+  color: var(--text-muted, #9b9b9e);
+  text-align: center;
+  user-select: none;
+}
+.booking-card--lux .booking-card__crest-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+/* Engraved status nameplate — same idiom as cleaning */
+.booking-card--lux .booking-card__status {
+  align-self: flex-end;
+  display: inline-flex; align-items: center;
+  padding: 4px 14px;
+  border-radius: 2px;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 9.5px; font-weight: 700;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+  background: transparent;
+  border-top: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  border-left: 0; border-right: 0;
+  position: relative;
+}
+.booking-card--lux .booking-card__status::before,
+.booking-card--lux .booking-card__status::after {
+  content: "·";
+  position: absolute; top: 50%; transform: translateY(-50%);
+  font-size: 14px; line-height: 0; color: currentColor;
+}
+.booking-card--lux .booking-card__status::before { left: 4px; }
+.booking-card--lux .booking-card__status::after  { right: 4px; }
+.booking-card--lux .booking-card__status.is-pending   { color: #8a6a2e; }   /* aged bronze */
+.booking-card--lux .booking-card__status.is-paid      { color: #4a6a4d; }   /* sage        */
+.booking-card--lux .booking-card__status.is-completed { color: #1f2a44; }   /* ink         */
+.booking-card--lux .booking-card__status.is-canceled  { color: #7a3a3a; }   /* claret      */
+
+/* Date ledger — re-skinned: rule above & below, no dashed cream box */
+.booking-card--lux .booking-card__dates {
+  background: rgba(255, 255, 255, 0.55);
+  border: 0;
+  border-top: 1px solid rgba(176, 141, 87, 0.35);
+  border-bottom: 1px solid rgba(176, 141, 87, 0.35);
+  border-radius: 0;
+  padding: 12px 14px;
+  margin: 0 -2px;
+}
+.booking-card--lux .booking-card__dlabel {
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 9px; letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--text-muted, #9b9b9e);
+  font-weight: 600;
+}
+.booking-card--lux .booking-card__dval {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 16px; font-weight: 600;
+  color: var(--brand-primary, #1f2a44);
+  letter-spacing: 0.2px;
+  font-variant-numeric: oldstyle-nums;
+  margin-top: 2px;
+}
+.booking-card--lux .booking-card__arrow {
+  color: var(--brand-accent, #b08d57);
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-weight: 400; font-size: 18px;
+  letter-spacing: 0.4em;
+}
+.booking-card--lux .booking-card__nights {
+  position: absolute; right: 14px; top: -10px;
+  background: var(--bg-card, #fdfbf6);
+  color: var(--brand-accent, #b08d57);
+  padding: 1px 10px;
+  border-radius: 0;
+  border-top: 1px solid rgba(176, 141, 87, 0.55);
+  border-bottom: 1px solid rgba(176, 141, 87, 0.55);
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 9.5px; font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+
+/* Billing nameplate */
+.booking-card--lux .booking-card__foot {
+  margin-top: 4px;
+  align-items: flex-end;
+}
+.booking-card--lux .booking-card__price {
+  position: relative;
+  padding: 4px 0;
+}
+.booking-card--lux .booking-card__plabel {
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 9px; font-weight: 600;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--text-muted, #9b9b9e);
+}
+.booking-card--lux .booking-card__pval {
+  font-family: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  font-size: 26px; font-weight: 600;
+  font-variant-numeric: oldstyle-nums tabular-nums;
+  color: var(--brand-primary, #1f2a44);   /* ink, not gold — gold is reserved for the № */
+  line-height: 1.05;
+  margin-top: 2px;
+  letter-spacing: 0.2px;
+}
+.booking-card--lux .booking-card__phint {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 13px; font-style: italic; font-weight: 500;
+  color: var(--text-muted, #9b9b9e);
+  letter-spacing: 0.2px;
+  margin-top: 4px;
+}
+.booking-card--lux .booking-card__phint strong {
+  color: #7a3a3a;                           /* claret for outstanding balance */
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .bookings-search { max-width: 100%; width: 100%; }
+}
+
+/* ============================================================
+   Universal ID chip — old-money parchment style
+   ============================================================ */
+.id-chip {
+  display: inline-flex; align-items: baseline; gap: 3px;
+  padding: 2px 9px;
+  border-radius: 2px;                      /* engraved nameplate, not pill */
+  background: transparent;
+  border: 1px solid var(--border, #e3dccd);
+  border-top-color: rgba(176, 141, 87, 0.45);
+  border-bottom-color: rgba(176, 141, 87, 0.45);
+  color: var(--brand-primary, #1f2a44);
+  font-family: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  font-size: 13px; font-weight: 600;
+  letter-spacing: 0.3px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums oldstyle-nums;
+}
+.id-chip__hash {
+  color: var(--brand-accent, #b08d57);
+  font-weight: 700;
+  margin-right: 1px;
+}
+.id-chip__num  { font-weight: 700; }
+.id-chip__lbl {
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 9px; font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-muted, #9b9b9e);
+  margin-left: 4px;
+}
+.id-chip--ghost {
+  border-color: var(--border-soft, #ece6d7);
+  border-top-color: var(--border-soft, #ece6d7);
+  border-bottom-color: var(--border-soft, #ece6d7);
+  color: var(--text-muted, #9b9b9e);
+}
+.id-chip--ghost .id-chip__hash { color: var(--text-muted, #9b9b9e); opacity: 0.7; }
+.id-chip--accent {
+  border-color: rgba(176, 141, 87, 0.55);
+  border-top-color: var(--brand-accent, #b08d57);
+  border-bottom-color: var(--brand-accent, #b08d57);
+  color: var(--brand-accent, #b08d57);
+}
+
+/* ============================================================
+   Cleaning task card — oligarch / old-money styling
+   ============================================================ */
+.clean-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 18px;
+}
+
+.clean-card {
+  position: relative;
+  display: flex; flex-direction: column; gap: 14px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0) 40%),
+    var(--bg-card, #fdfbf6);
+  border: 1px solid var(--border, #e3dccd);
+  border-radius: var(--radius, 14px);
+  padding: 20px 22px 18px;
+  box-shadow: var(--shadow-xs, 0 1px 2px rgba(31, 42, 68, 0.05));
+  overflow: hidden;
+  transition: transform var(--transition), border-color var(--transition), box-shadow var(--transition);
+}
+.clean-card::before {
+  /* Inner hairline gilt frame */
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(176, 141, 87, 0.18);
+  border-radius: calc(var(--radius, 14px) - 6px);
+  pointer-events: none;
+}
+.clean-card:hover {
+  border-color: rgba(176, 141, 87, 0.55);
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(31, 42, 68, 0.06));
+  transform: translateY(-1px);
+}
+
+.clean-card__rail {
+  position: absolute; left: 0; top: 14px; bottom: 14px;
+  width: 2px;
+  background: var(--brand-accent, #b08d57);
+  opacity: 0.55;
+}
+.clean-card.is-pending   .clean-card__rail { background: #b08d57; opacity: 0.55; } /* bronze */
+.clean-card.is-progress  .clean-card__rail { background: #1f2a44; opacity: 0.65; } /* ink   */
+.clean-card.is-completed .clean-card__rail { background: #5a7a5d; opacity: 0.65; } /* sage  */
+.clean-card.is-retry     .clean-card__rail { background: #7a3a3a; opacity: 0.7;  } /* claret*/
+
+.clean-card.is-attention {
+  background:
+    linear-gradient(180deg, rgba(122, 58, 58, 0.04), rgba(255,255,255,0) 60%),
+    var(--bg-card, #fdfbf6);
+}
+
+.clean-card__head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 14px;
+  position: relative;
+}
+.clean-card__title-wrap {
+  display: flex; align-items: center; gap: 14px; min-width: 0;
+}
+.clean-card__crest {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #fffaf0, #f5ebd6);
+  border: 1px solid rgba(176, 141, 87, 0.55);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    inset 0 -1px 0 rgba(176, 141, 87, 0.25);
+  color: var(--brand-primary, #1f2a44);
+  font-family: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  font-size: 22px; font-weight: 600;
+  font-style: italic;
+  flex-shrink: 0;
+}
+.clean-card__title {
+  margin: 0;
+  font-size: 22px; font-weight: 500;
+  font-style: italic;
+  color: var(--brand-primary, #1f2a44);
+  font-family: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  letter-spacing: 0.2px;
+  line-height: 1.1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.clean-card__ids {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin-top: 6px;
+}
+.clean-card__branch {
+  font-size: 12px; color: var(--text-muted, #9b9b9e);
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic; font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.clean-card__status {
+  display: inline-flex; align-items: center;
+  padding: 4px 12px;
+  border-radius: 2px;                       /* engraved plate */
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 9.5px; font-weight: 700;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-top-width: 1px;
+  border-bottom-width: 1px;
+  border-left: 0; border-right: 0;
+  position: relative;
+}
+.clean-card__status::before,
+.clean-card__status::after {
+  content: "·";
+  position: absolute; top: 50%; transform: translateY(-50%);
+  font-size: 14px; line-height: 0;
+  color: currentColor;
+}
+.clean-card__status::before { left: 3px; }
+.clean-card__status::after  { right: 3px; }
+.clean-card__status.is-pending   { color: #8a6a2e; }   /* aged bronze */
+.clean-card__status.is-progress  { color: #1f2a44; }   /* ink         */
+.clean-card__status.is-completed { color: #4a6a4d; }   /* sage        */
+.clean-card__status.is-retry     { color: #7a3a3a; }   /* claret      */
+
+.clean-card__plate {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px 18px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.55);
+  border-top: 1px solid rgba(176, 141, 87, 0.35);
+  border-bottom: 1px solid rgba(176, 141, 87, 0.35);
+  border-left: 0; border-right: 0;
+  border-radius: 0;
+  margin: 0 -2px;
+}
+.clean-card__plate-cell {
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+}
+.clean-card__plate-lbl {
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 9px; letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--text-muted, #9b9b9e);
+  font-weight: 600;
+}
+.clean-card__plate-val {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 16px; font-weight: 600;
+  color: var(--brand-primary, #1f2a44);
+  letter-spacing: 0.2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.2;
+}
+.clean-card__plate-val--muted {
+  color: var(--text-muted, #9b9b9e);
+  font-weight: 500; font-style: italic;
+}
+.clean-card__plate-val--warn { color: #7a3a3a; }
+
+.prio-pill {
+  display: inline-flex; align-items: center; align-self: flex-start;
+  padding: 2px 10px;
+  border-radius: 2px;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-left: 0; border-right: 0;
+}
+.prio-low    { color: #6b6f78; }
+.prio-normal { color: #8a6a2e; }   /* aged bronze */
+.prio-high   { color: #7a3a3a; }   /* claret      */
+
+.clean-card__alert {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 14px;
+  border-radius: 2px;
+  background: rgba(122, 58, 58, 0.04);
+  border-top: 1px solid rgba(122, 58, 58, 0.35);
+  border-bottom: 1px solid rgba(122, 58, 58, 0.35);
+  color: #7a3a3a;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 14px; font-weight: 500; font-style: italic;
+  letter-spacing: 0.2px;
+  line-height: 1.45;
+}
+
+.clean-card__actions {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.clean-card__override {
+  display: flex; gap: 8px; align-items: flex-end;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(176, 141, 87, 0.25);
+}
+
+/* ============================================================
+   Cleaning Task Form — old-money / oligarch modal
+   ============================================================ */
+.cl-form {
+  padding: 4px 4px 6px;
+  font-family: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  color: var(--brand-primary, #1f2a44);
+}
+.cl-form__lede {
+  margin: 0 0 18px;
+  font-size: 14px;
+  font-style: italic;
+  color: var(--text-muted, #8a8a8e);
+  letter-spacing: 0.2px;
+  line-height: 1.5;
+}
+.cl-form__row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(176, 141, 87, 0.18);
+}
+.cl-form__row:last-of-type { border-bottom: none; }
+@media (max-width: 560px) {
+  .cl-form__row { grid-template-columns: 1fr; gap: 6px; }
+}
+.cl-form__lbl {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brand-primary, #1f2a44);
+}
+.cl-form__req { color: #b08d57; margin-left: 2px; }
+.cl-form__opt {
+  font-style: italic;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0.2px;
+  color: var(--text-muted, #9b9b9e);
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+/* Read-only room display in edit mode */
+.cl-form__readonly {
+  display: inline-flex; align-items: center; gap: 12px;
+}
+.cl-form__crest {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 38px; height: 38px;
+  padding: 0 8px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #fffaf0, #f5ebd6);
+  border: 1px solid rgba(176, 141, 87, 0.55);
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.5),
+    inset 0 -1px 0 rgba(176, 141, 87, 0.25);
+  color: var(--brand-primary, #1f2a44);
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 18px; font-weight: 600;
+  font-variant-numeric: oldstyle-nums;
+}
+.cl-form__readonly-text {
+  font-style: italic;
+  font-size: 16px;
+  color: var(--brand-primary, #1f2a44);
+}
+
+/* Custom select inside lux form — gilded, parchment, hairline border */
+.cl-form__select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  width: 100%;
+  padding: 11px 38px 11px 14px;
+  background-color: #fdfbf6;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23b08d57' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 14px 14px;
+  border: 1px solid rgba(176, 141, 87, 0.45);
+  border-radius: 4px;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 15px;
+  color: var(--brand-primary, #1f2a44);
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+.cl-form__select:hover {
+  border-color: rgba(176, 141, 87, 0.75);
+  background-color: #fffaf0;
+}
+.cl-form__select:focus {
+  outline: none;
+  border-color: #b08d57;
+  box-shadow: 0 0 0 3px rgba(176, 141, 87, 0.18);
+}
+.cl-form__select::-ms-expand { display: none; }
+.cl-form__select option {
+  background: #fdfbf6;
+  color: var(--brand-primary, #1f2a44);
+  padding: 8px 12px;
+  font-family: "Cormorant Garamond", Georgia, serif;
+}
+
+/* Priority segmented control */
+.cl-form__seg {
+  display: inline-flex;
+  border: 1px solid rgba(176, 141, 87, 0.45);
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fdfbf6;
+}
+.cl-form__seg-btn {
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 9px 18px;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted, #8a8a8e);
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+  border-right: 1px solid rgba(176, 141, 87, 0.25);
+}
+.cl-form__seg-btn:last-child { border-right: none; }
+.cl-form__seg-btn:hover {
+  background: rgba(176, 141, 87, 0.08);
+  color: var(--brand-primary, #1f2a44);
+}
+.cl-form__seg-btn.is-on {
+  background: linear-gradient(180deg, #fffaf0, #f5ebd6);
+  color: var(--brand-primary, #1f2a44);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 #b08d57;
+}
+.cl-form__seg-btn--high.is-on   { box-shadow: inset 0 -2px 0 #7a3a3a; }
+.cl-form__seg-btn--low.is-on    { box-shadow: inset 0 -2px 0 #4a6a4d; }
+
+.cl-form__hint {
+  grid-column: 2 / -1;
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  font-style: italic;
+  color: var(--text-muted, #9b9b9e);
+  line-height: 1.45;
+}
+@media (max-width: 560px) {
+  .cl-form__hint { grid-column: 1 / -1; }
+}
+
+.cl-form__rule {
+  border: none;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(176, 141, 87, 0.4) 20%,
+    rgba(176, 141, 87, 0.4) 80%,
+    transparent);
+  margin: 18px 0 14px;
+}
+
+.cl-form__actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+/* ============================================================
+   Branch Selector — pinned nameplate (Director/Admin)
+                     · selectable picker (SuperAdmin / CEO)
+   ============================================================ */
+.branch-pin,
+.branch-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px;
+  background: linear-gradient(180deg, #fffaf0, #f5ebd6);
+  border: 1px solid rgba(176, 141, 87, 0.45);
+  border-radius: 4px;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  color: var(--brand-primary, #1f2a44);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.5);
+  line-height: 1.2;
+}
+.branch-pin__lbl,
+.branch-picker__lbl {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted, #8a8a8e);
+}
+.branch-pin__val {
+  font-size: 14px;
+  font-style: italic;
+  font-weight: 500;
+}
+.branch-picker__custom .select-trigger {
+  min-height: 28px;
+  padding: 2px 26px 2px 8px;
+  font-size: 14px;
+  font-style: italic;
+  font-family: inherit;
+}
+.branch-picker__select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  border: none;
+  background: transparent;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23b08d57' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+  background-size: 12px 12px;
+  padding: 2px 24px 2px 4px;
+  min-width: 160px;
+  font-family: inherit;
+  font-size: 16px;
+  font-style: italic;
+  color: var(--brand-primary, #1f2a44);
+  cursor: pointer;
+  outline: none;
+}
+.branch-picker__select:focus { color: var(--brand-secondary, #2c3a5c); }
+.branch-picker__select::-ms-expand { display: none; }
+.branch-picker__select option {
+  background: #fdfbf6;
+  color: var(--brand-primary, #1f2a44);
+  font-style: normal;
+  padding: 8px 12px;
+}
+
+/* CEO empty-state — shown until a branch is picked */
+.branch-empty {
+  margin: 24px 0;
+  padding: 36px 20px;
+  text-align: center;
+  border: 1px dashed rgba(176, 141, 87, 0.45);
+  border-radius: 8px;
+  background: #fdfbf6;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  color: var(--brand-primary, #1f2a44);
+}
+.branch-empty__title {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 500;
+  font-style: italic;
+}
+.branch-empty__hint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted, #8a8a8e);
+}
+
+/* ============================================================
+   Salary Records — "the Ledger"
+   Treasury / private-banking aesthetic. Parchment, brass, ink.
+   ============================================================ */
+
+.salary-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* — Hero (staff) — embossed monthly statement ---------------- */
+.salary-hero {
+  position: relative;
+  padding: 32px 40px 36px;
+  border-radius: 4px;
+  background:
+    radial-gradient(ellipse at top right, rgba(176,141,87,0.10), transparent 60%),
+    radial-gradient(ellipse at bottom left, rgba(31,42,68,0.05), transparent 55%),
+    linear-gradient(180deg, #fefcf6 0%, #f5efde 100%);
+  border: 1px solid #d8c9a3;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.8),
+    inset 0 0 0 5px transparent,
+    inset 0 0 0 6px rgba(176,141,87,0.35),
+    0 1px 0 rgba(255,255,255,0.9),
+    0 14px 28px -18px rgba(31,42,68,0.25);
+  overflow: hidden;
+}
+.salary-hero::before {
+  /* corner crest mark */
+  content: "₴";
+  position: absolute;
+  top: -28px; right: -16px;
+  font-size: 180px; line-height: 1;
+  color: rgba(176,141,87,0.10);
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  pointer-events: none;
+}
+.salary-hero__head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 16px; margin-bottom: 14px;
+}
+.salary-hero__lbl {
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #8a6a2e;
+  font-weight: 600;
+}
+.salary-hero__period {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  font-size: 18px;
+  color: var(--text-secondary);
+}
+.salary-hero__amount {
+  font-family: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  font-size: 64px;
+  line-height: 1.05;
+  font-weight: 500;
+  color: var(--text-strong);
+  letter-spacing: -0.015em;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.9);
+}
+.salary-hero__note {
+  margin: 14px 0 0;
+  max-width: 520px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-style: italic;
+  font-family: "Cormorant Garamond", Georgia, serif;
+}
+
+/* — KPI tile row (managers) ---------------------------------- */
+.salary-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+.salary-kpi {
+  position: relative;
+  padding: 18px 20px 16px;
+  background: linear-gradient(180deg, #fefcf6 0%, #f6f0df 100%);
+  border: 1px solid #d8c9a3;
+  border-radius: 3px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.7),
+    0 6px 14px -10px rgba(31,42,68,0.20);
+}
+.salary-kpi::before {
+  content: "";
+  position: absolute;
+  top: 8px; left: 8px; right: 8px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(176,141,87,0.5), transparent);
+}
+.salary-kpi__lbl {
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #8a6a2e;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.salary-kpi__val {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 26px;
+  font-weight: 500;
+  color: var(--text-strong);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+.salary-kpi__sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  font-family: "Cormorant Garamond", Georgia, serif;
+}
+
+/* — Panels (sections) ---------------------------------------- */
+.salary-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 22px 24px 24px;
+  box-shadow: 0 4px 12px -10px rgba(31,42,68,0.15);
+}
+.salary-panel__head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px 16px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+.salary-panel__head::after {
+  /* double-rule under heading — old ledger feel */
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -4px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.salary-panel__title {
+  margin: 0;
+  font-family: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-strong);
+  letter-spacing: -0.005em;
+}
+.salary-panel__sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  font-family: "Cormorant Garamond", Georgia, serif;
+}
+.salary-panel > .salary-panel__title:first-child {
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* — Ledger (staff breakdown) — leader-dot rows --------------- */
+.salary-ledger {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.salary-ledger__row {
+  display: flex; align-items: baseline;
+  padding: 10px 4px;
+  gap: 8px;
+  border-bottom: 1px dotted rgba(31,42,68,0.18);
+}
+.salary-ledger__row:last-of-type { border-bottom: 0; }
+.salary-ledger__lbl {
+  font-size: 14px;
+  color: var(--text-secondary);
+  flex: 0 0 auto;
+}
+.salary-ledger__val {
+  margin-left: auto;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 18px;
+  font-style: italic;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+.salary-ledger__row.is-neg .salary-ledger__val { color: #7a3a3a; }
+.salary-ledger__total {
+  display: flex; align-items: baseline;
+  margin-top: 8px;
+  padding: 14px 4px 6px;
+  border-top: 3px double rgba(176,141,87,0.55);
+}
+.salary-ledger__tlbl {
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #8a6a2e;
+  font-weight: 600;
+}
+.salary-ledger__tval {
+  margin-left: auto;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* — Tables (history + roster) -------------------------------- */
+.salary-table-wrap {
+  overflow-x: auto;
+  margin: 0 -4px;
+}
+.salary-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+}
+.salary-table thead th {
+  position: sticky; top: 0;
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #8a6a2e;
+  font-weight: 600;
+  background: linear-gradient(180deg, #f8f2e2 0%, #f1ead6 100%);
+  border-top: 1px solid #d8c9a3;
+  border-bottom: 1px solid #d8c9a3;
+  white-space: nowrap;
+}
+.salary-table thead th:first-child { border-left: 1px solid #d8c9a3; border-top-left-radius: 2px; }
+.salary-table thead th:last-child  { border-right: 1px solid #d8c9a3; border-top-right-radius: 2px; }
+.salary-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text-primary, var(--text-strong));
+  vertical-align: middle;
+}
+.salary-table tbody tr:hover td { background: rgba(176,141,87,0.06); }
+.salary-table tbody tr:last-child td { border-bottom: 0; }
+
+.salary-table__num {
+  text-align: center;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.salary-table thead th.salary-table__num { font-style: normal; font-size: 10px; text-align: center; }
+.salary-table__total {
+  font-weight: 600;
+  font-style: normal;
+  color: var(--text-strong);
+  font-size: 17px;
+}
+.salary-table__name {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 17px;
+  color: var(--text-strong);
+  font-weight: 500;
+}
+.salary-table__muted {
+  color: var(--text-muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.salary-table__actions {
+  text-align: right;
+  white-space: nowrap;
+}
+.salary-table__actions .btn { margin-left: 6px; }
+
+/* — Status pills — wax-seal vibe ----------------------------- */
+.salary-pill {
+  display: inline-flex; align-items: center;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  background: var(--bg-soft);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.salary-pill.is-paid {
+  background: linear-gradient(180deg, #e7efe1, #d6e3cd);
+  color: #3f5a3f;
+  border-color: #b9cdb0;
+}
+.salary-pill.is-pending {
+  background: linear-gradient(180deg, #f3e7c8, #e7d59f);
+  color: #6b4f1d;
+  border-color: #c9b275;
+}
+
+/* — Empty state ---------------------------------------------- */
+.salary-empty {
+  padding: 28px 16px;
+  text-align: center;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  color: var(--text-muted);
+  font-size: 16px;
+}
+
+/* Responsive ------------------------------------------------- */
+@media (max-width: 720px) {
+  .salary-hero { padding: 22px 22px 26px; }
+  .salary-hero__amount { font-size: 44px; }
+  .salary-hero::before { font-size: 120px; top: -16px; right: -8px; }
+  .salary-panel { padding: 18px 16px 20px; }
+  .salary-kpi__val { font-size: 22px; }
+  .salary-table thead th,
+  .salary-table tbody td { padding: 10px 10px; }
+}
+
+/* — Period navigator (◀ April 2026 ▶ + cycle) ---------------- */
+.period-nav {
+  display: inline-flex;
+  align-items: stretch;
+  background: linear-gradient(180deg, #fefcf6 0%, #f5efde 100%);
+  border: 1px solid #d8c9a3;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.8);
+  overflow: hidden;
+  font-family: "Cormorant Garamond", Georgia, serif;
+}
+.period-nav__step {
+  border: 0; background: transparent;
+  padding: 6px 14px; cursor: pointer;
+  color: #8a6a2e; font-size: 14px;
+  border-right: 1px solid #e3d6b3;
+  transition: background 120ms;
+}
+.period-nav__step:last-of-type { border-right: 1px solid #e3d6b3; }
+.period-nav__step:hover { background: rgba(176,141,87,0.15); }
+.period-nav__label {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 4px 18px;
+  min-width: 180px;
+  border-right: 1px solid #e3d6b3;
+}
+.period-nav__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-strong);
+  letter-spacing: -0.005em;
+  line-height: 1.1;
+}
+.period-nav__range {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  letter-spacing: 0.04em;
+  margin-top: 1px;
+}
+.period-nav__cycle {
+  border: 0; background: transparent;
+  padding: 6px 28px 6px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-strong);
+  cursor: pointer;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #8a6a2e 50%),
+                    linear-gradient(135deg, #8a6a2e 50%, transparent 50%);
+  background-position: calc(100% - 14px) 14px, calc(100% - 9px) 14px;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+
+/* — Toolbar row (period nav + export button) ----------------- */
+.salary-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: -8px;
+}
+.salary-toolbar__spacer { flex: 1 1 auto; }
+
+/* — Override form -------------------------------------------- */
+.override-form { display: flex; flex-direction: column; gap: 14px; }
+.override-form__lead {
+  margin: 0;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 16px;
+  color: var(--text-secondary);
+}
+.override-form__field { display: flex; flex-direction: column; gap: 6px; }
+.override-form__field span {
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #8a6a2e;
+  font-weight: 600;
+}
+.override-form__field input {
+  padding: 10px 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: 3px;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 17px;
+  color: var(--text-strong);
+}
+.override-form__field input:focus {
+  outline: none;
+  border-color: #b08d57;
+  box-shadow: 0 0 0 3px rgba(176,141,87,0.15);
+}
+.override-form__actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px dotted rgba(31,42,68,0.18);
+}
+
+/* — Audit trail list ----------------------------------------- */
+.audit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex; flex-direction: column;
+  gap: 0;
+}
+.audit-list__item {
+  position: relative;
+  padding: 14px 16px 14px 28px;
+  border-left: 3px solid #d8c9a3;
+  margin-left: 6px;
+}
+.audit-list__item::before {
+  content: "";
+  position: absolute;
+  left: -7px; top: 18px;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #f3e7c8, #c9b275);
+  border: 1px solid #8a6a2e;
+  box-shadow: 0 0 0 2px var(--bg-card);
+}
+.audit-list__item.is-marked_paid::before {
+  background: linear-gradient(180deg, #e7efe1, #b9cdb0);
+  border-color: #4a6a4d;
+}
+.audit-list__item.is-overridden::before {
+  background: linear-gradient(180deg, #f5e1e1, #d6a8a8);
+  border-color: #7a3a3a;
+}
+.audit-list__head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.audit-list__action {
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #8a6a2e;
+  font-weight: 600;
+}
+.audit-list__when {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  font-family: "Cormorant Garamond", Georgia, serif;
+}
+.audit-list__body {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 14px;
+  color: var(--text-primary, var(--text-strong));
+}
+.audit-list__actor {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 16px;
+  color: var(--text-strong);
+}
+.audit-list__delta {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 15px;
+  font-style: italic;
+  color: var(--text-secondary);
+}
+.audit-list__delta b { color: var(--text-strong); font-style: normal; }
+.audit-list__note {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* Stack period nav vertically on tight screens */
+@media (max-width: 540px) {
+  .period-nav { flex-wrap: wrap; }
+  .period-nav__label { min-width: 0; flex: 1 1 50%; }
+  .period-nav__cycle { flex: 1 1 100%; border-top: 1px solid #e3d6b3; }
+}
+

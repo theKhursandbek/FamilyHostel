@@ -13,6 +13,7 @@ class PaymentSerializer(serializers.ModelSerializer):
             "booking",
             "amount",
             "payment_type",
+            "method",
             "is_paid",
             "paid_at",
             "created_by",
@@ -84,11 +85,14 @@ class IncomeRuleSerializer(serializers.ModelSerializer):
 
 
 class SalaryRecordSerializer(serializers.ModelSerializer):
+    account_name = serializers.SerializerMethodField()
+
     class Meta:
         model = SalaryRecord
         fields = [
             "id",
             "account",
+            "account_name",
             "amount",
             "period_start",
             "period_end",
@@ -96,4 +100,13 @@ class SalaryRecordSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "account_name", "created_at", "updated_at"]
+
+    def get_account_name(self, obj):
+        acc = obj.account
+        for attr in ("director_profile", "administrator_profile", "staff_profile", "client_profile"):
+            prof = getattr(acc, attr, None)
+            name = getattr(prof, "full_name", None) if prof else None
+            if name:
+                return name
+        return getattr(acc, "phone", None) or str(acc)

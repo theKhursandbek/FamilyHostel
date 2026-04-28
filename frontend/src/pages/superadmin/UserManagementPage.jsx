@@ -7,6 +7,7 @@ import {
   disableAccount,
   enableAccount,
   listBranches,
+  listBranchesAvailableForDirector,
 } from "../../services/accountsService";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -27,13 +28,37 @@ const ROLE_OPTIONS = [
 const ROLE_LABEL = Object.fromEntries(ROLE_OPTIONS.map((r) => [r.value, r.label]));
 const ROLES_NEEDING_BRANCH = new Set(["staff", "administrator", "director"]);
 
-const ROLE_BADGE = {
-  superadmin: "badge-danger",
-  director: "badge-warning",
-  administrator: "badge-info",
-  staff: "badge-success",
-  client: "badge-muted",
+// Elegant per-role pill — muted tints, single shared shape.
+const ROLE_PILL_BASE = {
+  display: "inline-block",
+  padding: "3px 10px",
+  borderRadius: 999,
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: 0.4,
+  textTransform: "uppercase",
+  border: "1px solid",
 };
+
+// Old-money palette — deep, low-chroma tones inspired by leather-bound
+// libraries, hunter green, oxblood, and brass on cream stationery.
+const ROLE_PILL_THEME = {
+  superadmin:    { bg: "#ede1df", fg: "#5e1a14", border: "rgba(94,26,20,0.30)" },   // oxblood
+  director:      { bg: "#e9e3d3", fg: "#6b5417", border: "rgba(107,84,23,0.30)" },  // brass / camel
+  administrator: { bg: "#dde4e2", fg: "#1f3a36", border: "rgba(31,58,54,0.30)" },   // deep teal
+  staff:         { bg: "#dfe6dc", fg: "#2a4327", border: "rgba(42,67,39,0.30)" },   // hunter green
+  client:        { bg: "#e6e1d6", fg: "#4a3f2c", border: "rgba(74,63,44,0.30)" },   // taupe
+};
+
+function rolePillStyle(role) {
+  const theme = ROLE_PILL_THEME[role] || ROLE_PILL_THEME.client;
+  return {
+    ...ROLE_PILL_BASE,
+    background: theme.bg,
+    color: theme.fg,
+    borderColor: theme.border,
+  };
+}
 
 const EMPTY_FORM = {
   role_input: "staff",
@@ -41,16 +66,8 @@ const EMPTY_FORM = {
   phone: "",
   password: "",
   branch: "",
-  salary_input: "",
   is_active: true,
-  also_role_enabled: false,
-};
-
-// For these primary roles a single account may also hold the partner role.
-// Mirror of backend DUAL_ROLE_PAIRS.
-const DUAL_ROLE_PARTNER = {
-  director: "administrator",
-  administrator: "director",
+  is_general_manager_input: false,
 };
 
 function getSubmitLabel(saving, editing) {
@@ -64,6 +81,7 @@ function UserManagementPage() {
 
   const [accounts, setAccounts] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [directorBranches, setDirectorBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -91,7 +109,12 @@ function UserManagementPage() {
         listAccounts(params),
         branches.length ? Promise.resolve(branches) : listBranches(),
       ]);
-      setAccounts(accountsData);
+      // Client accounts are managed via the Bookings flow (walk-in / Telegram),
+      // not from this internal staff directory.
+      const internalOnly = (accountsData || []).filter(
+        (acc) => acc.role && acc.role !== "client",
+      );
+      setAccounts(internalOnly);
       if (!branches.length) setBranches(branchesData);
     } catch (err) {
       setError(
@@ -109,6 +132,26 @@ function UserManagementPage() {
     fetchAll();
   }, [fetchAll]);
 
+  // When the create modal switches to "Director" role, fetch the up-to-date
+  // list of branches that don't already have an active director. We refetch
+  // every time the modal opens so a recently-deleted director doesn't keep
+  // their branch hidden.
+  useEffect(() => {
+    if (!modalOpen || editing) return;
+    if (form.role_input !== "director") return;
+    let cancelled = false;
+    listBranchesAvailableForDirector()
+      .then((data) => {
+        if (!cancelled) setDirectorBranches(data || []);
+      })
+      .catch(() => {
+        if (!cancelled) setDirectorBranches([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [modalOpen, editing, form.role_input]);
+
   // ---------------------------------------------------------------------
   // Modal handling
   // ---------------------------------------------------------------------
@@ -121,8 +164,6 @@ function UserManagementPage() {
 
   const openEdit = (account) => {
     const primary = account.role || "staff";
-    const partner = DUAL_ROLE_PARTNER[primary];
-    const hasPartner = partner ? (account.roles || []).includes(partner) : false;
     setEditing(account);
     setForm({
       role_input: primary,
@@ -130,9 +171,8 @@ function UserManagementPage() {
       phone: account.phone || "",
       password: "",
       branch: account.branch_id ? String(account.branch_id) : "",
-      salary_input: account.salary || "",
       is_active: account.is_active,
-      also_role_enabled: hasPartner,
+      is_general_manager_input: !!account.is_general_manager,
     });
     setFormError("");
     setModalOpen(true);
@@ -159,12 +199,8 @@ function UserManagementPage() {
     if (ROLES_NEEDING_BRANCH.has(form.role_input)) {
       payload.branch = Number(form.branch);
     }
-    if (form.role_input === "director" && form.salary_input) {
-      payload.salary_input = form.salary_input;
-    }
-    const partner = DUAL_ROLE_PARTNER[form.role_input];
-    if (partner && form.also_role_enabled) {
-      payload.also_role = partner;
+    if (form.role_input === "director") {
+      payload.is_general_manager_input = !!form.is_general_manager_input;
     }
     return payload;
   };
@@ -176,13 +212,8 @@ function UserManagementPage() {
       is_active: form.is_active,
     };
     if (form.password) payload.password = form.password;
-    if (editing?.role === "director" && form.salary_input) {
-      payload.salary_input = form.salary_input;
-    }
-    const partner = DUAL_ROLE_PARTNER[editing?.role];
-    if (partner) {
-      // Always send so backend can add or remove the secondary profile.
-      payload.also_role = form.also_role_enabled ? partner : "";
+    if (editing?.role === "director") {
+      payload.is_general_manager_input = !!form.is_general_manager_input;
     }
     return payload;
   };
@@ -284,7 +315,7 @@ function UserManagementPage() {
         label: "Role",
         render: (val) =>
           val ? (
-            <span className={`badge ${ROLE_BADGE[val] || "badge-muted"}`}>
+            <span style={rolePillStyle(val)}>
               {ROLE_LABEL[val] || val}
             </span>
           ) : (
@@ -480,53 +511,54 @@ function UserManagementPage() {
                 value={form.branch}
                 onChange={(v) => setForm({ ...form, branch: v })}
                 placeholder="— Select branch —"
-                options={branches.map((b) => ({ value: b.id, label: b.name }))}
+                options={(form.role_input === "director"
+                  ? directorBranches
+                  : branches
+                ).map((b) => ({ value: b.id, label: b.name }))}
                 disabled={saving}
-                emptyText="No branches available"
+                emptyText={
+                  form.role_input === "director"
+                    ? "Every branch already has an active director."
+                    : "No branches available"
+                }
               />
+              {form.role_input === "director" && (
+                <p className="text-muted" style={{ fontSize: 11, marginTop: 4 }}>
+                  Only branches without an active director are listed (one
+                  director per branch).
+                </p>
+              )}
             </div>
           )}
 
+          {/* General Manager checkbox — Director-only.
+              GM directors get extra salary bonuses + a personal yearly Excel
+              workbook (visible only to them and the CEO). */}
           {((!editing && form.role_input === "director") ||
             editing?.role === "director") && (
-            <Input
-              label="Salary (UZS)"
-              type="number"
-              placeholder="2000000"
-              value={form.salary_input}
-              onChange={(e) => setForm({ ...form, salary_input: e.target.value })}
-              disabled={saving}
-            />
+            <div className="form-group">
+              <label
+                className="label"
+                style={{ display: "flex", alignItems: "center", gap: 8 }}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!form.is_general_manager_input}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      is_general_manager_input: e.target.checked,
+                    })
+                  }
+                  disabled={saving}
+                />
+                <span>
+                  Acts as General Manager (Бош менеджер — extra bonus + personal
+                  yearly report)
+                </span>
+              </label>
+            </div>
           )}
-
-          {/* Dual-role checkbox: Director ↔ Administrator on the same account */}
-          {(() => {
-            const primary = editing ? editing.role : form.role_input;
-            const partner = DUAL_ROLE_PARTNER[primary];
-            if (!partner) return null;
-            const partnerLabel =
-              partner === "administrator" ? "Administrator" : "Director";
-            return (
-              <div className="form-group">
-                <label
-                  className="label"
-                  style={{ display: "flex", alignItems: "center", gap: 8 }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={form.also_role_enabled}
-                    onChange={(e) =>
-                      setForm({ ...form, also_role_enabled: e.target.checked })
-                    }
-                    disabled={saving}
-                  />
-                  <span>
-                    Also {partnerLabel} (one account, both dashboards — same branch)
-                  </span>
-                </label>
-              </div>
-            );
-          })()}
 
           {editing && (
             <div className="form-group">

@@ -41,13 +41,25 @@ def create_cleaning_task(
     room,
     branch,
     priority: str = "normal",
+    assigned_to=None,
     performed_by=None,
 ) -> CleaningTask:
     """
-    Create a cleaning task for a room that just had a guest checkout.
+    Create a cleaning task for a room that just had a guest checkout, OR
+    one created manually from the admin UI.
 
     The DB ``UniqueConstraint`` (unique_active_cleaning_task_per_room) also
     prevents duplicates, but we check here for a friendlier error message.
+
+    Args:
+        room: Target room.
+        branch: The branch the room belongs to.
+        priority: ``low`` | ``normal`` | ``high``.
+        assigned_to: Optional ``Staff`` instance. If provided, the task is
+            opened directly in ``in_progress`` (skipping the self-pickup
+            step). Auto-created tasks (post-checkout) leave this ``None``
+            so any free staff member can pick them up.
+        performed_by: Account performing the action (for audit).
 
     Returns:
         The created ``CleaningTask`` instance.
@@ -63,14 +75,36 @@ def create_cleaning_task(
 
     if has_active:
         raise ValidationError(
-            {"room": "This room already has an active cleaning task."}
+            {"room": "This room already has an active cleaning task. "
+                     "Complete it before creating another one for this room."}
         )
 
+    # If pre-assigning a staff member, ensure they aren't already busy on
+    # another active cleaning task — one room at a time.
+    if assigned_to is not None:
+        busy = (
+            CleaningTask.objects
+            .filter(assigned_to=assigned_to)
+            .exclude(status=CleaningTask.TaskStatus.COMPLETED)
+            .exists()
+        )
+        if busy:
+            raise ValidationError(
+                {"assigned_to": f"{getattr(assigned_to, 'full_name', 'This staff')} "
+                                "already has an active cleaning task."}
+            )
+
+    initial_status = (
+        CleaningTask.TaskStatus.IN_PROGRESS
+        if assigned_to is not None
+        else CleaningTask.TaskStatus.PENDING
+    )
     task = CleaningTask.objects.create(
         room=room,
         branch=branch,
-        status=CleaningTask.TaskStatus.PENDING,
+        status=initial_status,
         priority=priority,
+        assigned_to=assigned_to,
     )
 
     # --- Audit + Notification ---
@@ -107,6 +141,21 @@ def assign_task_to_staff(*, task: CleaningTask, staff_profile) -> CleaningTask:
     ):
         raise ValidationError(
             {"status": f"Cannot assign a task with status '{task.status}'."}
+        )
+
+    # One staff member may only have a single active task at a time.
+    # They must finish their current cleaning before picking up another room.
+    already_busy = (
+        CleaningTask.objects
+        .filter(assigned_to=staff_profile)
+        .exclude(status=CleaningTask.TaskStatus.COMPLETED)
+        .exclude(pk=task.pk)
+        .exists()
+    )
+    if already_busy:
+        raise ValidationError(
+            {"detail": "You already have an active cleaning task. "
+                       "Finish it before picking up another room."}
         )
 
     before = _task_snapshot(task)
@@ -146,6 +195,20 @@ def director_assign_task(
     if task.status == CleaningTask.TaskStatus.COMPLETED:
         raise ValidationError(
             {"status": "Cannot assign a completed task."},
+        )
+
+    # One staff member can only carry a single active task at a time.
+    already_busy = (
+        CleaningTask.objects
+        .filter(assigned_to=staff_profile)
+        .exclude(status=CleaningTask.TaskStatus.COMPLETED)
+        .exclude(pk=task.pk)
+        .exists()
+    )
+    if already_busy:
+        raise ValidationError(
+            {"detail": f"{getattr(staff_profile, 'full_name', 'This staff')} "
+                       "already has an active cleaning task."}
         )
 
     before = _task_snapshot(task)

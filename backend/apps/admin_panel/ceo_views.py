@@ -38,7 +38,7 @@ from apps.accounts.permissions import IsSuperAdmin
 from apps.bookings.models import Booking
 from apps.branches.models import Room
 from apps.cleaning.models import CleaningTask
-from apps.payments.models import IncomeRule
+from apps.payments.models import IncomeRule, Payment
 from apps.payments.serializers import IncomeRuleSerializer
 from apps.reports.models import AuditLog
 
@@ -51,18 +51,37 @@ from .models import SystemSettings
 
 
 class SystemSettingsSerializer(serializers.ModelSerializer):
+    """
+    Phase 2 (REFACTOR_PLAN_2026_04 §5.1): the canonical staff per-shift rate
+    is now ``staff_shift_rate``. The legacy ``shift_rate`` column is still
+    exposed (read+write) for one release so older clients continue to work;
+    when both are sent in the same payload, ``staff_shift_rate`` wins.
+    """
+
     class Meta:
         model = SystemSettings
         fields = [
             "id",
             "salary_mode",
             "salary_cycle",
-            "shift_rate",
+            "shift_rate",          # DEPRECATED — use staff_shift_rate
+            "staff_shift_rate",
             "per_room_rate",
             "director_fixed_salary",
             "admin_shift_rate",
+            "gm_bonus_percent",
         ]
         read_only_fields = ["id"]
+
+    def update(self, instance, validated_data):
+        # Mirror legacy `shift_rate` writes onto the new `staff_shift_rate`
+        # column when the new field was not explicitly provided.
+        if (
+            "staff_shift_rate" not in validated_data
+            and "shift_rate" in validated_data
+        ):
+            validated_data["staff_shift_rate"] = validated_data["shift_rate"]
+        return super().update(instance, validated_data)
 
 
 def _get_or_create_settings() -> SystemSettings:
@@ -278,6 +297,20 @@ class OverrideView(APIView):
         setattr(obj, field, new_value)
         obj.save()
 
+        # Side effect: when a CEO flips a booking back to "pending" they
+        # almost always intend to retest the Pay/Complete flow. With the
+        # balance-aware payment service in place, leftover Payment rows
+        # would make the booking still look "fully paid" (balance_due == 0)
+        # and Pay would be rejected. So we wipe payment history here and
+        # record how many rows we removed in the audit log.
+        wiped_payments = 0
+        if (
+            entity_type == "booking"
+            and action_name == "set_status"
+            and new_value == "pending"
+        ):
+            wiped_payments, _ = Payment.objects.filter(booking=obj).delete()
+
         AuditLog.objects.create(
             account=request.user,
             role="superadmin",
@@ -285,7 +318,11 @@ class OverrideView(APIView):
             entity_type=model_cls.__name__,
             entity_id=obj.pk,
             before_data={field: str(before_value), "reason": reason},
-            after_data={field: str(new_value), "at": timezone.now().isoformat()},
+            after_data={
+                field: str(new_value),
+                "at": timezone.now().isoformat(),
+                **({"wiped_payments": wiped_payments} if wiped_payments else {}),
+            },
         )
 
         return Response(
@@ -309,9 +346,9 @@ class OverrideView(APIView):
 _ROLE_REGISTRY = {
     "director": {
         "model": Director,
-        "field": "salary",  # Director already has a non-nullable salary column.
+        "field": "salary_override",  # Phase 2: Director uses nullable override.
         "default_attr": "director_fixed_salary",
-        "nullable": False,
+        "nullable": True,
     },
     "administrator": {
         "model": Administrator,
@@ -322,7 +359,7 @@ _ROLE_REGISTRY = {
     "staff": {
         "model": Staff,
         "field": "salary_override",
-        "default_attr": "shift_rate",  # informational; staff has shift + per-room
+        "default_attr": "staff_shift_rate",  # informational; staff has shift + per-room
         "nullable": True,
     },
 }

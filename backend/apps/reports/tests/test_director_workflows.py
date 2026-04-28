@@ -322,25 +322,25 @@ class TestFacilityLogService:
         )
         assert log.pk is not None
         assert log.type == "repair"
-        assert log.status == "open"
+        assert log.status == "pending"
         assert log.cost == Decimal("150000")
 
     def test_create_facility_log_audit(self, branch):
         director = DirectorFactory(branch=branch)
         create_facility_log(
             branch=branch,
-            facility_type="water",
+            facility_type="utilities",
             description="Pipe leak",
             performed_by=director.account,
         )
-        audit = AuditLog.objects.filter(action="facility_log.created").first()
+        audit = AuditLog.objects.filter(action="facility_log.requested").first()
         assert audit is not None
 
     def test_update_facility_log(self, branch):
         director = DirectorFactory(branch=branch)
         log = create_facility_log(
             branch=branch,
-            facility_type="water",
+            facility_type="utilities",
             description="Pipe leak",
             performed_by=director.account,
         )
@@ -357,7 +357,7 @@ class TestFacilityLogService:
         director = DirectorFactory(branch=branch)
         log = create_facility_log(
             branch=branch,
-            facility_type="gas",
+            facility_type="utilities",
             description="Gas smell",
             performed_by=director.account,
         )
@@ -370,7 +370,7 @@ class TestFacilityLogService:
         assert audit is not None
         assert audit.before_data is not None
         assert audit.after_data is not None
-        assert audit.before_data["status"] == "open"
+        assert audit.before_data["status"] == "pending"
         assert audit.after_data["status"] == "resolved"
 
 
@@ -385,20 +385,20 @@ class TestFacilityLogAPI:
 
     def test_create_facility_log(self, director_client, director_profile, branch):
         resp = director_client.post(FACILITY_URL, {
-            "type": "electricity",
+            "type": "utilities",
             "description": "Power outage on 2nd floor",
             "cost": "200000.00",
         })
         assert resp.status_code == status.HTTP_201_CREATED
-        assert resp.data["type"] == "electricity"
-        assert resp.data["status"] == "open"
+        assert resp.data["type"] == "utilities"
+        assert resp.data["status"] == "pending"
 
     def test_create_facility_log_with_branch(
         self, director_client, director_profile, branch,
     ):
         resp = director_client.post(FACILITY_URL, {
             "branch": branch.pk,
-            "type": "gas",
+            "type": "utilities",
             "description": "Gas pipe issue",
         })
         assert resp.status_code == status.HTTP_201_CREATED
@@ -419,7 +419,7 @@ class TestFacilityLogAPI:
     def test_update_facility_log(self, director_client, director_profile, branch):
         log = create_facility_log(
             branch=branch,
-            facility_type="water",
+            facility_type="utilities",
             description="Leaking pipe",
             performed_by=director_profile.account,
         )
@@ -433,21 +433,21 @@ class TestFacilityLogAPI:
 
     def test_filter_by_status(self, director_client, director_profile, branch):
         create_facility_log(
-            branch=branch, facility_type="water",
+            branch=branch, facility_type="utilities",
             description="Leak", performed_by=director_profile.account,
         )
         log2 = create_facility_log(
-            branch=branch, facility_type="gas",
-            description="Gas", performed_by=director_profile.account,
+            branch=branch, facility_type="telecom",
+            description="Internet down", performed_by=director_profile.account,
         )
         update_facility_log(
             facility_log=log2, performed_by=director_profile.account,
             status="resolved",
         )
-        resp = director_client.get(FACILITY_URL, {"status": "open"})
+        resp = director_client.get(FACILITY_URL, {"status": "pending"})
         results = resp.data.get("results", resp.data)
         assert len(results) == 1
-        assert results[0]["type"] == "water"
+        assert results[0]["type"] == "utilities"
 
     def test_staff_forbidden(self, staff_client):
         resp = staff_client.get(FACILITY_URL)

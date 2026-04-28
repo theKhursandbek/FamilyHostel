@@ -63,11 +63,16 @@ def _create_settings(
     per_room_rate: Decimal = Decimal("15000"),
     salary_mode: str = "shift",
 ) -> SystemSettings:
-    """Create or update the singleton SystemSettings."""
+    """Create or update the singleton SystemSettings.
+
+    The legacy ``shift_rate`` kwarg is preserved for test ergonomics; it now
+    writes to the canonical ``staff_shift_rate`` column (REFACTOR_PLAN_2026_04 §5.1).
+    """
     settings, _ = SystemSettings.objects.update_or_create(
         pk=1,
         defaults={
-            "shift_rate": shift_rate,
+            "staff_shift_rate": shift_rate,
+            "shift_rate": shift_rate,  # keep legacy column in sync for one release
             "per_room_rate": per_room_rate,
             "salary_mode": salary_mode,
         },
@@ -99,12 +104,12 @@ class TestGetSystemSettings:
         assert SystemSettings.objects.count() == 0
         settings = get_system_settings()
         assert settings.pk == 1
-        assert settings.shift_rate == Decimal("0")
+        assert settings.staff_shift_rate == Decimal("100000")
 
     def test_returns_existing(self):
         _create_settings(shift_rate=Decimal("50000"))
         settings = get_system_settings()
-        assert settings.shift_rate == Decimal("50000")
+        assert settings.staff_shift_rate == Decimal("50000")
 
 
 # ===========================================================================
@@ -532,7 +537,7 @@ class TestDirectorSalary:
     def test_director_fixed_salary_no_shifts(self):
         """Director with no shifts still gets fixed salary."""
         _create_settings(shift_rate=Decimal("100000"))
-        director = DirectorFactory(salary=Decimal("2000000"))
+        director = DirectorFactory(salary_override=Decimal("2000000"))
 
         breakdown = calculate_salary_breakdown(
             director.account_id, PERIOD_START, PERIOD_END,
@@ -545,7 +550,7 @@ class TestDirectorSalary:
     def test_director_fixed_plus_shift_income(self):
         """Director working shifts gets fixed + shift pay + income bonus."""
         _create_settings(shift_rate=Decimal("100000"))
-        director = DirectorFactory(salary=Decimal("2000000"))
+        director = DirectorFactory(salary_override=Decimal("2000000"))
         branch = director.branch
         room = RoomFactory(branch=branch)
         client = ClientFactory()
@@ -583,7 +588,7 @@ class TestDirectorSalary:
     def test_director_penalties_applied(self):
         """Director salary reduced by penalties but never below 0."""
         _create_settings(shift_rate=Decimal("100000"))
-        director = DirectorFactory(salary=Decimal("2000000"))
+        director = DirectorFactory(salary_override=Decimal("2000000"))
 
         Penalty.objects.create(
             account=director.account, type="late", count=5,
@@ -633,18 +638,26 @@ class TestCalculateSalary:
         assert record.amount == Decimal("0")
 
     def test_multiple_salary_records_allowed(self):
-        """Different periods can each produce a record."""
+        """Different periods can each produce a record.
+
+        Note: the unique constraint added in REFACTOR_PLAN_2026_04 §3.6 is
+        ``(account, period_start, period_end, kind)`` — same period+kind
+        is forbidden, but distinct periods are still allowed.
+        """
         _create_settings(shift_rate=Decimal("100000"))
         account = AccountFactory()
         branch = BranchFactory()
 
         _add_attendance(account, branch, PERIOD_START)
+        _add_attendance(
+            account, branch, datetime.date(2026, 5, 1),
+        )
 
         r1 = calculate_salary(account.pk, PERIOD_START, PERIOD_END)
         r2 = calculate_salary(
             account.pk,
-            datetime.date(2026, 4, 1),
-            datetime.date(2026, 4, 30),
+            datetime.date(2026, 5, 1),
+            datetime.date(2026, 5, 31),
         )
 
         assert SalaryRecord.objects.filter(account=account).count() == 2

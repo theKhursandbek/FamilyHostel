@@ -636,7 +636,7 @@ class TestCashSessionAPI:
         assert len(results) == 1
 
     def test_negative_balance(self, admin_client, admin_profile, branch):
-        """Close with negative difference should be allowed."""
+        """Close with negative difference is allowed when a note explains the variance."""
         resp_open = admin_client.post(f"{CASH_SESSION_URL}open/", {
             "shift_type": "day",
             "opening_balance": "100000.00",
@@ -644,6 +644,7 @@ class TestCashSessionAPI:
         session_id = resp_open.data["id"]
         resp = admin_client.post(f"{CASH_SESSION_URL}{session_id}/close/", {
             "closing_balance": "80000.00",
+            "note": "20k handed over to courier on emergency facility request.",
         })
         assert resp.status_code == status.HTTP_200_OK
         assert resp.data["difference"] == "-20000.00"

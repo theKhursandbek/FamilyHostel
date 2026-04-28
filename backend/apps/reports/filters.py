@@ -42,7 +42,7 @@ class FacilityLogFilter(django_filters.FilterSet):
 
     class Meta:
         model = FacilityLog
-        fields = ["branch", "type", "status"]
+        fields = ["branch", "type", "status", "shift_type"]
 
 
 class MonthlyReportFilter(django_filters.FilterSet):

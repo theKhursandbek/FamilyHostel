@@ -146,6 +146,15 @@ class Client(models.Model):
         related_name="client_profile",
     )
     full_name = models.CharField(max_length=255)
+    passport_number = models.CharField(
+        max_length=50,
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Passport / ID document number. Required for walk-in guests; "
+                  "may be blank for legacy or telegram-only clients.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -240,7 +249,7 @@ class Director(models.Model):
 
     Fields per README:
         - id, account_id (FK), branch_id (FK), full_name,
-          salary (default 2000000), is_active
+          salary_override, is_general_manager, is_active
     """
 
     account = models.OneToOneField(
@@ -254,11 +263,24 @@ class Director(models.Model):
         related_name="directors",
     )
     full_name = models.CharField(max_length=255)
-    salary = models.DecimalField(
+    salary_override = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        default=Decimal("2000000"),
-        help_text="Fixed salary in UZS (default 2,000,000).",
+        null=True,
+        blank=True,
+        help_text=(
+            "Per-person fixed monthly salary override in UZS. If null, "
+            "`SystemSettings.director_fixed_salary` is used."
+        ),
+    )
+    is_general_manager = models.BooleanField(
+        default=False,
+        help_text=(
+            "Marks the director who acts as General Manager (Бош менеджер — "
+            "e.g. Лобар Pazilova). General Managers receive an extra salary "
+            "bonus and a personal yearly Excel workbook visible only to "
+            "themselves and the CEO."
+        ),
     )
     is_active = models.BooleanField(default=True)
 
@@ -266,6 +288,13 @@ class Director(models.Model):
         db_table = "directors"
         verbose_name = "Director"
         verbose_name_plural = "Directors"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["branch"],
+                condition=models.Q(is_active=True),
+                name="unique_active_director_per_branch",
+            ),
+        ]
 
     def __str__(self):
         return self.full_name
@@ -289,6 +318,7 @@ class SuperAdmin(models.Model):
         related_name="superadmin_profile",
     )
     full_name = models.CharField(max_length=255)
+
 
     class Meta:
         db_table = "super_admins"

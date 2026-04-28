@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { getFacilityLogs, createFacilityLog, updateFacilityLog } from "../../services/directorService";
+import {
+  getFacilityLogs,
+  createFacilityLog,
+  markExpensePaid,
+  markExpenseResolved,
+} from "../../services/directorService";
 import { useToast } from "../../context/ToastContext";
 import Button from "../../components/Button";
 import Select from "../../components/Select";
@@ -9,122 +14,173 @@ import Table from "../../components/Table";
 import Loader from "../../components/Loader";
 import ErrorMessage from "../../components/ErrorMessage";
 
-const TYPE_LABELS = { gas: "Gas", water: "Water", electricity: "Electricity", repair: "Repair" };
-const BADGE_MAP = { open: "badge-warning", resolved: "badge-success" };
+const TYPE_LABELS = {
+  products: "Products",
+  detergents: "Detergents",
+  telecom: "Telecom",
+  repair: "Repair",
+  utilities: "Utilities",
+  other: "Other",
+};
+const TYPE_OPTIONS = Object.entries(TYPE_LABELS).map(([value, label]) => ({
+  value, label,
+}));
+const SHIFT_OPTIONS = [
+  { value: "", label: "— (none)" },
+  { value: "day", label: "Day" },
+  { value: "night", label: "Night" },
+];
+const STATUS_LABEL = {
+  pending: "Pending",
+  approved_cash: "Approved · cash",
+  approved_card: "Approved · card",
+  rejected: "Rejected",
+  paid: "Paid",
+  resolved: "Resolved",
+};
+const STATUS_BADGE = {
+  pending: "badge-warning",
+  approved_cash: "badge-info",
+  approved_card: "badge-info",
+  rejected: "badge-danger",
+  paid: "badge-success",
+  resolved: "badge-muted",
+};
 
+/**
+ * Expense Requests — REFACTOR_PLAN_2026_04 §7.5.
+ *
+ * Director-facing list. The director files requests (status=pending);
+ * the CEO approves/rejects via /super-admin/expense-approvals.
+ * Once approved as cash, the director taps "Mark cash taken" → paid.
+ */
 function FacilityLogsPage() {
   const toast = useToast();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [statusFilter, setStatusFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [togglingId, setTogglingId] = useState(null);
-  const [form, setForm] = useState({ type: "water", description: "", cost: "" });
+  const [actingId, setActingId] = useState(null);
+  const [form, setForm] = useState({
+    type: "products", shift_type: "", description: "", cost: "",
+  });
 
   const fetchLogs = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
-      const data = await getFacilityLogs();
+      const params = statusFilter ? { status: statusFilter } : {};
+      const data = await getFacilityLogs(params);
       setLogs(data.results ?? data);
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to load logs");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      setError(err.response?.data?.detail || "Failed to load expense requests");
+    } finally { setLoading(false); }
+  }, [statusFilter]);
 
-  useEffect(() => {
-    fetchLogs();
-  }, [fetchLogs]);
+  useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.description.trim()) { toast.warning("Description is required"); return; }
+    if (!form.description.trim()) {
+      toast.warning("Description is required"); return;
+    }
     setCreating(true);
     try {
       const payload = { type: form.type, description: form.description };
       if (form.cost) payload.cost = form.cost;
+      if (form.shift_type) payload.shift_type = form.shift_type;
       await createFacilityLog(payload);
       setModalOpen(false);
-      setForm({ type: "water", description: "", cost: "" });
-      toast.success("Facility log created");
+      setForm({ type: "products", shift_type: "", description: "", cost: "" });
+      toast.success("Expense request filed — awaiting CEO approval");
       fetchLogs();
     } catch (err) {
       const detail = err.response?.data;
-      toast.error(typeof detail === "string" ? detail : detail?.detail || "Failed to create log");
-    } finally {
-      setCreating(false);
-    }
+      toast.error(typeof detail === "string"
+        ? detail : detail?.detail || "Failed to file request");
+    } finally { setCreating(false); }
   };
 
-  const toggleStatus = async (log) => {
-    const newStatus = log.status === "open" ? "resolved" : "open";
-    setTogglingId(log.id);
+  const handleMarkPaid = async (log) => {
+    setActingId(log.id);
     try {
-      await updateFacilityLog(log.id, { status: newStatus });
-      toast.success(`Log marked as ${newStatus}`);
+      await markExpensePaid(log.id);
+      toast.success("Marked as paid");
       fetchLogs();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to update status");
-    } finally {
-      setTogglingId(null);
-    }
+      toast.error(err.response?.data?.detail || "Failed");
+    } finally { setActingId(null); }
+  };
+
+  const handleResolve = async (log) => {
+    setActingId(log.id);
+    try {
+      await markExpenseResolved(log.id);
+      toast.success("Marked as resolved");
+      fetchLogs();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed");
+    } finally { setActingId(null); }
   };
 
   const columns = [
-    { key: "type", label: "Type", render: (val) => TYPE_LABELS[val] || val },
+    { key: "type", label: "Type", render: (v) => TYPE_LABELS[v] || v },
     {
-      key: "description",
-      label: "Description",
-      render: (val) => (
-        <span style={{ maxWidth: 300, display: "inline-block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {val}
+      key: "description", label: "Description",
+      render: (v) => (
+        <span style={{
+          maxWidth: 280, display: "inline-block", overflow: "hidden",
+          textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>{v}</span>
+      ),
+    },
+    {
+      key: "cost", label: "Cost",
+      render: (v) => (v == null || v === "0.00"
+        ? "—" : `${Number(v).toLocaleString()} сум`),
+    },
+    {
+      key: "status", label: "Status",
+      render: (v) => (
+        <span className={`badge ${STATUS_BADGE[v] || "badge-muted"}`}>
+          {STATUS_LABEL[v] || v}
         </span>
       ),
     },
     {
-      key: "cost",
-      label: "Cost",
-      render: (val) => (val === null || val === undefined || val === "0.00" ? "—" : `${Number(val).toLocaleString()} сум`),
+      key: "approved_at", label: "Approved",
+      render: (v) => (v ? new Date(v).toLocaleDateString() : "—"),
     },
     {
-      key: "status",
-      label: "Status",
-      render: (val) => (
-        <span className={`badge ${BADGE_MAP[val] || "badge-muted"}`} style={{ textTransform: "capitalize" }}>
-          {val}
-        </span>
-      ),
-    },
-    {
-      key: "created_at",
-      label: "Date",
-      render: (val) => (val ? new Date(val).toLocaleDateString() : "—"),
-    },
-    {
-      key: "_actions",
-      label: "",
+      key: "_actions", label: "",
       render: (_, row) => {
-        let label;
-        if (togglingId === row.id) {
-          label = "…";
-        } else if (row.status === "open") {
-          label = "Resolve";
-        } else {
-          label = "Re-open";
+        if (row.status === "approved_cash") {
+          return (
+            <Button
+              variant="primary" size="sm"
+              disabled={actingId === row.id}
+              onClick={(e) => { e.stopPropagation(); handleMarkPaid(row); }}
+            >{actingId === row.id ? "…" : "Mark cash taken"}</Button>
+          );
         }
-        return (
-          <Button
-            variant={row.status === "open" ? "secondary" : "ghost"}
-            size="sm"
-            disabled={togglingId === row.id}
-            onClick={(e) => { e.stopPropagation(); toggleStatus(row); }}
-          >
-            {label}
-          </Button>
-        );
+        if (row.status === "paid") {
+          return (
+            <Button
+              variant="ghost" size="sm"
+              disabled={actingId === row.id}
+              onClick={(e) => { e.stopPropagation(); handleResolve(row); }}
+            >{actingId === row.id ? "…" : "Resolve"}</Button>
+          );
+        }
+        if (row.status === "rejected" && row.rejection_reason) {
+          return (
+            <span style={{ color: "var(--danger, #c33)", fontSize: 12 }}
+              title={row.rejection_reason}
+            >Reason: {row.rejection_reason.slice(0, 40)}…</span>
+          );
+        }
+        return null;
       },
     },
   ];
@@ -135,45 +191,68 @@ function FacilityLogsPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>Facility Logs</h1>
-        <Button onClick={() => setModalOpen(true)}>+ New Log</Button>
+        <h1>Expense Requests</h1>
+        <Button onClick={() => setModalOpen(true)}>+ New Request</Button>
       </div>
 
-      <Table columns={columns} data={logs} emptyMessage="No facility logs" />
+      <div className="card" style={{
+        display: "flex", gap: 12, alignItems: "flex-end", marginBottom: 16,
+      }}>
+        <div style={{ minWidth: 180 }}>
+          <label className="label" htmlFor="exp-status">Status</label>
+          <Select
+            id="exp-status" value={statusFilter} onChange={setStatusFilter}
+            options={[
+              { value: "", label: "All" },
+              { value: "pending", label: "Pending" },
+              { value: "approved_cash", label: "Approved · cash" },
+              { value: "approved_card", label: "Approved · card" },
+              { value: "paid", label: "Paid" },
+              { value: "resolved", label: "Resolved" },
+              { value: "rejected", label: "Rejected" },
+            ]}
+          />
+        </div>
+      </div>
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="New Facility Log">
+      <Table columns={columns} data={logs}
+        emptyMessage="No expense requests yet" />
+
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)}
+        title="New Expense Request">
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="label" htmlFor="facility-type">Type *</label>
-            <Select
-              id="facility-type"
-              value={form.type}
+            <label className="label" htmlFor="ex-type">Type *</label>
+            <Select id="ex-type" value={form.type}
               onChange={(v) => setForm((p) => ({ ...p, type: v }))}
-              options={[
-                { value: "gas", label: "Gas" },
-                { value: "water", label: "Water" },
-                { value: "electricity", label: "Electricity" },
-                { value: "repair", label: "Repair" },
-              ]}
-            />
+              options={TYPE_OPTIONS} />
           </div>
 
           <div className="form-group">
-            <label className="label" htmlFor="facility-description">Description *</label>
-            <textarea
-              id="facility-description"
-              className="textarea"
-              value={form.description}
-              onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-              placeholder="Describe the issue..."
-              rows={3}
-            />
+            <label className="label" htmlFor="ex-shift">Shift (optional)</label>
+            <Select id="ex-shift" value={form.shift_type}
+              onChange={(v) => setForm((p) => ({ ...p, shift_type: v }))}
+              options={SHIFT_OPTIONS} />
           </div>
 
-          <Input label="Cost (optional)" type="number" value={form.cost} onChange={(e) => setForm((p) => ({ ...p, cost: e.target.value }))} min="0" step="1000" />
+          <div className="form-group">
+            <label className="label" htmlFor="ex-desc">Description *</label>
+            <textarea id="ex-desc" className="textarea" rows={3}
+              value={form.description}
+              onChange={(e) => setForm((p) => ({
+                ...p, description: e.target.value,
+              }))}
+              placeholder="What needs to be bought / fixed?" />
+          </div>
+
+          <Input label="Cost (сум)" type="number" min="0" step="1000"
+            value={form.cost}
+            onChange={(e) => setForm((p) => ({ ...p, cost: e.target.value }))} />
 
           <div className="form-actions">
-            <Button type="submit" disabled={creating}>{creating ? "Saving..." : "Create Log"}</Button>
+            <Button type="submit" disabled={creating}>
+              {creating ? "Filing…" : "File request"}
+            </Button>
           </div>
         </form>
       </Modal>

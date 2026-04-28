@@ -23,13 +23,38 @@ class AdminLoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        phone = attrs.get("phone", "").strip()
+        raw_phone = attrs.get("phone", "")
         password = attrs.get("password", "")
 
-        # Find account by phone number
-        try:
-            account = Account.objects.get(phone=phone)
-        except Account.DoesNotExist:
+        digits = "".join(ch for ch in raw_phone if ch.isdigit())
+
+        # Try exact matches first (most specific → least specific).
+        lookup_order = []
+        stripped = raw_phone.strip()
+        if stripped:
+            lookup_order.append(stripped)
+        if digits:
+            plus = "+" + digits
+            if plus not in lookup_order:
+                lookup_order.append(plus)
+            if digits not in lookup_order:
+                lookup_order.append(digits)
+
+        account = None
+        for value in lookup_order:
+            account = Account.objects.filter(phone=value).first()
+            if account is not None:
+                break
+
+        # Last-resort fallback: trailing-digits match — but only when it
+        # uniquely identifies one account, to avoid logging into the wrong one.
+        if account is None and len(digits) >= 9:
+            tail = digits[-9:]
+            matches = list(Account.objects.filter(phone__endswith=tail)[:2])
+            if len(matches) == 1:
+                account = matches[0]
+
+        if account is None:
             raise serializers.ValidationError("Invalid credentials.")
 
         if not account.has_usable_password():
@@ -73,7 +98,6 @@ class AdminLoginView(APIView):
         full_name = ""
         branch_id = None
         branch_name = ""
-        salary = None
         for attr in (
             "superadmin_profile",
             "director_profile",
@@ -89,8 +113,6 @@ class AdminLoginView(APIView):
             if branch is not None:
                 branch_id = branch.id
                 branch_name = getattr(branch, "name", "") or ""
-            if hasattr(profile, "salary"):
-                salary = str(profile.salary)
             break
 
         return Response(
@@ -105,7 +127,6 @@ class AdminLoginView(APIView):
                     "full_name": full_name,
                     "branch_id": branch_id,
                     "branch_name": branch_name,
-                    "salary": salary,
                 },
             },
             status=status.HTTP_200_OK,

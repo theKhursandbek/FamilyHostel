@@ -21,6 +21,8 @@ class BranchSerializer(serializers.ModelSerializer):
             "image",
             "image_url",
             "is_active",
+            "working_days_per_month",
+            "monthly_expense_limit",
             "created_at",
             "updated_at",
         ]

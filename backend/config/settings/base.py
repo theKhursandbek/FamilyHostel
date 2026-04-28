@@ -262,6 +262,29 @@ CELERY_TASK_SOFT_TIME_LIMIT = 240  # 4 minutes soft limit
 CELERY_TASK_ACKS_LATE = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 
+# Fail fast when the broker (Redis) is unreachable instead of blocking the
+# request thread that called `.delay()`.  Without these settings kombu retries
+# the broker connection forever, which would freeze any view that publishes
+# a Celery task while Redis is offline.
+CELERY_BROKER_CONNECTION_TIMEOUT = 2          # seconds to open a TCP connection
+CELERY_BROKER_CONNECTION_RETRY = False         # don't keep retrying on publish
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = False
+CELERY_BROKER_CONNECTION_MAX_RETRIES = 0
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    "socket_timeout": 2,
+    "socket_connect_timeout": 2,
+}
+
+# Result-backend hardening: when the producer publishes a task it must NOT
+# subscribe to a result channel synchronously — that path also touches Redis
+# and would block the request thread when Redis is offline.
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS = {
+    "socket_timeout": 2,
+    "socket_connect_timeout": 2,
+    "retry_policy": {"timeout": 2.0, "max_retries": 0},
+}
+
 # ==============================================================================
 # CELERY BEAT — Scheduled tasks (Step 26)
 # ==============================================================================
@@ -276,6 +299,11 @@ CELERY_BEAT_SCHEDULE = {
     "backup-weekly": {
         "task": "backups.weekly_backup",
         "schedule": crontab(hour=3, minute=0, day_of_week=0),  # Sunday 03:00
+    },
+    "auto-complete-due-bookings": {
+        # Auto-checkout paid bookings whose check_out_date has arrived.
+        "task": "bookings.auto_complete_due_bookings",
+        "schedule": crontab(hour=12, minute=0),  # every day at 12:00
     },
 }
 
@@ -309,6 +337,11 @@ CHANNEL_LAYERS = {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
             "hosts": [env("REDIS_URL", default="redis://localhost:6379/1")],  # type: ignore[call-overload]
+            # Fail fast when Redis is unreachable so a dead broker can't
+            # block request threads that publish dashboard events.
+            "symmetric_encryption_keys": [],
+            "capacity": 1500,
+            "expiry": 60,
         },
     },
 }

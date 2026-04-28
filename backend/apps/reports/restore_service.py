@@ -35,6 +35,7 @@ Design overview
 """
 from __future__ import annotations
 
+import decimal as _decimal
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -83,7 +84,7 @@ _ENTITY_REGISTRY: dict[str, str] = {
     "Room": "branches.Room",
     "RoomType": "branches.RoomType",
     "RoomImage": "branches.RoomImage",
-    "IncomeRule": "admin_panel.IncomeRule",
+    "IncomeRule": "payments.IncomeRule",
     "SystemSettings": "admin_panel.SystemSettings",
     "Penalty": "reports.Penalty",
 }
@@ -161,11 +162,25 @@ class RestoreService:
     @staticmethod
     def state_of(audit: AuditLog) -> str:
         """Return ``"active"`` or ``"undone"``."""
-        latest = (
-            AuditLog.objects.filter(after_data__contains={"_undo_of": audit.pk})
-            .order_by("-created_at")
-            .first()
-        )
+        from django.db.utils import NotSupportedError
+
+        try:
+            latest = (
+                AuditLog.objects.filter(after_data__contains={"_undo_of": audit.pk})
+                .order_by("-created_at")
+                .first()
+            )
+        except NotSupportedError:
+            # SQLite (used in tests) doesn't support JSONField contains
+            # lookups. Fall back to a Python-side scan over recent rows.
+            latest = None
+            for row in AuditLog.objects.filter(
+                action__endswith=".undone",
+            ).order_by("-created_at")[:50]:
+                data = row.after_data or {}
+                if isinstance(data, dict) and data.get("_undo_of") == audit.pk:
+                    latest = row
+                    break
         if latest is None:
             return "active"
         return "undone" if latest.action.endswith(".undone") else "active"
@@ -317,11 +332,8 @@ def _restore_row(model, pk, raw: dict[str, Any]) -> str:
         raise RestoreError("Cannot restore without an entity_id.")
     if model.objects.filter(pk=pk).exists():
         return f"{model.__name__} #{pk} already present."
-    fields = _writable_field_map(model)
-    kwargs: dict[str, Any] = {}
-    for attname, value in (raw or {}).items():
-        if attname in fields:
-            kwargs[attname] = value
+    kwargs = _normalise_payload(model, raw)
+    _ensure_required_fields(model, kwargs)
     obj = model(pk=pk, **kwargs)
     obj.save(force_insert=True)
     return f"Recreated {model.__name__} #{pk}."
@@ -335,11 +347,9 @@ def _patch_row(model, pk, raw: dict[str, Any]) -> str:
         raise RestoreConflictError(
             f"{model.__name__} #{pk} no longer exists.",
         )
-    fields = _writable_field_map(model)
+    target = _normalise_payload(model, raw)
     changed: list[str] = []
-    for attname, value in (raw or {}).items():
-        if attname not in fields:
-            continue
+    for attname, value in target.items():
         current = getattr(obj, attname, None)
         if current != value:
             setattr(obj, attname, value)
@@ -348,6 +358,118 @@ def _patch_row(model, pk, raw: dict[str, Any]) -> str:
         return f"{model.__name__} #{pk} already at target state."
     obj.save(update_fields=changed + _maybe_updated_at(model))
     return f"Patched {model.__name__} #{pk}: {', '.join(changed)}."
+
+
+# ---------------------------------------------------------------------------
+# Payload normalisation — bridges legacy serializer-shape audit rows and the
+# concrete column attnames the model actually expects.
+# ---------------------------------------------------------------------------
+def _normalise_payload(model, raw: dict[str, Any]) -> dict[str, Any]:
+    """Translate audit payload keys/values into ``{attname: python_value}``.
+
+    Handles three sources of mismatch between snapshots and the model:
+
+    * **FK keys** stored as ``branch`` (serializer name) instead of
+      ``branch_id`` (attname).
+    * **FK values** that are nested dicts (``{"id": 5, ...}``) rather than
+      bare ids.
+    * **Scalar values** stored as ISO strings / decimals from JSONField,
+      converted back to the right Python type for the field.
+
+    Unknown keys, primary key, and non-editable fields are silently dropped.
+    """
+    if not raw:
+        return {}
+
+    by_attname = {f.attname: f for f in model._meta.concrete_fields}
+    by_name = {f.name: f for f in model._meta.concrete_fields}
+
+    out: dict[str, Any] = {}
+    for key, value in raw.items():
+        if key.startswith("_") or key in {"id", "pk"}:
+            continue
+        field = by_attname.get(key) or by_name.get(key)
+        if field is None or not field.editable or field.primary_key:
+            continue
+        attname = field.attname
+
+        # FK serializer-style: unwrap {"id": N} → N
+        if field.is_relation and isinstance(value, dict):
+            value = value.get("id") or value.get("pk")
+        # FK with no value isn't useful — and would NULL a NOT NULL column
+        if field.is_relation and value in (None, ""):
+            # Only skip if NOT NULL; otherwise allow it through to clear the FK.
+            if not field.null:
+                continue
+
+        try:
+            value = _coerce_value(field, value)
+        except Exception:  # pragma: no cover — keep restore best-effort
+            continue
+        out[attname] = value
+    return out
+
+
+def _coerce_value(field, value):
+    """Best-effort cast a JSON-stored value back to the field's Python type."""
+    if value is None:
+        return None
+    # Decimal / numbers come back as strings from JSONField
+    internal = field.get_internal_type()
+    if internal == "DecimalField" and not isinstance(value, _decimal.Decimal):
+        return _decimal.Decimal(str(value))
+    if internal in {"DateTimeField"} and isinstance(value, str):
+        from django.utils.dateparse import parse_datetime
+
+        parsed = parse_datetime(value)
+        return parsed if parsed is not None else value
+    if internal == "DateField" and isinstance(value, str):
+        from django.utils.dateparse import parse_date
+
+        parsed = parse_date(value)
+        return parsed if parsed is not None else value
+    if internal == "TimeField" and isinstance(value, str):
+        from django.utils.dateparse import parse_time
+
+        parsed = parse_time(value)
+        return parsed if parsed is not None else value
+    if internal == "UUIDField" and isinstance(value, str):
+        import uuid as _uuid
+
+        try:
+            return _uuid.UUID(value)
+        except ValueError:
+            return value
+    if internal in {"IntegerField", "BigIntegerField", "PositiveIntegerField",
+                    "PositiveSmallIntegerField", "SmallIntegerField",
+                    "AutoField", "BigAutoField"}:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return value
+    if internal == "BooleanField":
+        if isinstance(value, str):
+            return value.lower() in {"1", "true", "yes", "on"}
+        return bool(value)
+    return value
+
+
+def _ensure_required_fields(model, kwargs: dict[str, Any]) -> None:
+    """Raise a friendly error if any NOT NULL editable field is missing."""
+    missing = []
+    for field in model._meta.concrete_fields:
+        if field.primary_key or not field.editable:
+            continue
+        if field.null or field.has_default() or field.blank:
+            continue
+        if field.attname not in kwargs:
+            missing.append(field.name)
+    if missing:
+        raise RestoreError(
+            f"Cannot recreate {model.__name__}: snapshot is missing required "
+            f"fields ({', '.join(missing)}). The original audit row was likely "
+            "written before full snapshotting was enabled.",
+        )
 
 
 def _writable_field_map(model) -> dict[str, Any]:

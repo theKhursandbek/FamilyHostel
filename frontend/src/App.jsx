@@ -17,12 +17,10 @@ import DaysOffPage from "./pages/staff/DaysOffPage";
 import PenaltiesViewPage from "./pages/staff/PenaltiesViewPage";
 
 // Admin pages
-import RoomInspectionPage from "./pages/admin/RoomInspectionPage";
 import CashSessionPage from "./pages/admin/CashSessionPage";
 
 // Director pages
 import DaysOffApprovalPage from "./pages/director/DaysOffApprovalPage";
-import TaskAssignmentPage from "./pages/director/TaskAssignmentPage";
 import PenaltyManagementPage from "./pages/director/PenaltyManagementPage";
 import FacilityLogsPage from "./pages/director/FacilityLogsPage";
 import ShiftAssignmentPage from "./pages/director/ShiftAssignmentPage";
@@ -35,6 +33,7 @@ import SalarySettingsPage from "./pages/superadmin/SalarySettingsPage";
 import BranchesPage from "./pages/superadmin/BranchesPage";
 import ActivityLogPage from "./pages/superadmin/ActivityLogPage";
 import OverridePage from "./pages/superadmin/OverridePage";
+import ExpenseApprovalsPage from "./pages/superadmin/ExpenseApprovalsPage";
 
 function App() {
   return (
@@ -65,15 +64,15 @@ function App() {
         <Route path="staff/penalties" element={<PenaltiesViewPage />} />
 
         {/* Admin routes */}
-        <Route path="admin/inspections" element={<RoomInspectionPage />} />
         <Route path="admin/cash-sessions" element={<CashSessionPage />} />
+        <Route path="admin/shifts" element={<ShiftAssignmentPage />} />
 
         {/* Director routes */}
         <Route path="director/days-off" element={<DaysOffApprovalPage />} />
-        <Route path="director/assignments" element={<TaskAssignmentPage />} />
         <Route path="director/penalties" element={<PenaltyManagementPage />} />
         <Route path="director/facility-logs" element={<FacilityLogsPage />} />
-        <Route path="director/shifts" element={<ShiftAssignmentPage />} />
+        {/* Legacy alias — ShiftAssignment moved to /admin/shifts (April 2026). */}
+        <Route path="director/shifts" element={<Navigate to="/admin/shifts" replace />} />
         <Route path="director/dashboard" element={<DirectorDashboard />} />
 
         {/* Super Admin routes */}
@@ -81,8 +80,10 @@ function App() {
         <Route path="super-admin/users" element={<UserManagementPage />} />
         <Route path="super-admin/branches" element={<BranchesPage />} />
         <Route path="super-admin/salary-settings" element={<SalarySettingsPage />} />
+        <Route path="super-admin/penalties" element={<PenaltyManagementPage />} />
         <Route path="super-admin/activity" element={<ActivityLogPage />} />
         <Route path="super-admin/override" element={<OverridePage />} />
+        <Route path="super-admin/expense-approvals" element={<ExpenseApprovalsPage />} />
 
         {/* 404 catch-all */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

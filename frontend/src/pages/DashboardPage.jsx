@@ -69,19 +69,14 @@ GreetingHero.defaultProps = { user: null };
  *  - Keeps role-specific UI isolated and testable.
  */
 function DashboardPage() {
-  const { user, activeRole } = useAuth();
+  const { user } = useAuth();
   const roles = user?.roles || [];
 
-  // Honour the active role first (set via the Header switcher for users that
-  // hold both Director + Administrator profiles); fall back to highest
-  // privilege when no active role is set or it isn't held.
+  // Pick highest-privilege dashboard the account holds. Role switching was
+  // removed in Phase 1 (2026-04 refactor): Director ⊇ Administrator on the
+  // same branch, so a Director never needs the Admin dashboard.
   let RoleDashboard = null;
-  const effective = activeRole && roles.includes(activeRole) ? activeRole : null;
-  if (effective === "superadmin") RoleDashboard = SuperAdminDashboard;
-  else if (effective === "director") RoleDashboard = DirectorDashboard;
-  else if (effective === "administrator") RoleDashboard = AdminDashboard;
-  else if (effective === "staff") RoleDashboard = StaffDashboard;
-  else if (roles.includes("superadmin")) RoleDashboard = SuperAdminDashboard;
+  if (roles.includes("superadmin")) RoleDashboard = SuperAdminDashboard;
   else if (roles.includes("director")) RoleDashboard = DirectorDashboard;
   else if (roles.includes("administrator")) RoleDashboard = AdminDashboard;
   else if (roles.includes("staff")) RoleDashboard = StaffDashboard;

@@ -86,7 +86,10 @@ api.interceptors.response.use(
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         }).then((token) => {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
+          originalRequest.headers = {
+            ...(originalRequest.headers || {}),
+            Authorization: `Bearer ${token}`,
+          };
           return api(originalRequest);
         });
       }
@@ -97,7 +100,10 @@ api.interceptors.response.use(
       try {
         const newToken = await refreshToken();
         processQueue(null, newToken);
-        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        originalRequest.headers = {
+          ...(originalRequest.headers || {}),
+          Authorization: `Bearer ${newToken}`,
+        };
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);

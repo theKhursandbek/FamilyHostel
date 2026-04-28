@@ -37,6 +37,13 @@ class Payment(models.Model):
         MANUAL = "manual", "Manual"
         ONLINE = "online", "Online"
 
+    class PaymentMethod(models.TextChoices):
+        """How the cash actually moved (per April 2026 daily-ledger spec)."""
+        CASH = "cash", "Cash"
+        TERMINAL = "terminal", "Terminal (POS)"
+        QR = "qr", "QR Code"
+        CARD_TRANSFER = "card_transfer", "Transfer to Card"
+
     booking = models.ForeignKey(
         "bookings.Booking",
         on_delete=models.CASCADE,
@@ -50,6 +57,12 @@ class Payment(models.Model):
     payment_type = models.CharField(
         max_length=10,
         choices=PaymentType.choices,
+    )
+    method = models.CharField(
+        max_length=20,
+        choices=PaymentMethod.choices,
+        default=PaymentMethod.CASH,
+        help_text="How the money physically moved — cash / terminal / QR / card transfer.",
     )
     is_paid = models.BooleanField(default=False)
     paid_at = models.DateTimeField(null=True, blank=True)
@@ -143,6 +156,10 @@ class SalaryRecord(models.Model):
         PENDING = "pending", "Pending"
         PAID = "paid", "Paid"
 
+    class SalaryKind(models.TextChoices):
+        ADVANCE = "advance", "Advance"
+        FINAL = "final", "Final"
+
     account = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -160,6 +177,16 @@ class SalaryRecord(models.Model):
         choices=SalaryStatus.choices,
         default=SalaryStatus.PENDING,
     )
+    kind = models.CharField(
+        max_length=10,
+        choices=SalaryKind.choices,
+        default=SalaryKind.FINAL,
+        help_text=(
+            "Lifecycle marker — 'advance' rows are paid days 15–20 of month M; "
+            "'final' rows are paid days 1–5 of month M+1. "
+            "See REFACTOR_PLAN_2026_04 §3.6."
+        ),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -168,9 +195,60 @@ class SalaryRecord(models.Model):
         ordering = ["-created_at"]
         verbose_name = "Salary Record"
         verbose_name_plural = "Salary Records"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["account", "period_start", "period_end", "kind"],
+                name="unique_salary_record_per_account_period_kind",
+            ),
+        ]
 
     def __str__(self):
         return f"Salary #{self.pk} — {self.account} ({self.status})"
+
+
+class SalaryAuditLog(models.Model):
+    """Audit trail for every mutation on a :class:`SalaryRecord`.
+
+    README §3.1 requires SuperAdmin overrides to be logged. We extend that
+    to every payroll mutation: lock (``calculated``), payout
+    (``marked_paid``), manual amount edit (``overridden``).
+    """
+
+    class Action(models.TextChoices):
+        CALCULATED = "calculated", "Calculated / Locked"
+        MARKED_PAID = "marked_paid", "Marked Paid"
+        OVERRIDDEN = "overridden", "Overridden"
+
+    record = models.ForeignKey(
+        SalaryRecord,
+        on_delete=models.CASCADE,
+        related_name="audit_logs",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    action = models.CharField(max_length=20, choices=Action.choices)
+    before_amount = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True,
+    )
+    after_amount = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True,
+    )
+    note = models.CharField(max_length=255, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "salary_audit_logs"
+        ordering = ["-created_at"]
+        verbose_name = "Salary Audit Log"
+        verbose_name_plural = "Salary Audit Logs"
+
+    def __str__(self):
+        return f"{self.action} on Salary #{self.record_id} by {self.actor}"
 
 
 class ProcessedStripeEvent(models.Model):

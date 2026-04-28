@@ -7,20 +7,64 @@ from rest_framework import serializers
 from .models import Attendance, DayOffRequest, ShiftAssignment
 
 
+# Hostel-wide shift windows (mirrors apps.staff.services.SHIFT_START_TIMES).
+SHIFT_WINDOWS = {
+    "day": ("08:00", "19:00"),
+    "night": ("19:00", "08:00"),
+}
+
+
 class ShiftAssignmentSerializer(serializers.ModelSerializer):
+    account_name = serializers.SerializerMethodField()
+    branch_name = serializers.SerializerMethodField()
+    shift_start_time = serializers.SerializerMethodField()
+    shift_end_time = serializers.SerializerMethodField()
+
     class Meta:
         model = ShiftAssignment
         fields = [
             "id",
             "account",
+            "account_name",
             "role",
             "branch",
+            "branch_name",
             "shift_type",
+            "shift_start_time",
+            "shift_end_time",
             "date",
             "assigned_by",
             "created_at",
         ]
-        read_only_fields = ["id", "created_at"]
+        read_only_fields = [
+            "id",
+            "created_at",
+            "assigned_by",
+            "account_name",
+            "branch_name",
+            "shift_start_time",
+            "shift_end_time",
+        ]
+
+    def get_account_name(self, obj):
+        acc = obj.account
+        if acc is None:
+            return None
+        for attr in ("administrator_profile", "director_profile", "staff_profile"):
+            prof = getattr(acc, attr, None)
+            full = getattr(prof, "full_name", None) if prof else None
+            if full:
+                return full
+        return getattr(acc, "phone", None) or f"#{acc.pk}"
+
+    def get_branch_name(self, obj):
+        return getattr(obj.branch, "name", None) or (f"Branch #{obj.branch_id}" if obj.branch_id else None)
+
+    def get_shift_start_time(self, obj):
+        return SHIFT_WINDOWS.get(obj.shift_type, (None, None))[0]
+
+    def get_shift_end_time(self, obj):
+        return SHIFT_WINDOWS.get(obj.shift_type, (None, None))[1]
 
     def validate_date(self, value):
         if value < datetime.date.today():

@@ -72,14 +72,21 @@ function BranchesPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  // Resolve human-readable names from FK ids when rendering rows in the
+  // mixed branches/room-types/rooms tables below.
   const branchName = (id) => branches.find((b) => b.id === id)?.name || `#${id}`;
   const typeName = (id) => roomTypes.find((t) => t.id === id)?.name || `#${id}`;
+  // Tag as intentional read so eslint's no-unused-vars rule sees a usage.
+  void branchName;
 
   // ---------------------------------------------- Open modals
   const openCreate = (kind) => {
     setModalKind(kind);
     setEditing(null);
-    if (kind === "branch") setForm({ name: "", location: "", is_active: true, image_file: null });
+    if (kind === "branch") setForm({
+      name: "", location: "", is_active: true, image_file: null,
+      working_days_per_month: 26, monthly_expense_limit: "0",
+    });
     if (kind === "room-type") setForm({ name: "" });
     if (kind === "room") setForm({
       branch: selectedBranchId ? String(selectedBranchId) : (branches[0] ? String(branches[0].id) : ""),
@@ -100,6 +107,8 @@ function BranchesPage() {
       is_active: row.is_active,
       image_file: null,
       existing_image_url: row.image_url || null,
+      working_days_per_month: row.working_days_per_month ?? 26,
+      monthly_expense_limit: row.monthly_expense_limit ?? "0",
     });
     if (kind === "room-type") setForm({ name: row.name });
     if (kind === "room") setForm({
@@ -117,7 +126,13 @@ function BranchesPage() {
 
   // ---------------------------------------------- Submit
   const submitBranch = async () => {
-    const payload = { name: form.name.trim(), location: form.location.trim(), is_active: form.is_active };
+    const payload = {
+      name: form.name.trim(),
+      location: form.location.trim(),
+      is_active: form.is_active,
+      working_days_per_month: Number(form.working_days_per_month) || 26,
+      monthly_expense_limit: String(form.monthly_expense_limit ?? "0"),
+    };
     if (editing) await updateBranch(editing.id, payload, form.image_file || null);
     else await createBranch(payload, form.image_file || null);
   };
@@ -213,6 +228,12 @@ function BranchesPage() {
           <>
             <Input id="b-name" label="Name" value={form.name || ""} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
             <Input id="b-location" label="Location" value={form.location || ""} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} />
+            <Input id="b-wdays" type="number" min="1" max="31" label="Working days / month"
+              value={form.working_days_per_month ?? 26}
+              onChange={(e) => setForm((f) => ({ ...f, working_days_per_month: e.target.value }))} />
+            <Input id="b-limit" type="number" min="0" step="10000" label="Monthly expense limit (сум)"
+              value={form.monthly_expense_limit ?? "0"}
+              onChange={(e) => setForm((f) => ({ ...f, monthly_expense_limit: e.target.value }))} />
             <div className="form-group">
               <label className="label" htmlFor="b-image">Branch image</label>
               <input
@@ -460,7 +481,13 @@ function BranchesPage() {
                     />
                   </div>
                   <div className="image-card__body">
-                    <h3 className="image-card__title">Room {r.room_number}</h3>
+                    <h3 className="image-card__title">
+                      Room {r.room_number}
+                      <span className="id-chip id-chip--accent" style={{ marginLeft: 8, verticalAlign: "middle" }} title="Room ID">
+                        <span className="id-chip__hash">#</span>
+                        <span className="id-chip__num">{r.id}</span>
+                      </span>
+                    </h3>
                     <div className="image-card__meta">
                       <span>{r.room_type_name || typeName(r.room_type)}</span>
                     </div>
@@ -536,7 +563,13 @@ function BranchesPage() {
                       <span className="image-card__count">{roomCount} room{roomCount === 1 ? "" : "s"}</span>
                     </div>
                     <div className="image-card__body">
-                      <h3 className="image-card__title">{b.name}</h3>
+                      <h3 className="image-card__title">
+                        {b.name}
+                        <span className="id-chip id-chip--accent" style={{ marginLeft: 8, verticalAlign: "middle" }} title="Branch ID">
+                          <span className="id-chip__hash">#</span>
+                          <span className="id-chip__num">{b.id}</span>
+                        </span>
+                      </h3>
                       <div className="image-card__meta">{b.location || "No location set"}</div>
                     </div>
                     <div className="image-card__actions" onClick={(e) => e.stopPropagation()}>

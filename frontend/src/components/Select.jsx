@@ -166,12 +166,11 @@ function Select({
       </button>
 
       {open && (
-        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-static-element-interactions
+        // a11y handled manually: keyboard nav lives on the trigger button.
         <div className="select-popup">
           {options.length === 0 ? (
             <div className="select-empty">{emptyText}</div>
           ) : (
-            // eslint-disable-next-line jsx-a11y/no-noninteractive-element-to-interactive-role
             <ul
               id={listboxId}
               ref={listRef}
@@ -194,7 +193,7 @@ function Select({
                   .filter(Boolean)
                   .join(" ");
                 return (
-                  // eslint-disable-next-line jsx-a11y/no-noninteractive-element-to-interactive-role, jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
+                  // a11y: keyboard handling delegated to the parent listbox/trigger.
                   <li
                     id={`${listboxId}-opt-${idx}`}
                     key={`${opt.value}-${idx}`}

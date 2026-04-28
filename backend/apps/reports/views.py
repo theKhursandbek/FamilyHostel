@@ -39,18 +39,27 @@ if TYPE_CHECKING:
     from apps.accounts.models import Account as AccountType
 from apps.branches.models import Branch
 
-from .facility_service import create_facility_log, update_facility_log
+from .facility_service import (
+    approve_expense,
+    create_facility_log,
+    mark_paid,
+    mark_resolved,
+    reject_expense,
+    update_facility_log,
+)
 from .filters import FacilityLogFilter, MonthlyReportFilter, PenaltyFilter
 from .models import FacilityLog, MonthlyReport, Penalty
 from .monthly_service import generate_monthly_report
 from .penalty_service import create_penalty, delete_penalty, update_penalty
 from .serializers import (
+    ApproveExpenseSerializer,
     CreateFacilityLogSerializer,
     CreatePenaltySerializer,
     FacilityLogSerializer,
     GenerateReportSerializer,
     MonthlyReportSerializer,
     PenaltySerializer,
+    RejectExpenseSerializer,
     UpdateFacilityLogSerializer,
     UpdatePenaltySerializer,
 )
@@ -121,6 +130,32 @@ class PenaltyViewSet(viewsets.GenericViewSet):
             raise drf_serializers.ValidationError(
                 {"account": "Account not found."},
             )
+
+        # ---- Branch + role guards (April 2026 rule) -----------------------
+        # Penalties may only be issued to Admins or Staff in the director's
+        # own branch. Directors cannot penalise other directors, themselves,
+        # SuperAdmins, or anyone in another branch.
+        is_target_admin = bool(getattr(target_account, "is_administrator", False))
+        is_target_staff = bool(getattr(target_account, "is_hostel_staff", False))
+        if not (is_target_admin or is_target_staff):
+            raise drf_serializers.ValidationError(
+                {"account": "Penalties may only be issued to Admins or Staff."},
+            )
+        if target_account.pk == user.pk:
+            raise drf_serializers.ValidationError(
+                {"account": "You cannot penalise yourself."},
+            )
+
+        if not user.is_superadmin:
+            from apps.accounts.branch_scope import get_user_branch
+            my_branch = get_user_branch(user)
+            target_branch = (
+                get_user_branch(target_account) if target_account else None
+            )
+            if my_branch is None or target_branch is None or my_branch.pk != target_branch.pk:
+                raise drf_serializers.ValidationError(
+                    {"account": "Target must belong to your branch."},
+                )
 
         try:
             penalty = create_penalty(
@@ -252,6 +287,7 @@ class FacilityLogViewSet(viewsets.GenericViewSet):
                 facility_type=data["type"],
                 description=data["description"],
                 cost=data.get("cost"),
+                shift_type=data.get("shift_type"),
                 performed_by=request.user,
             )
         except DjangoValidationError as exc:
@@ -278,6 +314,90 @@ class FacilityLogViewSet(viewsets.GenericViewSet):
         except DjangoValidationError as exc:
             raise drf_serializers.ValidationError(exc.message_dict)
 
+        return Response(FacilityLogSerializer(facility_log).data)
+
+    @action(detail=True, methods=["post"], url_path="approve")
+    def approve(self, request, *args, **kwargs):
+        """POST /facility-logs/{id}/approve/ — CEO approves the request."""
+        if not request.user.is_superadmin:
+            raise drf_serializers.ValidationError(
+                "Only the CEO can approve expense requests.",
+            )
+        facility_log = self.get_object()
+        serializer = ApproveExpenseSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            facility_log = approve_expense(
+                request_obj=facility_log,
+                ceo=request.user,
+                **serializer.validated_data,
+            )
+        except DjangoValidationError as exc:
+            raise drf_serializers.ValidationError(
+                exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages},
+            )
+        return Response(FacilityLogSerializer(facility_log).data)
+
+    @action(detail=True, methods=["post"], url_path="reject")
+    def reject(self, request, *args, **kwargs):
+        """POST /facility-logs/{id}/reject/ — CEO rejects the request."""
+        if not request.user.is_superadmin:
+            raise drf_serializers.ValidationError(
+                "Only the CEO can reject expense requests.",
+            )
+        facility_log = self.get_object()
+        serializer = RejectExpenseSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            facility_log = reject_expense(
+                request_obj=facility_log,
+                ceo=request.user,
+                reason=serializer.validated_data["reason"],
+            )
+        except DjangoValidationError as exc:
+            raise drf_serializers.ValidationError(
+                exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages},
+            )
+        return Response(FacilityLogSerializer(facility_log).data)
+
+    @action(detail=True, methods=["post"], url_path="mark-paid")
+    def mark_paid(self, request, *args, **kwargs):
+        """POST /facility-logs/{id}/mark-paid/ — director (cash) or CEO (card)."""
+        facility_log = self.get_object()
+        # Cash payments are released by the director (after taking the cash);
+        # card payments are flipped by the CEO once the bank confirms.
+        if facility_log.status == FacilityLog.LogStatus.APPROVED_CASH:
+            if not (request.user.is_director or request.user.is_superadmin):
+                raise drf_serializers.ValidationError(
+                    "Director or CEO required to mark cash expenses paid.",
+                )
+        elif facility_log.status == FacilityLog.LogStatus.APPROVED_CARD:
+            if not request.user.is_superadmin:
+                raise drf_serializers.ValidationError(
+                    "Only the CEO can confirm card payments.",
+                )
+        try:
+            facility_log = mark_paid(
+                request_obj=facility_log, actor=request.user,
+            )
+        except DjangoValidationError as exc:
+            raise drf_serializers.ValidationError(
+                exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages},
+            )
+        return Response(FacilityLogSerializer(facility_log).data)
+
+    @action(detail=True, methods=["post"], url_path="mark-resolved")
+    def mark_resolved(self, request, *args, **kwargs):
+        """POST /facility-logs/{id}/mark-resolved/ — close-out a paid request."""
+        facility_log = self.get_object()
+        try:
+            facility_log = mark_resolved(
+                request_obj=facility_log, actor=request.user,
+            )
+        except DjangoValidationError as exc:
+            raise drf_serializers.ValidationError(
+                exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages},
+            )
         return Response(FacilityLogSerializer(facility_log).data)
 
 

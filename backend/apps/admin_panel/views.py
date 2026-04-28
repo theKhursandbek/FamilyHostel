@@ -35,6 +35,7 @@ from .serializers import (
     CreateRoomInspectionSerializer,
     HandoverCashSessionSerializer,
     OpenCashSessionSerializer,
+    ReviewCashSessionSerializer,
     RoomInspectionSerializer,
 )
 from .services import (
@@ -42,6 +43,8 @@ from .services import (
     create_room_inspection,
     handover_cash_session,
     open_cash_session,
+    previous_close_for_branch,
+    review_cash_session,
 )
 
 
@@ -192,6 +195,70 @@ class CashSessionViewSet(viewsets.GenericViewSet):
         instance = self.get_object()
         return Response(self.get_serializer(instance).data)
 
+    @action(detail=False, methods=["get"], url_path="today")
+    def today(self, request):
+        """GET /cash-sessions/today/ — info for the calling admin's "today".
+
+        Returns:
+            ``{ "open_session": <session|null>, "suggested_shift_type": "day"|"night"|null }``
+
+        ``suggested_shift_type`` is read from the admin's ShiftAssignment for
+        today, so the open-session form can pre-fill it instead of asking.
+        """
+        import datetime
+
+        admin_profile = self._resolve_admin(request.user)
+        if admin_profile is None:
+            return Response({"open_session": None, "suggested_shift_type": None})
+
+        # Currently-open session (if any) for this admin.
+        open_session = (
+            CashSession.objects.select_related("admin", "branch", "handed_over_to")
+            .filter(admin=admin_profile, end_time__isnull=True)
+            .order_by("-start_time")
+            .first()
+        )
+
+        # Suggest shift_type from today's ShiftAssignment (if one exists).
+        suggested = None
+        try:
+            from apps.staff.models import ShiftAssignment
+
+            today = datetime.date.today()
+            assignment = ShiftAssignment.objects.filter(
+                account=request.user,
+                date=today,
+            ).order_by("-created_at").first()
+            if assignment is not None:
+                suggested = assignment.shift_type
+        except Exception:  # pragma: no cover - defensive only
+            suggested = None
+
+        # Previous shift's closing balance for this branch — surfaced as a
+        # hint so the admin can reconcile their opening balance.
+        previous_close = None
+        prev = previous_close_for_branch(admin_profile.branch)
+        if prev is not None:
+            previous_close = {
+                "id": prev.pk,
+                "closing_balance": str(prev.closing_balance) if prev.closing_balance is not None else None,
+                "closed_at": prev.end_time.isoformat() if prev.end_time else None,
+                "shift_type": prev.shift_type,
+                "admin_name": (
+                    getattr(prev.admin, "full_name", None)
+                    or (f"Admin #{prev.admin_id}" if prev.admin_id else None)
+                ),
+                "variance_status": prev.variance_status,
+            }
+
+        return Response({
+            "open_session": (
+                CashSessionSerializer(open_session).data if open_session else None
+            ),
+            "suggested_shift_type": suggested,
+            "previous_close": previous_close,
+        })
+
     @action(detail=False, methods=["post"], url_path="open")
     def open_session(self, request):
         """POST /cash-sessions/open/ — open a new session."""
@@ -277,6 +344,40 @@ class CashSessionViewSet(viewsets.GenericViewSet):
                 handed_over_to=target_admin,
                 closing_balance=serializer.validated_data["closing_balance"],
                 note=serializer.validated_data.get("note", ""),
+            )
+        except DjangoValidationError as exc:
+            raise drf_serializers.ValidationError(exc.message_dict)
+
+        return Response(CashSessionSerializer(session).data)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="review",
+        permission_classes=[IsAuthenticated, IsDirectorOrHigher],
+    )
+    def review_session(self, request, pk=None):
+        """POST /cash-sessions/{id}/review/ — director approves or disputes."""
+        session = self.get_object()
+
+        director = getattr(request.user, "director_profile", None)
+        if director is None:
+            # Super-admins reviewing — fall back to any director of the branch
+            # would be wrong; keep the audit trail honest by requiring a real
+            # director profile.
+            raise drf_serializers.ValidationError(
+                {"detail": "Only a Director can review cash sessions."},
+            )
+
+        serializer = ReviewCashSessionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            session = review_cash_session(
+                session=session,
+                director=director,
+                decision=serializer.validated_data["decision"],
+                comment=serializer.validated_data.get("comment", ""),
             )
         except DjangoValidationError as exc:
             raise drf_serializers.ValidationError(exc.message_dict)

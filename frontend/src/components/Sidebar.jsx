@@ -9,9 +9,7 @@ import {
   CheckCircle2,
   CalendarDays,
   AlertTriangle,
-  Search,
   Banknote,
-  HardHat,
   Building2,
   Clock,
   Users,
@@ -39,22 +37,22 @@ const staffItems = [
 ];
 
 const adminItems = [
-  { to: "/admin/inspections", label: "Inspections", icon: Search },
   { to: "/admin/cash-sessions", label: "Cash Sessions", icon: Banknote },
+  { to: "/admin/shifts", label: "Shift Assignments", icon: Clock },
 ];
 
 const directorItems = [
   { to: "/director/days-off", label: "Day-Off Approvals", icon: CalendarDays },
-  { to: "/director/assignments", label: "Task Assignment", icon: HardHat },
   { to: "/director/penalties", label: "Penalties", icon: AlertTriangle },
   { to: "/director/facility-logs", label: "Facility Logs", icon: Building2 },
-  { to: "/director/shifts", label: "Shift Assignments", icon: Clock },
 ];
 
 const superAdminItems = [
   { to: "/super-admin/users", label: "Users & Roles", icon: Users },
   { to: "/super-admin/branches", label: "Branches & Rooms", icon: Building2 },
   { to: "/super-admin/salary-settings", label: "Salary Settings", icon: Sliders },
+  { to: "/super-admin/penalties", label: "Penalties", icon: AlertTriangle },
+  { to: "/super-admin/expense-approvals", label: "Expense Approvals", icon: Building2 },
   { to: "/super-admin/activity", label: "Live Activity", icon: Activity },
   { to: "/super-admin/override", label: "Override", icon: ShieldAlert },
 ];
@@ -94,21 +92,17 @@ NavItems.propTypes = {
 };
 
 function Sidebar({ isOpen, isMobile, onClose }) {
-  const { user, activeRole } = useAuth();
+  const { user } = useAuth();
   const roles = user?.roles || [];
 
   const hasRole = (role) => roles.includes(role);
   const isStaff = hasRole("staff");
   const isSuperAdmin = hasRole("superadmin");
-
-  // For accounts that hold both Director and Administrator profiles, show
-  // ONLY the active role's section so the sidebar stays uncluttered. The
-  // user can flip via the Switch button in the Header.
-  const holdsAdmin = hasRole("administrator");
-  const holdsDirector = hasRole("director");
-  const dualHolder = holdsAdmin && holdsDirector;
-  const isAdmin = dualHolder ? activeRole === "administrator" : holdsAdmin;
-  const isDirector = dualHolder ? activeRole === "director" : holdsDirector;
+  // April 2026 unification: every Director also performs Administrator duties
+  // for their branch via the same profile. So a Director sees BOTH the
+  // Director and Admin sections. SuperAdmin (CEO) sees everything too.
+  const isDirector = hasRole("director");
+  const isAdmin = hasRole("administrator") || isDirector || isSuperAdmin;
 
   const handleNavigate = isMobile ? onClose : undefined;
 

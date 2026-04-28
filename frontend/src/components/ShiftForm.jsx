@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import PropTypes from "prop-types";
-import { getAccounts, getBranches } from "../services/shiftService";
+import { getAccounts } from "../services/shiftService";
 import { useToast } from "../context/ToastContext";
 import Input from "./Input";
 import Button from "./Button";
@@ -26,13 +26,11 @@ const SHIFT_TYPE_OPTIONS = [
 function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
   const toast = useToast();
   const [accounts, setAccounts] = useState([]);
-  const [branches, setBranches] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [form, setForm] = useState({
     account: "",
     role: "staff",
-    branch: "",
     shift_type: "day",
     date: "",
   });
@@ -42,17 +40,12 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
     setDataLoading(true);
     setLoadError(false);
     try {
-      const [accountsData, branchesData] = await Promise.all([
-        getAccounts(),
-        getBranches(),
-      ]);
+      const accountsData = await getAccounts();
       setAccounts(toListArray(accountsData));
-      setBranches(toListArray(branchesData));
     } catch {
       setAccounts([]);
-      setBranches([]);
       setLoadError(true);
-      toast.error("Failed to load accounts and branches");
+      toast.error("Failed to load accounts");
     } finally {
       setDataLoading(false);
     }
@@ -74,10 +67,10 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
     label: acc.full_name || acc.phone || `Account #${acc.id}`,
   }));
 
-  const branchOptions = branches.map((b) => ({
-    value: b.id,
-    label: b.name || `Branch #${b.id}`,
-  }));
+  const selectedAccount = accounts.find(
+    (a) => String(a.id) === String(form.account),
+  );
+  const derivedBranchId = selectedAccount?.branch_id ?? null;
 
   const setField = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -98,7 +91,7 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
       (s) =>
         s.date === form.date &&
         s.shift_type === form.shift_type &&
-        String(s.branch) === String(form.branch) &&
+        String(s.branch) === String(derivedBranchId) &&
         s.role === "admin" &&
         String(s.account) !== String(form.account)
     );
@@ -107,14 +100,15 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
   const validate = () => {
     const newErrors = {};
     if (!form.account) newErrors.account = "Account is required";
-    if (!form.branch) newErrors.branch = "Branch is required";
+    if (!derivedBranchId)
+      newErrors.account = "Selected account has no branch assigned";
     if (!form.date) newErrors.date = "Date is required";
 
     if (!newErrors.account && !newErrors.date && checkDuplicate()) {
       newErrors.general = "This person is already assigned to this shift on this date";
     }
 
-    if (!newErrors.account && !newErrors.date && !newErrors.branch && checkAdminConflict()) {
+    if (!newErrors.account && !newErrors.date && checkAdminConflict()) {
       newErrors.general = "Another admin is already assigned to this shift at this branch";
     }
 
@@ -127,14 +121,15 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
     if (!validate()) return;
     onSubmit({
       account: Number(form.account),
-      branch: Number(form.branch),
+      role: form.role,
+      branch: Number(derivedBranchId),
       shift_type: form.shift_type,
       date: form.date,
     });
   };
 
   const handleReset = () => {
-    setForm({ account: "", role: "staff", branch: "", shift_type: "day", date: "" });
+    setForm({ account: "", role: "staff", shift_type: "day", date: "" });
     setErrors({});
   };
 
@@ -189,24 +184,6 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
           error={Boolean(errors.account)}
         />
         {errors.account && <p className="form-error">{errors.account}</p>}
-      </div>
-
-      <div className="form-group">
-        <label htmlFor="branch" className="label">
-          Branch <span style={{ color: "var(--brand-danger)" }}>*</span>
-        </label>
-        <Select
-          id="branch"
-          value={form.branch}
-          onChange={(v) => setField("branch", v)}
-          options={branchOptions}
-          loading={dataLoading}
-          disabled={loadError && !dataLoading}
-          placeholder={loadError ? "Unavailable — retry above" : "Select branch"}
-          emptyText="No branches found"
-          error={Boolean(errors.branch)}
-        />
-        {errors.branch && <p className="form-error">{errors.branch}</p>}
       </div>
 
       <div className="form-group">

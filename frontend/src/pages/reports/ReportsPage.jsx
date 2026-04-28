@@ -1,232 +1,214 @@
-import { useState, useEffect, useCallback } from "react";
-import { getReports, exportCSV, getBranches } from "../../services/reportService";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  getAvailableWorkbooks,
+  downloadBranchWorkbook,
+  downloadGeneralManagerWorkbook,
+  saveBlob,
+  getBranchDashboard,
+} from "../../services/reportService";
+import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import StatCard from "../../components/StatCard";
-import Table from "../../components/Table";
+import usePersistedBranch from "../../hooks/usePersistedBranch";
+import BranchSelector from "../../components/BranchSelector";
 import Button from "../../components/Button";
 import Select from "../../components/Select";
 import Loader from "../../components/Loader";
 import ErrorMessage from "../../components/ErrorMessage";
+import BranchDashboard from "./components/BranchDashboard";
 
-function toBranchArray(data) {
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.results)) return data.results;
-  if (Array.isArray(data?.branches)) return data.branches;
-  return [];
-}
-
-const performanceColumns = [
-  { key: "staff_name", label: "Staff" },
-  {
-    key: "tasks_completed",
-    label: "Tasks Completed",
-    render: (val) => val ?? 0,
-  },
-  {
-    key: "avg_rating",
-    label: "Avg Rating",
-    render: (val) => (val !== null && val !== undefined ? Number(val).toFixed(1) : "—"),
-  },
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
 
-const attendanceColumns = [
-  { key: "staff_name", label: "Staff" },
-  { key: "days_present", label: "Present", render: (val) => val ?? 0 },
-  { key: "days_absent", label: "Absent", render: (val) => val ?? 0 },
-  { key: "days_off", label: "Days Off", render: (val) => val ?? 0 },
-];
-
+/**
+ * Reports — REFACTOR_PLAN_2026_04 §4.
+ *
+ * Non-CEO: pinned to own branch · in-page dashboard + sticky download.
+ * CEO: branch picker → dashboard + per-branch download + per-GM workbook (Q7).
+ */
 function ReportsPage() {
+  const { user } = useAuth();
   const toast = useToast();
-  const [report, setReport] = useState(null);
-  const [branches, setBranches] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [exporting, setExporting] = useState(false);
+  const today = new Date();
+  const isCeo = (user?.roles || []).includes("superadmin");
 
-  // Filters
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [branch, setBranch] = useState("");
+  const [branchId, setBranchId] = usePersistedBranch(
+    "branchScope:reports",
+    isCeo,
+    user?.branch_id ?? null,
+  );
+  const [year, setYear] = useState(String(today.getFullYear()));
+  const [month, setMonth] = useState(String(today.getMonth() + 1));
 
-  const buildParams = useCallback(() => {
-    const params = {};
-    if (dateFrom) params.date_from = dateFrom;
-    if (dateTo) params.date_to = dateTo;
-    if (branch) params.branch = branch;
-    return params;
-  }, [dateFrom, dateTo, branch]);
+  const [dashboard, setDashboard] = useState(null);
+  const [dashLoading, setDashLoading] = useState(false);
+  const [dashError, setDashError] = useState(null);
 
-  const fetchReport = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getReports(buildParams());
-      setReport(data);
-    } catch (err) {
-      setError(err.response?.data?.detail || "Failed to load reports");
-    } finally {
-      setLoading(false);
+  const [items, setItems] = useState([]);
+  const [downloadingKey, setDownloadingKey] = useState(null);
+
+  const ceoMustPick = isCeo && !branchId;
+
+  const loadDashboard = useCallback(async () => {
+    if (!branchId) {
+      setDashboard(null);
+      return;
     }
-  }, [buildParams]);
-
-  const fetchBranches = useCallback(async () => {
     try {
-      const data = await getBranches();
-      setBranches(toBranchArray(data));
-    } catch {
-      setBranches([]);
-      toast.warning("Could not load branches");
+      setDashLoading(true);
+      setDashError(null);
+      const data = await getBranchDashboard({
+        branchId, year: Number(year), month: Number(month),
+      });
+      setDashboard(data);
+    } catch (err) {
+      setDashError(err.response?.data?.detail || "Failed to load dashboard");
+    } finally {
+      setDashLoading(false);
+    }
+  }, [branchId, year, month]);
+
+  const loadWorkbooks = useCallback(async () => {
+    try {
+      const data = await getAvailableWorkbooks();
+      setItems(data);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to load workbook list");
     }
   }, [toast]);
 
-  useEffect(() => {
-    fetchBranches();
-  }, [fetchBranches]);
+  useEffect(() => { loadDashboard(); }, [loadDashboard]);
+  useEffect(() => { loadWorkbooks(); }, [loadWorkbooks]);
 
-  useEffect(() => {
-    fetchReport();
-  }, [fetchReport]);
-
-  const handleExport = async () => {
+  const handleDownloadBranch = async () => {
+    if (!branchId) return;
+    const key = `branch-${branchId}-${year}`;
     try {
-      setExporting(true);
-      const response = await exportCSV(buildParams());
-      const blob = new Blob([response.data], { type: "text/csv" });
-      const url = globalThis.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `report_${dateFrom || "all"}_${dateTo || "all"}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      globalThis.URL.revokeObjectURL(url);
+      setDownloadingKey(key);
+      const response = await downloadBranchWorkbook(branchId, Number(year));
+      saveBlob(response, `branch_${branchId}_${year}.xlsx`);
+      toast.success("Workbook downloaded");
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to export CSV");
+      toast.error(err.response?.data?.detail || "Download failed");
     } finally {
-      setExporting(false);
+      setDownloadingKey(null);
     }
   };
 
-  const revenue = report?.total_revenue ?? report?.revenue ?? 0;
-  const totalBookings = report?.total_bookings ?? report?.booking_count ?? 0;
-  const completedTasks = report?.completed_tasks ?? 0;
-  const activeStaff = report?.active_staff ?? 0;
-  const staffPerformance = report?.staff_performance ?? [];
-  const attendance = report?.attendance ?? [];
+  const handleDownloadGm = async (item) => {
+    const key = `gm-${item.director_id}-${item.year}`;
+    try {
+      setDownloadingKey(key);
+      const response = await downloadGeneralManagerWorkbook(
+        item.director_id, item.year,
+      );
+      const safe = (item.director_name || `director_${item.director_id}`)
+        .replace(/\s+/g, "_");
+      saveBlob(response, `gm_${safe}_${item.year}.xlsx`);
+      toast.success("GM workbook downloaded");
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Download failed");
+    } finally {
+      setDownloadingKey(null);
+    }
+  };
+
+  const yearOptions = useMemo(() => {
+    const cur = today.getFullYear();
+    return [cur - 1, cur, cur + 1].map((y) => ({
+      value: String(y), label: String(y),
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const gmItems = useMemo(
+    () => items.filter(
+      (i) => i.kind === "general_manager" && String(i.year) === String(year),
+    ),
+    [items, year],
+  );
 
   return (
     <div>
       <div className="page-header">
         <h1>Reports</h1>
-        <Button
-          variant="secondary"
-          disabled={exporting || loading}
-          onClick={handleExport}
-        >
-          {exporting ? "Exporting..." : "Download CSV"}
-        </Button>
+        {isCeo && <BranchSelector value={branchId} onChange={setBranchId} />}
       </div>
 
-      {/* Filters */}
-      <div className="card" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", marginBottom: 24 }}>
-        <div>
-          <label className="label" htmlFor="filter-from">From</label>
-          <input
-            id="filter-from"
-            type="date"
-            className="input"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="label" htmlFor="filter-to">To</label>
-          <input
-            id="filter-to"
-            type="date"
-            className="input"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-          />
-        </div>
-        <div style={{ minWidth: 200 }}>
-          <label className="label" htmlFor="filter-branch">Branch</label>
+      <div
+        className="card"
+        style={{
+          display: "flex", gap: 12, alignItems: "flex-end",
+          marginBottom: 16, flexWrap: "wrap",
+        }}
+      >
+        <div style={{ minWidth: 140 }}>
+          <label className="label" htmlFor="rep-year">Year</label>
           <Select
-            id="filter-branch"
-            value={branch}
-            onChange={(v) => setBranch(v)}
-            placeholder="All Branches"
-            options={[
-              { value: "", label: "All Branches" },
-              ...branches.map((b) => ({ value: b.id, label: b.name || `Branch #${b.id}` })),
-            ]}
-            emptyText="No branches"
+            id="rep-year" value={year} onChange={(v) => setYear(v)}
+            options={yearOptions}
           />
         </div>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => { setDateFrom(""); setDateTo(""); setBranch(""); }}
+        <div style={{ minWidth: 160 }}>
+          <label className="label" htmlFor="rep-month">Month</label>
+          <Select
+            id="rep-month" value={month} onChange={(v) => setMonth(v)}
+            options={MONTHS.map((n, i) => ({
+              value: String(i + 1), label: n,
+            }))}
+          />
+        </div>
+        <div
+          style={{
+            marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap",
+          }}
         >
-          Clear filters
-        </Button>
+          {branchId && (
+            <Button
+              onClick={handleDownloadBranch}
+              disabled={downloadingKey === `branch-${branchId}-${year}`}
+            >
+              {downloadingKey === `branch-${branchId}-${year}`
+                ? "Generating…"
+                : `Download branch workbook (${year})`}
+            </Button>
+          )}
+          {gmItems.map((item) => {
+            const key = `gm-${item.director_id}-${item.year}`;
+            return (
+              <Button
+                key={key}
+                variant="secondary"
+                onClick={() => handleDownloadGm(item)}
+                disabled={downloadingKey === key}
+              >
+                {downloadingKey === key
+                  ? "Generating…"
+                  : `Download ${item.director_name}'s GM workbook`}
+              </Button>
+            );
+          })}
+        </div>
       </div>
 
-      {error && (
-        <div style={{ marginBottom: 16 }}>
-          <ErrorMessage message={error} onRetry={fetchReport} />
+      {ceoMustPick && (
+        <div className="branch-empty">
+          <p className="branch-empty__title">Select a branch to begin</p>
+          <p className="branch-empty__hint">
+            CEO can pick any branch above to load its dashboard.
+          </p>
         </div>
       )}
 
-      {loading ? (
-        <Loader />
-      ) : (
-        <>
-          {/* Summary cards */}
-          <div className="stat-grid">
-            <StatCard
-              title="Total Revenue"
-              value={`${Number(revenue).toLocaleString()} сум`}
-            />
-            <StatCard
-              title="Total Bookings"
-              value={totalBookings}
-            />
-            <StatCard
-              title="Tasks Completed"
-              value={completedTasks}
-            />
-            <StatCard
-              title="Active Staff"
-              value={activeStaff}
-            />
-          </div>
+      {!ceoMustPick && dashError && (
+        <ErrorMessage message={dashError} onRetry={loadDashboard} />
+      )}
 
-          {/* Staff Performance */}
-          <div className="section">
-            <h3 className="section-title">
-              Staff Performance
-            </h3>
-            <Table
-              columns={performanceColumns}
-              data={staffPerformance}
-              emptyMessage="No staff performance data"
-            />
-          </div>
+      {!ceoMustPick && dashLoading && <Loader />}
 
-          {/* Attendance Summary */}
-          <div className="section">
-            <h3 className="section-title">
-              Attendance Summary
-            </h3>
-            <Table
-              columns={attendanceColumns}
-              data={attendance}
-              emptyMessage="No attendance data"
-            />
-          </div>
-        </>
+      {!ceoMustPick && !dashLoading && !dashError && (
+        <BranchDashboard data={dashboard} />
       )}
     </div>
   );

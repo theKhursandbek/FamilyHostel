@@ -1,17 +1,5 @@
 import api from "./api";
 
-// ==================== ROOM INSPECTIONS ====================
-
-export async function getRoomInspections(params = {}) {
-  const response = await api.get("/admin-panel/room-inspections/", { params });
-  return response.data;
-}
-
-export async function createRoomInspection(data) {
-  const response = await api.post("/admin-panel/room-inspections/", data);
-  return response.data;
-}
-
 // ==================== CASH SESSIONS ====================
 
 export async function getCashSessions(params = {}) {
@@ -21,6 +9,11 @@ export async function getCashSessions(params = {}) {
 
 export async function getCashSession(id) {
   const response = await api.get(`/admin-panel/cash-sessions/${id}/`);
+  return response.data;
+}
+
+export async function getCashSessionToday() {
+  const response = await api.get("/admin-panel/cash-sessions/today/");
   return response.data;
 }
 
@@ -36,6 +29,12 @@ export async function closeCashSession(id, data) {
 
 export async function handoverCashSession(id, data) {
   const response = await api.post(`/admin-panel/cash-sessions/${id}/handover/`, data);
+  return response.data;
+}
+
+export async function reviewCashSession(id, data) {
+  // data: { decision: "approved" | "disputed", comment?: string }
+  const response = await api.post(`/admin-panel/cash-sessions/${id}/review/`, data);
   return response.data;
 }
 
