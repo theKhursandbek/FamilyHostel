@@ -68,7 +68,7 @@ describe("API service layer", () => {
     it("assignTask posts with staff id", async () => {
       api.post.mockResolvedValue({ data: { id: 1, assigned_to: 5 } });
       const result = await assignTask(1, 5);
-      expect(api.post).toHaveBeenCalledWith("/cleaning/tasks/1/assign/", { assigned_to: 5 });
+      expect(api.post).toHaveBeenCalledWith("/cleaning/tasks/1/assign/", { staff_id: 5 });
       expect(result.assigned_to).toBe(5);
     });
 
@@ -95,14 +95,14 @@ describe("API service layer", () => {
     it("getSalaries calls correct endpoint", async () => {
       api.get.mockResolvedValue({ data: { results: [{ id: 1, amount: 1000 }] } });
       const result = await getSalaries({ month: 4 });
-      expect(api.get).toHaveBeenCalledWith("/salary/", { params: { month: 4 } });
+      expect(api.get).toHaveBeenCalledWith("/payments/salary/", { params: { month: 4 } });
       expect(result.results[0].amount).toBe(1000);
     });
 
     it("getSalaries defaults to empty params", async () => {
       api.get.mockResolvedValue({ data: [] });
       await getSalaries();
-      expect(api.get).toHaveBeenCalledWith("/salary/", { params: {} });
+      expect(api.get).toHaveBeenCalledWith("/payments/salary/", { params: {} });
     });
   });
 });
