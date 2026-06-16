@@ -8,7 +8,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.accounts.permissions import IsAdminOrHigher, IsAssignedStaffOrDirectorOrHigher, IsDirectorOrHigher, IsStaffOrHigher
+from apps.accounts.permissions import IsAdminOrHigher, IsAssignedStaffOrDirectorOrHigher, IsStaffOrHigher
 from apps.accounts.branch_scope import (
     enforce_branch_on_create,
     get_user_branch,
@@ -16,6 +16,8 @@ from apps.accounts.branch_scope import (
 )
 
 from .filters import CleaningTaskFilter
+from .imaging import normalize_image
+from .dedup import compute_phash, find_duplicate
 from .models import CleaningImage, CleaningTask
 from .serializers import (
     CleaningImageSerializer,
@@ -258,9 +260,19 @@ class CleaningTaskViewSet(viewsets.ModelViewSet):
         serializer = CleaningTaskSerializer(task, context={"request": request})
         return Response(serializer.data)
 
-    @action(detail=True, methods=["post"], url_path="complete")
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="complete",
+        permission_classes=[IsAuthenticated, IsAdminOrHigher],
+    )
     def complete(self, request, pk=None):
-        """POST /cleaning-tasks/{pk}/complete/ — mark task as completed."""
+        """POST /cleaning-tasks/{pk}/complete/ — supervisor manual completion.
+
+        Restricted to Administrator+ . Staff never self-complete: their only
+        path to "done" is AI approval (which auto-completes the task). This
+        closes the cheat where a staff member could bypass verification.
+        """
         task = self.get_object()
         try:
             task = complete_task(task=task, performed_by=request.user)
@@ -276,51 +288,101 @@ class CleaningTaskViewSet(viewsets.ModelViewSet):
         parser_classes=[MultiPartParser, FormParser],
     )
     def upload(self, request, pk=None):
-        """POST /cleaning-tasks/{pk}/upload/ — upload cleaning images.
+        """POST /cleaning-tasks/{pk}/upload/ — submit cleaning verification photos.
 
-        Only the assigned staff can upload images.
-        After upload, triggers AI analysis via Celery.
+        Staff submit one camera photo per zone (4 required + optional extra).
+        Each image is EXIF-stripped, recompressed, perceptually hashed and
+        de-duplicated before persisting. The previous submission for this task
+        is cleared first (re-clean replaces, never accumulates). The task then
+        moves to ``ai_checking`` and Gemini analysis is queued.
         """
         task = self.get_object()
 
-        # Only assigned staff can upload
+        # Only the assigned staff (or Director+) may submit.
         staff_profile = getattr(request.user, "staff_profile", None)
-        if task.assigned_to is None or (
-            staff_profile is None or staff_profile.pk != task.assigned_to_id
-        ):
-            # Directors+ can also upload
-            if not (
-                getattr(request.user, "is_director", False)
-                or getattr(request.user, "is_superadmin", False)
-            ):
-                raise drf_serializers.ValidationError(
-                    {"detail": "Only the assigned staff member can upload images."}
-                )
+        is_assigned_staff = (
+            task.assigned_to is not None
+            and staff_profile is not None
+            and staff_profile.pk == task.assigned_to_id
+        )
+        is_supervisor = (
+            getattr(request.user, "is_director", False)
+            or getattr(request.user, "is_superadmin", False)
+        )
+        if not (is_assigned_staff or is_supervisor):
+            raise drf_serializers.ValidationError(
+                {"detail": "Only the assigned staff member can submit photos."}
+            )
 
-        # Task must be in_progress or retry_required
+        # Task must be in_progress or retry_required.
         if task.status not in (
             CleaningTask.TaskStatus.IN_PROGRESS,
             CleaningTask.TaskStatus.RETRY_REQUIRED,
         ):
             raise drf_serializers.ValidationError(
-                {"detail": f"Cannot upload images for task with status '{task.status}'."}
+                {"detail": f"Cannot submit photos for a task with status '{task.status}'."}
             )
 
         serializer = CleaningImageUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         images = serializer.validated_data["images"]
+        zones = serializer.validated_data["zones"]
+
+        captured_via = "camera" if is_assigned_staff else "upload"
+
+        # Normalise + hash + dedup BEFORE writing anything, so a duplicate
+        # rejects the whole submission cleanly.
+        prepared = []
+        for image_file, zone in zip(images, zones):
+            try:
+                content, width, height, byte_size = normalize_image(
+                    image_file, filename=f"task{task.pk}_{zone}.jpg",
+                )
+            except ValueError as exc:
+                raise drf_serializers.ValidationError({"images": str(exc)})
+
+            phash_hex = compute_phash(content.read())
+            content.seek(0)
+
+            # Reject reuse of a photo seen recently in this branch (another task).
+            dup = find_duplicate(
+                phash_hex, branch_id=task.branch_id, exclude_task_id=task.pk,
+            )
+            if dup is not None:
+                raise drf_serializers.ValidationError(
+                    {"images": (
+                        f"The '{zone}' photo looks identical to a previous "
+                        "submission. Please take a fresh photo of this room."
+                    )}
+                )
+            prepared.append((content, zone, width, height, byte_size, phash_hex))
+
+        # Replace any previous submission for this task (no accumulation).
+        task.images.all().delete()
+
         created = []
-        for image_file in images:
-            img = CleaningImage.objects.create(task=task, image=image_file)
+        for content, zone, width, height, byte_size, phash_hex in prepared:
+            img = CleaningImage.objects.create(
+                task=task,
+                image=content,
+                zone=zone,
+                phash=phash_hex,
+                width=width,
+                height=height,
+                byte_size=byte_size,
+                captured_via=captured_via,
+            )
             created.append(img)
 
-        # Trigger AI analysis
+        # Move to AI checking + queue analysis.
+        task.status = CleaningTask.TaskStatus.AI_CHECKING
+        task.save(update_fields=["status", "updated_at"])
         analyze_cleaning_images_task.delay(task.pk)
 
         return Response(
             {
-                "detail": f"{len(created)} image(s) uploaded. AI analysis queued.",
+                "detail": f"{len(created)} photo(s) submitted. AI verification in progress.",
+                "status": task.status,
                 "images": CleaningImageSerializer(
                     created, many=True, context={"request": request},
                 ).data,
@@ -346,16 +408,16 @@ class CleaningTaskViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=["post"],
         url_path="override",
-        permission_classes=[IsAuthenticated, IsDirectorOrHigher],
+        permission_classes=[IsAuthenticated, IsAdminOrHigher],
     )
     def override(self, request, pk=None):
-        """POST /cleaning-tasks/{pk}/override/ — manual approval.
+        """POST /cleaning-tasks/{pk}/override/ — supervisor "Mark Cleaned".
 
-        Director and Super Admin can bypass the AI verdict and mark the
-        task as completed (e.g. when a guest is waiting and AI is slow,
-        or when AI keeps rejecting an obviously clean room). Administrators
-        cannot override — they must escalate to the director. Requires
-        ``reason`` in request body.
+        Administrators, Directors and Super Admins can mark a task cleaned at
+        any point, bypassing the AI verdict (e.g. a guest is waiting, or the
+        AI keeps rejecting an obviously clean room). The ``reason`` is
+        OPTIONAL — no justification is required, even over a negative result.
+        Staff cannot reach this action.
         """
         task = self.get_object()
         serializer = OverrideSerializer(data=request.data)
@@ -365,7 +427,7 @@ class CleaningTaskViewSet(viewsets.ModelViewSet):
             task = override_task(
                 task=task,
                 performed_by=request.user,
-                reason=serializer.validated_data["reason"],
+                reason=serializer.validated_data.get("reason", ""),
             )
         except DjangoValidationError as exc:
             raise drf_serializers.ValidationError(exc.message_dict)

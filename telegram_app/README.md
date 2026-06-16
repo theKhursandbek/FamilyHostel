@@ -1,6 +1,6 @@
-# FamilyHostel — Telegram Mini App
+# Hotel — Telegram Mini App
 
-Companion mobile experience to the FamilyHostel admin panel.
+Companion mobile experience to the Hotel admin panel.
 
 ## Audience
 

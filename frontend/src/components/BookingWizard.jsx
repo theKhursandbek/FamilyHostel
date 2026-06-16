@@ -1,36 +1,61 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { fmtMoney, rawMoney } from "../utils/moneyInput";
 import PropTypes from "prop-types";
 import { ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
-import { getRooms } from "../services/bookingService";
+import { getRooms, getAvailability, getBookings } from "../services/bookingService";
 import { useToast } from "../context/ToastContext";
+import {
+  validateName,
+  formatNameInput,
+  validatePhone,
+  formatPhoneInput,
+  validatePassport,
+  formatPassportInput,
+  validateDOB,
+  maxDOBForAge,
+  todayLocalISO,
+  addDaysISO,
+} from "../utils/guestValidation";
 import Input from "./Input";
 import Button from "./Button";
 import Loader from "./Loader";
 import Lightbox from "./Lightbox";
+import PaymentMethodSelect from "./PaymentMethodSelect";
 
 /**
- * 4-step walk-in booking wizard.
+ * 3-step hold-first booking wizard.
  *
- *   1. Pick a Room   (visual cards with photo + price)
- *   2. Pick Dates    (check-in / check-out)
- *   3. Cost Summary  (auto total, optional discount)
- *   4. Guest Details (name, phone, passport) → submit
+ *   1. Choose Room     (all branch rooms; booked ones grayed out + show their
+ *                       checkout date — no pre-booking from the admin website)
+ *   2. Guest Details   (name, phone, passport, DOB — strict real-time masks)
+ *   3. Dates & Hold    (check-in inherits today; pick checkout only; live
+ *                       price; choose a payment method) → submit
  */
 
 const STEPS = [
-  { key: "room",  title: "Choose Room" },
-  { key: "dates", title: "Select Dates" },
-  { key: "cost",  title: "Confirm Price" },
-  { key: "guest", title: "Guest Details" },
+  { key: "room",     title: "Choose Room" },
+  { key: "guest",    title: "Guest Details" },
+  { key: "combined", title: "Dates & Hold" },
 ];
 
 const fmt = (n) => Number(n || 0).toLocaleString() + " сум";
+
+/** ISO (YYYY-MM-DD) → DD.MM.YYYY for the booked-room checkout label. */
+function fmtDMY(iso) {
+  if (!iso) return "";
+  const [y, m, d] = String(iso).split("-");
+  if (!y || !m || !d) return String(iso);
+  return `${d}.${m}.${y}`;
+}
 
 function diffNights(a, b) {
   if (!a || !b) return 0;
   const ms = new Date(b).getTime() - new Date(a).getTime();
   return Math.max(0, Math.round(ms / (1000 * 60 * 60 * 24)));
 }
+
+// ── Validation helpers (ported 1:1 from the Telegram Mini App) ───────────
+const todayISO = todayLocalISO;
 
 // ── Reusable progress bar ───────────────────────────────────────────────
 function StepBar({ step }) {
@@ -62,7 +87,7 @@ function roomImageUrls(room) {
   return list;
 }
 
-function RoomCard({ room, isActive, onSelect, onZoom }) {
+function RoomCard({ room, isActive, disabled, freeFrom, onSelect, onZoom }) {
   const images = roomImageUrls(room);
   const total = images.length;
   const [idx, setIdx] = useState(0);
@@ -75,6 +100,35 @@ function RoomCard({ room, isActive, onSelect, onZoom }) {
     e.stopPropagation();
     setIdx((i) => (i + 1) % total);
   };
+
+  // Booked / unavailable rooms: grayed out, non-selectable. They display ONLY
+  // the checkout date (plain text, no tags) so the operator sees when the room
+  // frees up. This also covers upcoming Telegram pre-bookings (look-ahead).
+  if (disabled) {
+    return (
+      <div className="room-pick-card room-pick-card--booked" aria-disabled="true">
+        <div className="room-pick-card__media">
+          {total > 0 ? (
+            <img src={images[0]} alt={`Room ${room.room_number}`} />
+          ) : (
+            <div className="room-pick-card__placeholder">🏠</div>
+          )}
+          <span className="room-pick-card__veil" />
+        </div>
+        <div className="room-pick-card__body">
+          <div className="room-pick-card__title">
+            <span className="room-pick-card__num">№ {room.room_number}</span>
+            <span className="badge badge-accent badge-sm">
+              {room.room_type_name || "Room"}
+            </span>
+          </div>
+          {freeFrom && (
+            <div className="room-pick-card__freefrom">{fmtDMY(freeFrom)}</div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <button
@@ -163,138 +217,195 @@ function RoomCard({ room, isActive, onSelect, onZoom }) {
 RoomCard.propTypes = {
   room: PropTypes.object.isRequired,
   isActive: PropTypes.bool,
+  disabled: PropTypes.bool,
+  freeFrom: PropTypes.string,
   onSelect: PropTypes.func.isRequired,
   onZoom: PropTypes.func.isRequired,
 };
 
-function RoomGrid({ rooms, selectedId, onSelect, onZoom }) {
+function RoomGrid({ rooms, selectedId, states, onSelect, onZoom }) {
   if (!rooms.length) {
     return (
       <div className="empty-state">
-        <p>No available rooms right now.</p>
+        <p>No rooms in this branch.</p>
       </div>
     );
   }
   return (
     <div className="room-pick-grid">
-      {rooms.map((room) => (
-        <RoomCard
-          key={room.id}
-          room={room}
-          isActive={String(room.id) === String(selectedId)}
-          onSelect={onSelect}
-          onZoom={onZoom}
-        />
-      ))}
+      {rooms.map((room) => {
+        const st = states[room.id] || {};
+        return (
+          <RoomCard
+            key={room.id}
+            room={room}
+            isActive={String(room.id) === String(selectedId)}
+            disabled={Boolean(st.disabled)}
+            freeFrom={st.freeFrom || null}
+            onSelect={onSelect}
+            onZoom={onZoom}
+          />
+        );
+      })}
     </div>
   );
 }
 RoomGrid.propTypes = {
   rooms: PropTypes.array.isRequired,
   selectedId: PropTypes.any,
+  states: PropTypes.object.isRequired,
   onSelect: PropTypes.func.isRequired,
   onZoom: PropTypes.func.isRequired,
 };
 
 // ── Main wizard ─────────────────────────────────────────────────────────
+
+/**
+ * Per-room availability for Step 1. A room is disabled when it has an active
+ * (paid) booking whose checkout is still in the future — current occupancy OR
+ * an upcoming Telegram pre-booking (look-ahead) — or it is mid-cleaning.
+ * Booked rooms also surface the checkout date (so the operator sees when they
+ * free up).
+ */
+function deriveRoomStates(roomList, bookingList, today) {
+  const byRoom = {};
+  for (const b of Array.isArray(bookingList) ? bookingList : []) {
+    if (b.status !== "paid") continue; // only active bookings hold a room
+    if (!b.check_out_date || b.check_out_date < today) continue;
+    const prev = byRoom[b.room];
+    if (!prev || b.check_in_date < prev.check_in_date) byRoom[b.room] = b;
+  }
+  const states = {};
+  for (const r of Array.isArray(roomList) ? roomList : []) {
+    const booked = byRoom[r.id];
+    const statusBlocked = r.status === "cleaning" || r.status === "maintenance";
+    states[r.id] = {
+      disabled: Boolean(booked) || statusBlocked || r.is_active === false,
+      freeFrom: booked ? booked.check_out_date : null,
+    };
+  }
+  return states;
+}
+
 function BookingWizard({ onSubmit, loading = false, branchId = null }) {
   const toast = useToast();
+  const today = todayISO();
   const [step, setStep] = useState(0);
   const [rooms, setRooms] = useState([]);
+  const [roomStates, setRoomStates] = useState({}); // id → { disabled, freeFrom }
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
   const [room, setRoom] = useState(null);
-  const [dates, setDates] = useState({ check_in_date: "", check_out_date: "" });
+  const [checkOut, setCheckOut] = useState("");
   const [discount, setDiscount] = useState("0");
-  const [guest, setGuest] = useState({ full_name: "", phone: "", passport_number: "" });
-  const [errors, setErrors] = useState({});
+  const [method, setMethod] = useState("cash");
+  const [guest, setGuest] = useState({ first_name: "", last_name: "", phone: "", passport_number: "", date_of_birth: "" });
   const [zoom, setZoom] = useState(null);
+  const [nextStart, setNextStart] = useState(null); // selected room's next booking → checkout cap
 
-  // ── Load available rooms once
+  // ── Load all branch rooms + their active bookings, then derive availability.
+  //    Booked rooms (now OR an upcoming Telegram pre-booking) are grayed out;
+  //    the admin website never pre-books, so we only need "free today" rooms.
   const fetchRooms = useCallback(async () => {
     setRoomsLoading(true);
     setLoadError(false);
     try {
-      const params = { status: "available", is_active: true };
-      if (branchId) params.branch = branchId;
-      const data = await getRooms(params);
-      const list = data.results ?? data;
-      setRooms(Array.isArray(list) ? list : []);
+      const roomParams = { is_active: true, page_size: 1000 };
+      if (branchId) roomParams.branch = branchId;
+      const bookingParams = { status: "paid", page_size: 1000 };
+      if (branchId) bookingParams.branch = branchId;
+
+      const [roomData, bookingData] = await Promise.all([
+        getRooms(roomParams),
+        getBookings(bookingParams).catch(() => ({ results: [] })),
+      ]);
+      const roomList = roomData.results ?? roomData;
+      const bookingList = bookingData.results ?? bookingData;
+      const list = Array.isArray(roomList) ? roomList : [];
+      setRooms(list);
+      setRoomStates(deriveRoomStates(list, bookingList, today));
     } catch {
       setRooms([]);
+      setRoomStates({});
       setLoadError(true);
       toast.error("Failed to load rooms");
     } finally {
       setRoomsLoading(false);
     }
-  }, [toast, branchId]);
+  }, [toast, branchId, today]);
 
   useEffect(() => { fetchRooms(); }, [fetchRooms]);
 
-  // ── Computed totals
-  const nights = useMemo(
-    () => diffNights(dates.check_in_date, dates.check_out_date),
-    [dates],
-  );
+  // ── When a room is picked, look ahead for its next booking to cap checkout.
+  useEffect(() => {
+    if (!room?.id) { setNextStart(null); return undefined; }
+    let alive = true;
+    getAvailability(room.id, { after: today })
+      .then((data) => { if (alive) setNextStart(data.next_booking_start || null); })
+      .catch(() => { if (alive) setNextStart(null); });
+    return () => { alive = false; };
+  }, [room?.id, today]);
+
+  // ── Live price (check-in is always "today").
+  const nights = useMemo(() => diffNights(today, checkOut), [today, checkOut]);
   const subtotal = useMemo(
     () => (room ? Number(room.base_price) * nights : 0),
     [room, nights],
   );
-  const discountValue = Math.max(0, Number(discount) || 0);
+  const discountValue = Math.max(0, Number(rawMoney(discount)) || 0);
   const total = Math.max(0, subtotal - discountValue);
 
-  // ── Per-step validation
-  const canAdvance = () => {
-    if (step === 0) return Boolean(room);
-    if (step === 1) {
-      return (
-        Boolean(dates.check_in_date) &&
-        Boolean(dates.check_out_date) &&
-        nights > 0
-      );
-    }
-    if (step === 2) return discountValue < subtotal && total > 0;
-    return true;
-  };
+  const updateGuest = (field, value) => setGuest((g) => ({ ...g, [field]: value }));
+
+  // ── Guest validity drives the disabled state (no red error messages — the
+  //    masks block bad keystrokes outright and the button gates progress).
+  const guestValid = useMemo(() => (
+    validateName(guest.first_name).ok
+    && validateName(guest.last_name).ok
+    && validatePhone(guest.phone).ok
+    && validatePassport(guest.passport_number).ok
+    && validateDOB(guest.date_of_birth, { minAge: 16 }).ok
+  ), [guest]);
+
+  // ── Checkout validity for the combined step.
+  const checkoutValid = Boolean(checkOut)
+    && checkOut > today
+    && nights > 0
+    && (!nextStart || checkOut <= nextStart)
+    && discountValue < (subtotal || Infinity);
+
+  const maxCheckout = nextStart || undefined;
 
   const next = () => {
-    if (!canAdvance()) {
-      if (step === 1) {
-        setErrors({ dates: "Check-out must be after check-in." });
-      }
-      return;
-    }
-    setErrors({});
+    if (step === 0 && !room) { toast.error("Please choose a room first."); return; }
+    if (step === 1 && !guestValid) { toast.error("Please complete the guest details."); return; }
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
   };
-  const back = () => {
-    setErrors({});
-    setStep((s) => Math.max(0, s - 1));
+  const back = () => setStep((s) => Math.max(0, s - 1));
+
+  const selectRoom = (r) => {
+    setRoom(r);
+    setCheckOut(""); // reset the checkout whenever the room changes
   };
 
-  const validateGuest = () => {
-    const e = {};
-    if (!guest.full_name.trim()) e.full_name = "Full name is required";
-    if (!guest.phone.trim()) e.phone = "Phone is required";
-    if (!guest.passport_number.trim()) e.passport_number = "Passport is required";
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const submit = (e) => {
-    e.preventDefault();
-    if (!validateGuest()) return;
+  const submit = (ev) => {
+    ev.preventDefault();
+    if (!guestValid) { toast.error("Please complete the guest details."); return; }
+    if (!checkoutValid) { toast.error("Please pick a valid checkout date."); return; }
     onSubmit({
-      full_name: guest.full_name.trim(),
-      phone: guest.phone.trim(),
-      passport_number: guest.passport_number.trim(),
+      full_name: `${validateName(guest.first_name).value} ${validateName(guest.last_name).value}`.trim(),
+      phone: validatePhone(guest.phone).value,
+      passport_number: validatePassport(guest.passport_number).value,
+      date_of_birth: guest.date_of_birth,
       room: Number(room.id),
+      room_number: room.room_number,
       branch: Number(room.branch),
-      check_in_date: dates.check_in_date,
-      check_out_date: dates.check_out_date,
+      check_in_date: today,
+      check_out_date: checkOut,
       price_at_booking: String(subtotal || 0),
       discount_amount: String(discountValue || 0),
+      method,
     });
   };
 
@@ -306,8 +417,8 @@ function BookingWizard({ onSubmit, loading = false, branchId = null }) {
     } else if (loadError) {
       body = (
         <div className="alert alert-error" style={{ display: "flex", justifyContent: "space-between" }}>
-          <span>Could not load available rooms.</span>
-          <Button type="button" variant="ghost" onClick={fetchRooms}>Retry</Button>
+          <span>Could not load rooms.</span>
+          <Button type="button" variant="secondary" onClick={fetchRooms}>Retry</Button>
         </div>
       );
     } else {
@@ -315,7 +426,8 @@ function BookingWizard({ onSubmit, loading = false, branchId = null }) {
         <RoomGrid
           rooms={rooms}
           selectedId={room?.id}
-          onSelect={(r) => setRoom(r)}
+          states={roomStates}
+          onSelect={selectRoom}
           onZoom={(r, startIndex) => setZoom({ room: r, startIndex })}
         />
       );
@@ -323,59 +435,94 @@ function BookingWizard({ onSubmit, loading = false, branchId = null }) {
   } else if (step === 1) {
     body = (
       <div className="wizard-pane">
+        <Input
+          label="First Name"
+          id="first_name"
+          value={guest.first_name}
+          onChange={(e) => updateGuest("first_name", formatNameInput(e.target.value))}
+          placeholder="e.g. Botir"
+          autoComplete="off"
+          required
+        />
+        <Input
+          label="Last Name"
+          id="last_name"
+          value={guest.last_name}
+          onChange={(e) => updateGuest("last_name", formatNameInput(e.target.value))}
+          placeholder="e.g. Aliyev"
+          autoComplete="off"
+          required
+        />
+        <Input
+          label="Phone"
+          id="phone"
+          type="tel"
+          inputMode="tel"
+          value={guest.phone}
+          onChange={(e) => updateGuest("phone", formatPhoneInput(e.target.value))}
+          onFocus={() => { if (!guest.phone) updateGuest("phone", "+998"); }}
+          placeholder="+998 90 123 45 67"
+          autoComplete="off"
+          required
+        />
+        <Input
+          label="Passport Number"
+          id="passport_number"
+          value={guest.passport_number}
+          onChange={(e) => updateGuest("passport_number", formatPassportInput(e.target.value))}
+          placeholder="e.g. AB1234567"
+          maxLength={9}
+          autoComplete="off"
+          required
+        />
+        <Input
+          label="Date of Birth"
+          id="date_of_birth"
+          type="date"
+          max={maxDOBForAge(16)}
+          value={guest.date_of_birth}
+          onChange={(e) => updateGuest("date_of_birth", e.target.value)}
+          required
+        />
+      </div>
+    );
+  } else {
+    body = (
+      <form onSubmit={submit} className="wizard-pane">
         <div className="wizard-room-summary">
           <div>
             <div className="wizard-room-summary__title">
               № {room.room_number} — {room.room_type_name || "Room"}
             </div>
-            {room.branch_name && (
-              <div className="wizard-room-summary__sub">{room.branch_name}</div>
-            )}
+            <div className="wizard-room-summary__sub">
+              Check-in: <strong>{fmtDMY(today)}</strong> (today)
+            </div>
           </div>
           <div className="wizard-room-summary__right">
             <div className="wizard-room-summary__price">
               {fmt(room.base_price)} <span>/ night</span>
             </div>
-            {roomImageUrls(room).length > 0 && (
-              <button
-                type="button"
-                className="wizard-room-summary__photos"
-                onClick={() => setZoom({ room, startIndex: 0 })}
-              >
-                View photos ({roomImageUrls(room).length})
-              </button>
-            )}
           </div>
         </div>
-        <div className="form-row">
-          <Input
-            label="Check-in Date"
-            id="check_in_date"
-            type="date"
-            value={dates.check_in_date}
-            onChange={(e) => setDates((d) => ({ ...d, check_in_date: e.target.value }))}
-            required
-          />
-          <Input
-            label="Check-out Date"
-            id="check_out_date"
-            type="date"
-            value={dates.check_out_date}
-            onChange={(e) => setDates((d) => ({ ...d, check_out_date: e.target.value }))}
-            required
-            error={errors.dates}
-          />
-        </div>
-        {nights > 0 && (
+
+        <Input
+          label="Check-out Date"
+          id="check_out_date"
+          type="date"
+          min={addDaysISO(today, 1)}
+          max={maxCheckout}
+          value={checkOut}
+          onChange={(e) => setCheckOut(e.target.value)}
+          required
+        />
+        {nextStart && (
           <p className="wizard-hint">
-            Stay length: <strong>{nights}</strong> night{nights === 1 ? "" : "s"}
+            Available up to <strong>{fmtDMY(nextStart)}</strong> (next guest&apos;s check-in).
           </p>
         )}
-      </div>
-    );
-  } else if (step === 2) {
-    body = (
-      <div className="wizard-pane">
+
+        <PaymentMethodSelect value={method} onChange={setMethod} />
+
         <div className="cost-summary">
           <div className="cost-summary__row">
             <span>Room № {room.room_number}</span>
@@ -389,12 +536,11 @@ function BookingWizard({ onSubmit, loading = false, branchId = null }) {
             <label htmlFor="discount">Discount</label>
             <input
               id="discount"
-              type="number"
+              type="text"
+              inputMode="numeric"
               className="input cost-summary__input"
-              value={discount}
-              onChange={(e) => setDiscount(e.target.value)}
-              min="0"
-              step="1000"
+              value={fmtMoney(discount)}
+              onChange={(e) => setDiscount(fmtMoney(e.target.value))}
               placeholder="0"
             />
           </div>
@@ -404,52 +550,11 @@ function BookingWizard({ onSubmit, loading = false, branchId = null }) {
             <span>{fmt(total)}</span>
           </div>
         </div>
-        {discountValue >= subtotal && subtotal > 0 && (
-          <p className="form-error">Discount cannot be greater than or equal to subtotal.</p>
-        )}
-      </div>
-    );
-  } else {
-    body = (
-      <form onSubmit={submit} className="wizard-pane">
-        <Input
-          label="Full Name"
-          id="full_name"
-          value={guest.full_name}
-          onChange={(e) => setGuest((g) => ({ ...g, full_name: e.target.value }))}
-          placeholder="e.g. Aliyev Botir"
-          required
-          error={errors.full_name}
-        />
-        <Input
-          label="Phone"
-          id="phone"
-          type="tel"
-          value={guest.phone}
-          onChange={(e) => setGuest((g) => ({ ...g, phone: e.target.value }))}
-          placeholder="+998 90 123 45 67"
-          required
-          error={errors.phone}
-        />
-        <Input
-          label="Passport Number"
-          id="passport_number"
-          value={guest.passport_number}
-          onChange={(e) => setGuest((g) => ({ ...g, passport_number: e.target.value }))}
-          placeholder="e.g. AA1234567"
-          required
-          error={errors.passport_number}
-        />
-        <div className="cost-summary cost-summary--compact">
-          <div className="cost-summary__row cost-summary__total">
-            <span>Total to charge</span>
-            <span>{fmt(total)}</span>
-          </div>
-        </div>
+
         <div className="form-actions wizard-actions">
-          <Button type="button" variant="ghost" onClick={back}>← Back</Button>
-          <Button type="submit" disabled={loading}>
-            {loading ? "Creating…" : "Confirm Booking"}
+          <Button type="button" variant="secondary" onClick={back}>← Back</Button>
+          <Button type="submit" disabled={loading || !checkoutValid}>
+            {loading ? "Creating…" : "Create Hold"}
           </Button>
         </div>
       </form>
@@ -464,9 +569,13 @@ function BookingWizard({ onSubmit, loading = false, branchId = null }) {
         {step < STEPS.length - 1 && (
           <div className="form-actions wizard-actions">
             {step > 0 && (
-              <Button type="button" variant="ghost" onClick={back}>← Back</Button>
+              <Button type="button" variant="secondary" onClick={back}>← Back</Button>
             )}
-            <Button type="button" onClick={next} disabled={!canAdvance()}>
+            <Button
+              type="button"
+              onClick={next}
+              disabled={(step === 0 && !room) || (step === 1 && !guestValid)}
+            >
               Next →
             </Button>
           </div>

@@ -69,12 +69,11 @@ def _account_roles(acc: Account) -> list[str]:
 
 
 def _income_matrix(branch_id: int, start: dt.date, end: dt.date) -> dict:
-    """Per-day totals — sourced from paid Bookings.
+    """Per-day totals sourced from paid Bookings.
 
-    Day/night attribution comes from the *Payment*'s ``payment_type``
-    proxy when available; otherwise the booking's full price is treated
-    as a single-row daily total. (Booking has no ``shift_type`` field —
-    the workbook layer infers it via shift assignments.)
+    Each row also carries per-method amounts from Payment records so the
+    frontend income table can display Card Transfer / Cash / QR / Terminal /
+    Telegram columns alongside the booking-based daily total.
     """
     bookings = (
         Booking.objects
@@ -89,12 +88,36 @@ def _income_matrix(branch_id: int, start: dt.date, end: dt.date) -> dict:
     for b in bookings:
         rows[b["check_in_date"]] += Decimal(b["final_price"] or 0)
 
+    # Per-method breakdown from Payment records
+    payments_qs = (
+        Payment.objects
+        .filter(
+            booking__branch_id=branch_id,
+            booking__status=Booking.BookingStatus.PAID,
+            booking__check_in_date__range=(start, end),
+            is_paid=True,
+        )
+        .values("booking__check_in_date", "method")
+        .annotate(total=Sum("amount"))
+    )
+    by_method: dict[dt.date, dict[str, Decimal]] = defaultdict(
+        lambda: defaultdict(lambda: Decimal("0"))
+    )
+    for p in payments_qs:
+        d = p["booking__check_in_date"]
+        m = (p["method"] or "cash").lower()
+        by_method[d][m] += Decimal(p["total"] or 0)
+
     grand = sum(rows.values(), Decimal("0"))
+    result_rows: list[dict[str, Any]] = []
+    for d in sorted(rows.keys()):
+        row_data: dict[str, Any] = {"date": d.isoformat(), "total": str(rows[d])}
+        for method, amt in by_method.get(d, {}).items():
+            row_data[method] = str(amt)
+        result_rows.append(row_data)
+
     return {
-        "rows": [
-            {"date": d.isoformat(), "total": str(rows[d])}
-            for d in sorted(rows.keys())
-        ],
+        "rows": result_rows,
         "totals": {"total": str(grand)},
     }
 
@@ -298,7 +321,7 @@ def _cash_sessions(branch_id: int, start: dt.date, end: dt.date) -> dict:
 
 def _occupancy(branch_id: int, start: dt.date, end: dt.date) -> dict:
     """Booked nights ÷ (rooms × days). Rooms = active rooms on branch."""
-    from apps.rooms.models import Room
+    from apps.branches.models import Room
     rooms = Room.objects.filter(branch_id=branch_id).count()
     days = (end - start).days + 1
     booked_nights = (

@@ -11,7 +11,17 @@ function ProtectedRoute({ children, requireRole }) {
   const location = useLocation();
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    const here = `${location.pathname}${location.search || ""}`;
+    const next = encodeURIComponent(here);
+    return <Navigate to={`/login?next=${next}`} replace state={{ from: here }} />;
+  }
+
+  // First-time accounts must finish registration before reaching any
+  // protected page.
+  if (user?.is_new && location.pathname !== "/register") {
+    const here = `${location.pathname}${location.search || ""}`;
+    const next = encodeURIComponent(here);
+    return <Navigate to={`/register?next=${next}`} replace />;
   }
 
   if (requireRole?.length) {

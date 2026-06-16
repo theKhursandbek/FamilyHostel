@@ -1,7 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import PropTypes from "prop-types";
 import Input from "./Input";
 import Button from "./Button";
+import PaymentMethodSelect from "./PaymentMethodSelect";
+import { getAvailability } from "../services/bookingService";
 
 const fmtMoney = (n) =>
   n === null || n === undefined ? "—" : `${Number(n).toLocaleString()} UZS`;
@@ -15,24 +17,37 @@ const nightsBetween = (a, b) => {
 /**
  * Extend an existing booking by pushing the check-out date later.
  *
- * The additional charge is auto-derived from the booking's per-night rate
- * (price_at_booking ÷ current nights) × extra nights, so the admin only
- * picks the new date.
+ * The extra-night charge is auto-derived from the booking's per-night rate and
+ * collected immediately via the chosen payment method.
  */
 function ExtendBookingForm({ booking, onSubmit, loading = false }) {
   const minDate = booking?.check_out_date || "";
   const [newDate, setNewDate] = useState("");
+  const [method, setMethod] = useState("cash");
   const [error, setError] = useState("");
+  // The next booking on this room caps how far we can extend.
+  const [nextStart, setNextStart] = useState(null);
+
+  useEffect(() => {
+    const roomId = booking?.room;
+    if (!roomId) return undefined;
+    let alive = true;
+    getAvailability(roomId, { exclude: booking.id, after: minDate })
+      .then((data) => { if (alive) setNextStart(data.next_booking_start || null); })
+      .catch(() => { if (alive) setNextStart(null); });
+    return () => { alive = false; };
+  }, [booking?.room, booking?.id, minDate]);
+
+  // If the very next night is already taken, the guest cannot extend at all.
+  const blockedByNext = Boolean(nextStart && nextStart <= minDate);
+  const maxDate = nextStart || "";
 
   const currentNights = useMemo(
     () => nightsBetween(booking.check_in_date, booking.check_out_date),
     [booking.check_in_date, booking.check_out_date],
   );
 
-  // Per-night rate with robust fallbacks (matches the card logic):
-  //   1. room.base_price (live source of truth)
-  //   2. price_at_booking ÷ current nights
-  //   3. final_price ÷ current nights
+  // Per-night rate with robust fallbacks (matches the card logic).
   const perNight = useMemo(() => {
     const base = Number(booking.room_base_price || 0);
     if (base > 0) return base;
@@ -58,55 +73,53 @@ function ExtendBookingForm({ booking, onSubmit, loading = false }) {
   else if (storedPrice > 0) currentFinal = Math.max(0, storedPrice - discount);
   else currentFinal = Math.max(0, perNight * currentNights - discount);
   const newFinal = currentFinal + additionalPrice;
+  const chargeNote = additionalPrice > 0 ? ` · ${fmtMoney(additionalPrice)}` : "";
+  const submitLabel = loading ? "Extending…" : `Pay & Extend${chargeNote}`;
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!newDate) {
-      setError("New check-out date is required");
+    if (blockedByNext) {
+      setError("The next night is already booked — this stay can't be extended.");
       return;
     }
-    if (newDate <= minDate) {
-      setError(`Must be after ${minDate}`);
+    if (!newDate) { setError("New check-out date is required"); return; }
+    if (newDate <= minDate) { setError(`Must be after ${minDate}`); return; }
+    if (maxDate && newDate > maxDate) {
+      setError(`Room is booked from ${maxDate} — choose an earlier date.`);
       return;
     }
-    if (missingRate) {
-      setError("Cannot determine per-night rate for this booking.");
-      return;
-    }
+    if (missingRate) { setError("Cannot determine per-night rate for this booking."); return; }
     setError("");
     onSubmit({
       new_check_out_date: newDate,
       additional_price: String(additionalPrice || 0),
+      method,
     });
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div
-        style={{
-          marginBottom: 16,
-          padding: "10px 14px",
-          background: "var(--brand-cream, #fdfbf6)",
-          border: "1px solid rgba(31,42,68,0.12)",
-          borderRadius: 8,
-          fontSize: 13,
-          color: "var(--brand-navy, #1f2a44)",
-          display: "grid",
-          gap: 2,
-        }}
-      >
-        <div><strong>Booking #{booking.id}</strong> — {booking.client_name}</div>
-        <div>Room {booking.room_number}</div>
-        <div>Current check-out: <strong>{minDate}</strong></div>
-        <div>
-          Per-night rate: <strong>{fmtMoney(perNight)}</strong>
-          {currentNights > 0 && (
-            <span style={{ color: "var(--text-muted, #6b7280)" }}>
-              {" "}· current stay: {currentNights} night{currentNights === 1 ? "" : "s"} = {fmtMoney(currentFinal)}
-            </span>
-          )}
+    <form onSubmit={handleSubmit} className="ext-form">
+      <div className="ext-form__summary">
+        <div className="ext-form__summary-row">
+          <span className="ext-form__guest">{booking.client_name || "Guest"}</span>
+          <span className="ext-form__id">#{booking.branch_number ?? booking.id}</span>
+        </div>
+        <div className="ext-form__summary-row ext-form__summary-row--muted">
+          <span>Room {booking.room_number}</span>
+          <span>Until {minDate}</span>
+        </div>
+        <div className="ext-form__summary-row ext-form__summary-row--muted">
+          <span>Per-night rate</span>
+          <span>{fmtMoney(perNight)}</span>
         </div>
       </div>
+
+      {blockedByNext && (
+        <div className="alert alert-error ext-form__alert">
+          The next night is already booked (guest checks in {nextStart}). This
+          booking can&apos;t be extended.
+        </div>
+      )}
 
       <Input
         label="New Check-out Date"
@@ -115,41 +128,40 @@ function ExtendBookingForm({ booking, onSubmit, loading = false }) {
         value={newDate}
         onChange={(e) => { setNewDate(e.target.value); setError(""); }}
         min={minDate}
+        max={maxDate || undefined}
+        disabled={blockedByNext}
         required
         error={error}
       />
+      {maxDate && !blockedByNext && (
+        <p className="wizard-hint">
+          Up to <strong>{maxDate}</strong> (next guest&apos;s check-in).
+        </p>
+      )}
+
+      <PaymentMethodSelect
+        value={method}
+        onChange={setMethod}
+        disabled={blockedByNext}
+        id="ext_paymethod"
+      />
 
       {extraNights > 0 && (
-        <div
-          style={{
-            marginTop: 4,
-            marginBottom: 16,
-            padding: "12px 14px",
-            background: "rgba(176,141,87,0.08)",
-            border: "1px solid rgba(176,141,87,0.3)",
-            borderRadius: 8,
-            fontSize: 13,
-            color: "var(--brand-navy, #1f2a44)",
-            display: "grid",
-            gap: 4,
-          }}
-        >
-          <div>
-            +{extraNights} extra night{extraNights === 1 ? "" : "s"} × {fmtMoney(perNight)} ={" "}
+        <div className="ext-form__charge">
+          <div className="ext-form__charge-row">
+            <span>+{extraNights} night{extraNights === 1 ? "" : "s"} × {fmtMoney(perNight)}</span>
             <strong>{fmtMoney(additionalPrice)}</strong>
           </div>
-          <div style={{ color: "var(--text-muted, #6b7280)" }}>
-            New total:{" "}
-            <strong style={{ color: "var(--brand-accent, #b08d57)" }}>
-              {fmtMoney(newFinal)}
-            </strong>
+          <div className="ext-form__charge-row ext-form__charge-row--total">
+            <span>New total</span>
+            <strong>{fmtMoney(newFinal)}</strong>
           </div>
         </div>
       )}
 
       <div className="form-actions">
-        <Button type="submit" disabled={loading || !newDate || extraNights <= 0}>
-          {loading ? "Extending…" : "Extend Booking"}
+        <Button type="submit" disabled={loading || blockedByNext || !newDate || extraNights <= 0}>
+          {submitLabel}
         </Button>
       </div>
     </form>
@@ -159,6 +171,8 @@ function ExtendBookingForm({ booking, onSubmit, loading = false }) {
 ExtendBookingForm.propTypes = {
   booking: PropTypes.shape({
     id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    branch_number: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    room: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     client_name: PropTypes.string,
     room_number: PropTypes.string,
     check_in_date: PropTypes.string.isRequired,

@@ -29,7 +29,7 @@ describe("Modal", () => {
         <p>Body</p>
       </Modal>
     );
-    fireEvent.click(screen.getByText("✕"));
+    fireEvent.click(screen.getByLabelText("Close"));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

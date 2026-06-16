@@ -18,11 +18,12 @@ from unittest.mock import patch
 import pytest
 from django.core.exceptions import ValidationError
 from django.urls import reverse
-from PIL import Image
+from PIL import Image, ImageDraw
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.test import APIClient
 
+from apps.cleaning.ai.gemini import AIVerdict
 from apps.cleaning.models import AIResult, CleaningImage, CleaningTask
 from apps.cleaning.services import (
     analyze_cleaning_images,
@@ -41,14 +42,50 @@ from conftest import DirectorFactory, RoomFactory, StaffFactory
 # ==============================================================================
 
 
-def _create_test_image(name: str = "test.jpg") -> io.BytesIO:
-    """Create a minimal in-memory JPEG for upload tests."""
-    img = Image.new("RGB", (100, 100), color="blue")
+def _create_test_image(name: str = "test.jpg", seed: int = 0) -> io.BytesIO:
+    """Create a small JPEG with seed-distinct content (distinct pHash)."""
+    img = Image.new("RGB", (128, 128), color=(18, 18, 18))
+    draw = ImageDraw.Draw(img)
+    x = (seed * 17) % 80
+    y = (seed * 29) % 80
+    draw.rectangle([x, y, x + 40, y + 40], fill=(235, 235, 235))
     buf = io.BytesIO()
     img.save(buf, format="JPEG")
     buf.seek(0)
     buf.name = name
     return buf
+
+
+def _zone_payload(zones=None) -> dict:
+    """Build a valid multipart payload: parallel images[] + zones[] lists."""
+    zones = list(zones or CleaningImage.REQUIRED_ZONES)
+    images = [_create_test_image(f"{z}.jpg", seed=i + 1) for i, z in enumerate(zones)]
+    return {"images": images, "zones": zones}
+
+
+def _approved_verdict(summary: str = "All zones clean and guest-ready.") -> AIVerdict:
+    """A controllable APPROVED verdict for patching gemini.analyze."""
+    return AIVerdict(
+        result="approved",
+        summary=summary,
+        zones=[
+            {"zone": z, "clean": True, "issues": []}
+            for z in CleaningImage.REQUIRED_ZONES
+        ],
+        confidence=0.95,
+        model_version="test-model",
+    )
+
+
+def _rejected_verdict(summary: str = "Trash left on the floor.") -> AIVerdict:
+    """A controllable REJECTED verdict for patching gemini.analyze."""
+    return AIVerdict(
+        result="rejected",
+        summary=summary,
+        zones=[{"zone": "floor", "clean": False, "issues": ["trash on floor"]}],
+        confidence=0.91,
+        model_version="test-model",
+    )
 
 
 # ==============================================================================
@@ -166,27 +203,32 @@ class TestOverrideTaskService:
 
 @pytest.mark.django_db
 class TestAnalyzeCleaningImagesService:
-    """Tests for analyze_cleaning_images() stub."""
+    """Tests for the analyze_cleaning_images() shim (delegates to Gemini)."""
 
     def test_no_images_returns_rejected(self, room, branch):
+        # No photos at all -> the analyser fails closed (rejected).
         task = create_cleaning_task(room=room, branch=branch)
         result, feedback = analyze_cleaning_images(task)
         assert result == AIResult.Result.REJECTED
-        assert "No images" in feedback
+        assert feedback  # a human-readable reason is always provided
 
     def test_with_images_returns_approved(self, room, branch, staff_profile):
         task = create_cleaning_task(room=room, branch=branch)
         assign_task_to_staff(task=task, staff_profile=staff_profile)
-        # Create a CleaningImage with a dummy image
-        img = _create_test_image()
         from django.core.files.uploadedfile import SimpleUploadedFile
 
-        uploaded = SimpleUploadedFile("test.jpg", img.read(), content_type="image/jpeg")
-        CleaningImage.objects.create(task=task, image=uploaded)
+        uploaded = SimpleUploadedFile(
+            "bed.jpg", _create_test_image(seed=1).read(), content_type="image/jpeg",
+        )
+        CleaningImage.objects.create(task=task, image=uploaded, zone="bed")
 
-        result, feedback = analyze_cleaning_images(task)
+        with patch(
+            "apps.cleaning.ai.gemini.analyze", return_value=_approved_verdict(),
+        ):
+            result, feedback = analyze_cleaning_images(task)
+
         assert result == AIResult.Result.APPROVED
-        assert "1 image" in feedback
+        assert feedback == "All zones clean and guest-ready."
 
 
 # ==============================================================================
@@ -216,16 +258,20 @@ class TestAnalyzeCleaningImagesTask:
 
         from django.core.files.uploadedfile import SimpleUploadedFile
 
-        img = _create_test_image()
-        uploaded = SimpleUploadedFile("photo.jpg", img.read(), content_type="image/jpeg")
-        CleaningImage.objects.create(task=task, image=uploaded)
+        uploaded = SimpleUploadedFile(
+            "bed.jpg", _create_test_image(seed=2).read(), content_type="image/jpeg",
+        )
+        CleaningImage.objects.create(task=task, image=uploaded, zone="bed")
 
-        result = analyze_cleaning_images_task(task.pk)
+        with patch(
+            "apps.cleaning.ai.gemini.analyze", return_value=_approved_verdict(),
+        ):
+            result = analyze_cleaning_images_task(task.pk)
         assert result["result"] == "approved"
 
-        # Task should NOT be retry_required (approved)
+        # AI approval auto-completes the task (anti-cheat: no manual staff step).
         task.refresh_from_db()
-        assert task.status != CleaningTask.TaskStatus.RETRY_REQUIRED
+        assert task.status == CleaningTask.TaskStatus.COMPLETED
 
     def test_task_not_found(self):
         result = analyze_cleaning_images_task(99999)
@@ -249,15 +295,14 @@ class TestImageUploadEndpoint:
         assign_task_to_staff(task=task, staff_profile=staff_profile)
 
         url = reverse("cleaning:cleaning-task-upload", args=[task.pk])
-        img = _create_test_image()
         with patch("apps.cleaning.views.analyze_cleaning_images_task") as mock_ai:
             mock_ai.delay = lambda pk: None
             response: Response = staff_client.post(  # type: ignore[assignment]
-                url, {"images": [img]}, format="multipart",
+                url, _zone_payload(), format="multipart",
             )
 
         assert response.status_code == status.HTTP_201_CREATED
-        assert CleaningImage.objects.filter(task=task).count() == 1
+        assert CleaningImage.objects.filter(task=task).count() == 4
 
     def test_upload_multiple_images(self, staff_client, staff_profile, room, branch):
         staff_profile.branch = branch
@@ -266,15 +311,15 @@ class TestImageUploadEndpoint:
         assign_task_to_staff(task=task, staff_profile=staff_profile)
 
         url = reverse("cleaning:cleaning-task-upload", args=[task.pk])
-        images = [_create_test_image(f"img{i}.jpg") for i in range(3)]
+        payload = _zone_payload(["bed", "bathroom", "floor", "trash", "extra"])
         with patch("apps.cleaning.views.analyze_cleaning_images_task") as mock_ai:
             mock_ai.delay = lambda pk: None
             response: Response = staff_client.post(  # type: ignore[assignment]
-                url, {"images": images}, format="multipart",
+                url, payload, format="multipart",
             )
 
         assert response.status_code == status.HTTP_201_CREATED
-        assert CleaningImage.objects.filter(task=task).count() == 3
+        assert CleaningImage.objects.filter(task=task).count() == 5
 
     def test_upload_rejected_for_pending_task(self, staff_client, staff_profile, room, branch):
         staff_profile.branch = branch
@@ -282,9 +327,8 @@ class TestImageUploadEndpoint:
         task = create_cleaning_task(room=room, branch=branch)
         # Task is pending, not assigned — cannot upload
         url = reverse("cleaning:cleaning-task-upload", args=[task.pk])
-        img = _create_test_image()
         response: Response = staff_client.post(  # type: ignore[assignment]
-            url, {"images": [img]}, format="multipart",
+            url, _zone_payload(), format="multipart",
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
@@ -298,9 +342,8 @@ class TestImageUploadEndpoint:
 
         api_client.force_authenticate(user=staff_profile.account)
         url = reverse("cleaning:cleaning-task-upload", args=[task.pk])
-        img = _create_test_image()
         response: Response = api_client.post(  # type: ignore[assignment]
-            url, {"images": [img]}, format="multipart",
+            url, _zone_payload(), format="multipart",
         )
         # Object-level permission denies access (not assigned to this task)
         assert response.status_code == status.HTTP_403_FORBIDDEN
@@ -360,17 +403,22 @@ class TestOverrideEndpoint:
         assert response.data["override_reason"] == "VIP guest arriving soon"  # type: ignore[index]
         assert response.data["overridden_by"] == director_profile.account.pk  # type: ignore[index]
 
-    def test_override_requires_reason(self, director_client, room, branch):
+    def test_override_without_reason_succeeds(self, director_client, room, branch):
+        # "Mark Cleaned" reason is OPTIONAL — posting none still completes.
         task = create_cleaning_task(room=room, branch=branch)
         url = reverse("cleaning:cleaning-task-override", args=[task.pk])
         response: Response = director_client.post(url, {})  # type: ignore[assignment]
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["status"] == "completed"  # type: ignore[index]
+        assert response.data["override_reason"] == ""  # type: ignore[index]
 
-    def test_override_reason_min_length(self, director_client, room, branch):
+    def test_override_short_reason_accepted(self, director_client, room, branch):
+        # No minimum length anymore — any (or no) note is accepted.
         task = create_cleaning_task(room=room, branch=branch)
         url = reverse("cleaning:cleaning-task-override", args=[task.pk])
         response: Response = director_client.post(url, {"reason": "ab"})  # type: ignore[assignment]
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["override_reason"] == "ab"  # type: ignore[index]
 
     def test_staff_cannot_override(self, staff_client, staff_profile, room, branch):
         staff_profile.branch = branch
@@ -382,13 +430,15 @@ class TestOverrideEndpoint:
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    def test_admin_cannot_override(self, admin_client, room, branch):
+    def test_admin_can_override(self, admin_client, room, branch):
+        # "Mark Cleaned" is now an Admin+ supervisor power.
         task = create_cleaning_task(room=room, branch=branch)
         url = reverse("cleaning:cleaning-task-override", args=[task.pk])
         response: Response = admin_client.post(  # type: ignore[assignment]
-            url, {"reason": "Admin trying to override"},
+            url, {"reason": "Admin marking cleaned"},
         )
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["status"] == "completed"  # type: ignore[index]
 
     def test_override_already_completed_fails(
         self, director_client, staff_profile, room, branch,
@@ -413,25 +463,30 @@ class TestOverrideEndpoint:
 class TestTaskStatusFlow:
     """Test the complete lifecycle of a cleaning task."""
 
-    def test_happy_path(self, staff_client, staff_profile, room, branch):
-        """pending → in_progress → completed"""
+    def test_happy_path(self, staff_client, staff_profile, director_profile, room, branch):
+        """pending → in_progress (staff) → completed (supervisor)."""
         staff_profile.branch = branch
         staff_profile.save()
 
         task = create_cleaning_task(room=room, branch=branch)
         assert task.status == "pending"
 
-        # Assign
+        # Staff self-assigns
         assign_url = reverse("cleaning:cleaning-task-assign", args=[task.pk])
         resp = staff_client.post(assign_url)
         assert resp.data["status"] == "in_progress"
 
-        # Complete
+        # Staff can no longer self-complete (anti-cheat) — a supervisor does.
         complete_url = reverse("cleaning:cleaning-task-complete", args=[task.pk])
+        denied = staff_client.post(complete_url)
+        assert denied.status_code == status.HTTP_403_FORBIDDEN
+
+        # Re-auth the shared client as a director and complete.
+        staff_client.force_authenticate(user=director_profile.account)
         resp = staff_client.post(complete_url)
         assert resp.data["status"] == "completed"
 
-    def test_retry_path(self, staff_client, staff_profile, room, branch):
+    def test_retry_path(self, staff_client, staff_profile, director_profile, room, branch):
         """pending → in_progress → retry_required → in_progress → completed"""
         staff_profile.branch = branch
         staff_profile.save()
@@ -453,7 +508,8 @@ class TestTaskStatusFlow:
         assert resp.data["status"] == "in_progress"
         assert resp.data["retry_count"] == 1
 
-        # Complete after retry
+        # Complete after retry — supervisor (re-auth shared client as director).
+        staff_client.force_authenticate(user=director_profile.account)
         complete_url = reverse("cleaning:cleaning-task-complete", args=[task.pk])
         resp = staff_client.post(complete_url)
         assert resp.data["status"] == "completed"

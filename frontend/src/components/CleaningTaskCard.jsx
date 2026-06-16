@@ -1,11 +1,13 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import PropTypes from "prop-types";
+import { AlertTriangle } from "lucide-react";
 import Button from "./Button";
-import { useToast } from "../context/ToastContext";
+import CameraCapture from "./CameraCapture";
 
 const STATUS_LABELS = {
   pending: "Pending",
   in_progress: "In Progress",
+  ai_checking: "AI Checking…",
   completed: "Completed",
   retry_required: "Retry Required",
 };
@@ -13,6 +15,7 @@ const STATUS_LABELS = {
 const STATUS_TONE = {
   pending: "is-pending",
   in_progress: "is-progress",
+  ai_checking: "is-checking",
   completed: "is-completed",
   retry_required: "is-retry",
 };
@@ -23,6 +26,16 @@ const PRIORITY_LABELS = {
   high: "High",
 };
 
+/** Pull the latest AI result's per-zone issues for retry feedback. */
+function latestRejectionFeedback(task) {
+  const results = task.ai_results || [];
+  if (results.length === 0) return null;
+  const latest = results[0];
+  if (latest.result !== "rejected") return null;
+  const dirtyZones = (latest.zones || []).filter((z) => z?.clean === false);
+  return { summary: latest.feedback_text || "", zones: dirtyZones };
+}
+
 function CleaningTaskCard({
   task,
   isStaff = false,
@@ -30,7 +43,6 @@ function CleaningTaskCard({
   canManage = false,
   canOverride = false,
   onAssign,
-  onComplete,
   onUpload,
   onRetry,
   onOverride,
@@ -39,24 +51,19 @@ function CleaningTaskCard({
   onDelete,
   actionLoading,
 }) {
-  const fileRef = useRef(null);
-  const toast = useToast();
   const [overrideReason, setOverrideReason] = useState("");
   const [showOverrideInput, setShowOverrideInput] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   const isActionLoading = actionLoading === task.id;
 
-  const handleFileChange = (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length > 0) onUpload(task.id, files);
-    e.target.value = "";
+  const handleCameraSubmit = (items) => {
+    onUpload(task.id, items);
+    setCameraOpen(false);
   };
 
   const handleOverrideSubmit = () => {
-    if (overrideReason.trim().length < 5) {
-      toast.warning("Reason must be at least 5 characters");
-      return;
-    }
+    // Reason is OPTIONAL for "Mark Cleaned".
     onOverride(task.id, overrideReason.trim());
     setShowOverrideInput(false);
     setOverrideReason("");
@@ -64,6 +71,8 @@ function CleaningTaskCard({
 
   const tone = STATUS_TONE[task.status] || "is-pending";
   const isRetry = task.status === "retry_required";
+  const isChecking = task.status === "ai_checking";
+  const rejection = isRetry ? latestRejectionFeedback(task) : null;
 
   return (
     <article className={`clean-card ${tone}${isRetry ? " is-attention" : ""}`}>
@@ -120,18 +129,35 @@ function CleaningTaskCard({
 
       {isRetry && (
         <div className="clean-card__alert">
-          <span aria-hidden>⚠️</span>
-          <span>AI rejected the result — re-clean the room and submit new photos.</span>
+          <span aria-hidden><AlertTriangle size={16} strokeWidth={2} /></span>
+          <div className="clean-card__alert-body">
+            <span>{rejection?.summary || "AI rejected the result — re-clean the room and submit new photos."}</span>
+            {rejection?.zones?.length > 0 && (
+              <ul className="clean-card__alert-zones">
+                {rejection.zones.map((z) => (
+                  <li key={z.zone}>
+                    <strong style={{ textTransform: "capitalize" }}>{z.zone}:</strong>{" "}
+                    {(z.issues || []).join(", ") || "needs attention"}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
 
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        multiple
-        style={{ display: "none" }}
-        onChange={handleFileChange}
+      {isChecking && (
+        <div className="clean-card__checking">
+          <span className="clean-card__spinner" aria-hidden />
+          <span>AI is verifying your photos…</span>
+        </div>
+      )}
+
+      <CameraCapture
+        isOpen={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onSubmit={handleCameraSubmit}
+        submitting={isActionLoading}
       />
 
       <div className="clean-card__actions">
@@ -142,20 +168,15 @@ function CleaningTaskCard({
           </Button>
         )}
 
+        {/* Camera-only submission. No file picker, no staff "Complete":
+            AI approval is the only staff path to done (anti-cheat). */}
         {isStaff && (task.status === "in_progress" || task.status === "retry_required") && (
           <Button
-            variant="secondary"
             size="sm"
             disabled={isActionLoading}
-            onClick={() => fileRef.current?.click()}
+            onClick={() => setCameraOpen(true)}
           >
-            Upload Photos
-          </Button>
-        )}
-
-        {isStaff && (task.status === "in_progress" || task.status === "retry_required") && (
-          <Button size="sm" disabled={isActionLoading} onClick={() => onComplete(task.id)}>
-            {isActionLoading ? "…" : "Complete"}
+            📷 Clean Room
           </Button>
         )}
 
@@ -171,17 +192,16 @@ function CleaningTaskCard({
         )}
 
         {/* ---- Admin / Director / SuperAdmin buttons --------------------- */}
-        {/* Override is the admin's force-approve path — mutually exclusive
-            with the staff Complete button (staff finishes the normal flow,
-            admin overrides only when the AI / staff workflow is stuck). */}
-        {!isStaff && (canOverride || isDirector) && task.status !== "completed" && task.status !== "pending" && !showOverrideInput && (
+        {/* "Mark Cleaned" is the supervisor force-complete path (reason
+            optional), available even over a negative AI verdict. */}
+        {!isStaff && (canOverride || isDirector || canManage) && task.status !== "completed" && task.status !== "pending" && !showOverrideInput && (
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
             disabled={isActionLoading}
             onClick={() => setShowOverrideInput(true)}
           >
-            Override
+            Mark Cleaned
           </Button>
         )}
 
@@ -189,7 +209,7 @@ function CleaningTaskCard({
             staff member is already assigned / working). */}
         {canManage && onEdit && task.status !== "completed" && (
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
             disabled={isActionLoading}
             onClick={() => onEdit(task)}
@@ -209,7 +229,7 @@ function CleaningTaskCard({
           </Button>
         )}
 
-        <Button variant="ghost" size="sm" onClick={() => onViewDetail(task.id)}>
+        <Button variant="secondary" size="sm" onClick={() => onViewDetail(task.id)}>
           Details →
         </Button>
       </div>
@@ -218,7 +238,7 @@ function CleaningTaskCard({
         <div className="clean-card__override">
           <div style={{ flex: 1 }}>
             <label htmlFor={`override-reason-${task.id}`} className="label" style={{ fontSize: 12 }}>
-              Override reason (min 5 chars)
+              Note (optional)
             </label>
             <input
               id={`override-reason-${task.id}`}
@@ -226,14 +246,14 @@ function CleaningTaskCard({
               className="input"
               value={overrideReason}
               onChange={(e) => setOverrideReason(e.target.value)}
-              placeholder="Reason for overriding AI decision..."
+              placeholder="Optional reason for marking cleaned…"
             />
           </div>
           <Button size="sm" disabled={isActionLoading} onClick={handleOverrideSubmit}>
             Confirm
           </Button>
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
             onClick={() => {
               setShowOverrideInput(false);
@@ -258,13 +278,13 @@ CleaningTaskCard.propTypes = {
     priority: PropTypes.string,
     assigned_to_name: PropTypes.string,
     retry_count: PropTypes.number,
+    ai_results: PropTypes.array,
   }).isRequired,
   isDirector: PropTypes.bool,
   isStaff: PropTypes.bool,
   canManage: PropTypes.bool,
   canOverride: PropTypes.bool,
   onAssign: PropTypes.func.isRequired,
-  onComplete: PropTypes.func.isRequired,
   onUpload: PropTypes.func.isRequired,
   onRetry: PropTypes.func.isRequired,
   onOverride: PropTypes.func.isRequired,

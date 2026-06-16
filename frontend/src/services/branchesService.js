@@ -77,7 +77,7 @@ export async function deleteRoomType(id) {
 
 // Rooms ---------------------------------------------------------------------
 export async function listRooms(params = {}) {
-  const { data } = await api.get(ROOMS, { params });
+  const { data } = await api.get(ROOMS, { params: { page_size: 1000, ...params } });
   return unwrapList(data);
 }
 

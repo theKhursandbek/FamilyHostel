@@ -89,7 +89,7 @@ function MonthlyAdjustmentsPanel({ branchId, canEdit }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.account) { toast.warning("Select an employee"); return; }
-    if (!form.amount || Number(form.amount) <= 0) {
+    if (!form.amount || Number(rawMoney(form.amount)) <= 0) {
       toast.warning("Amount must be greater than zero"); return;
     }
     if (!form.reason.trim()) { toast.warning("Reason is required"); return; }
@@ -101,7 +101,7 @@ function MonthlyAdjustmentsPanel({ branchId, canEdit }) {
         year: Number(year),
         month: Number(month),
         kind: modalKind,
-        amount: form.amount,
+        amount: rawMoney(form.amount),
         reason: form.reason.trim(),
       });
       toast.success(
@@ -311,12 +311,11 @@ function MonthlyAdjustmentsPanel({ branchId, canEdit }) {
           </div>
           <Input
             label="Amount *"
-            type="number"
-            value={form.amount}
-            onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))}
+            type="text"
+            inputMode="numeric"
+            value={fmtMoney(form.amount)}
+            onChange={(e) => setForm((p) => ({ ...p, amount: fmtMoney(e.target.value) }))}
             required
-            min="0"
-            step="1000"
           />
           <Input
             label="Reason *"

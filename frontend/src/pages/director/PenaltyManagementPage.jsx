@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { fmtMoney, rawMoney } from "../../utils/moneyInput";
 import { getPenalties, createPenalty, deletePenalty, getAccounts } from "../../services/directorService";
 import { useToast } from "../../context/ToastContext";
 import Button from "../../components/Button";
@@ -50,7 +51,7 @@ function PenaltyManagementPage() {
       const payload = {
         account: Number(form.account),
         count: Number(form.count) || 1,
-        penalty_amount: form.penalty_amount,
+        penalty_amount: rawMoney(form.penalty_amount),
         reason: form.reason.trim(),
       };
       // ``type`` is optional per Phase 3 (REFACTOR_PLAN_2026_04 §2.1) — only
@@ -175,7 +176,7 @@ function PenaltyManagementPage() {
           </div>
 
           <Input label="Count" type="number" value={form.count} onChange={(e) => setForm((p) => ({ ...p, count: e.target.value }))} min="1" />
-          <Input label="Amount" type="number" value={form.penalty_amount} onChange={(e) => setForm((p) => ({ ...p, penalty_amount: e.target.value }))} required min="0" step="1000" />
+          <Input label="Amount" type="text" inputMode="numeric" value={fmtMoney(form.penalty_amount)} onChange={(e) => setForm((p) => ({ ...p, penalty_amount: fmtMoney(e.target.value) }))} required />
           <Input
             label="Reason *"
             value={form.reason}

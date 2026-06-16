@@ -307,13 +307,8 @@ def get_super_admin_dashboard() -> dict:
         retry=Count("id", filter=Q(status="retry_required")),
     )
 
-    # Recent suspicious activity blocks (Step 21.2 integration)
-    from apps.accounts.models import SuspiciousActivity
-
-    active_blocks = SuspiciousActivity.objects.filter(
-        is_blocked=True,
-        blocked_until__gt=timezone.now(),
-    ).count()
+    # Suspicious-activity tracking has been removed; always 0.
+    active_blocks = 0
 
     return {
         "branches": branches_agg,

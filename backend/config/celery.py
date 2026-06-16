@@ -23,6 +23,16 @@ app.config_from_object("django.conf:settings", namespace="CELERY")
 # Auto-discover tasks.py in all INSTALLED_APPS
 app.autodiscover_tasks()
 
+# Periodic tasks (Celery beat)
+app.conf.beat_schedule = {
+    # Plan §8 D12 — cancel expired booking/extension drafts every 2 minutes
+    # so abandoned PaymentIntents don't drift around in Stripe.
+    "reap-stale-drafts": {
+        "task": "payments.reap_stale_drafts",
+        "schedule": 120.0,
+    },
+}
+
 
 @app.task(bind=True, ignore_result=True)
 def debug_task(self):

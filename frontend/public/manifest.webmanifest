@@ -1,0 +1,21 @@
+{
+  "name": "Hotel",
+  "short_name": "Hotel",
+  "description": "Hotel staff workspace — cleaning tasks, attendance, salary and day-off requests.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "id": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f7f4ee",
+  "theme_color": "#1f2a44",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

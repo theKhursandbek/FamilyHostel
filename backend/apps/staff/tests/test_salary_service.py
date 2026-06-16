@@ -53,8 +53,12 @@ from conftest import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-PERIOD_START = datetime.date(2026, 4, 1)
-PERIOD_END = datetime.date(2026, 4, 30)
+_TODAY = datetime.date.today()
+PERIOD_START = _TODAY.replace(day=1)
+if _TODAY.month == 12:
+    PERIOD_END = datetime.date(_TODAY.year + 1, 1, 1) - datetime.timedelta(days=1)
+else:
+    PERIOD_END = datetime.date(_TODAY.year, _TODAY.month + 1, 1) - datetime.timedelta(days=1)
 
 
 def _create_settings(
@@ -199,7 +203,7 @@ class TestCalculateIncomeBonus:
 
         # Income rule: 0–1,000,000 → 5%
         IncomeRule.objects.create(
-            branch=branch, shift_type="day",
+            branch=branch,
             min_income=Decimal("0"), max_income=Decimal("1000000"),
             percent=Decimal("5"),
         )
@@ -223,7 +227,7 @@ class TestCalculateIncomeBonus:
         )
         # Rule range doesn't cover 5,000,000
         IncomeRule.objects.create(
-            branch=branch, shift_type="day",
+            branch=branch,
             min_income=Decimal("0"), max_income=Decimal("1000000"),
             percent=Decimal("5"),
         )
@@ -252,12 +256,12 @@ class TestCalculateIncomeBonus:
         )
 
         IncomeRule.objects.create(
-            branch=branch_a, shift_type="day",
+            branch=branch_a,
             min_income=Decimal("0"), max_income=Decimal("1000000"),
             percent=Decimal("3"),
         )
         IncomeRule.objects.create(
-            branch=branch_b, shift_type="night",
+            branch=branch_b,
             min_income=Decimal("0"), max_income=Decimal("1000000"),
             percent=Decimal("4"),
         )
@@ -389,7 +393,7 @@ class TestCalculateSalaryBreakdown:
 
         # Rule: 0 – 5,000,000 → 3%
         IncomeRule.objects.create(
-            branch=branch, shift_type="day",
+            branch=branch,
             min_income=Decimal("0"), max_income=Decimal("5000000"),
             percent=Decimal("3"),
         )
@@ -571,7 +575,7 @@ class TestDirectorSalary:
         )
 
         IncomeRule.objects.create(
-            branch=branch, shift_type="day",
+            branch=branch,
             min_income=Decimal("0"), max_income=Decimal("5000000"),
             percent=Decimal("5"),
         )
@@ -705,7 +709,7 @@ class TestEdgeCases:
 
         # Income rule: 0–5M → 4%
         IncomeRule.objects.create(
-            branch=branch, shift_type="day",
+            branch=branch,
             min_income=Decimal("0"), max_income=Decimal("5000000"),
             percent=Decimal("4"),
         )
@@ -809,20 +813,16 @@ class TestEdgeCases:
             status="paid",
         )
 
+        # Single rule — shift_type was removed from IncomeRule in migration 0007.
         IncomeRule.objects.create(
-            branch=branch, shift_type="day",
+            branch=branch,
             min_income=Decimal("0"), max_income=Decimal("5000000"),
             percent=Decimal("3"),
-        )
-        IncomeRule.objects.create(
-            branch=branch, shift_type="night",
-            min_income=Decimal("0"), max_income=Decimal("5000000"),
-            percent=Decimal("2"),
         )
 
         breakdown = calculate_salary_breakdown(account.pk, PERIOD_START, PERIOD_END)
 
         assert breakdown["shift_pay"] == Decimal("200000")
-        # Day: 1M × 3% = 30,000, Night: 1M × 2% = 20,000
-        assert breakdown["income_bonus"] == Decimal("50000")
-        assert breakdown["total"] == Decimal("250000")
+        # Branch income 1M × 3% = 30,000
+        assert breakdown["income_bonus"] == Decimal("30000")
+        assert breakdown["total"] == Decimal("230000")

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { fmtMoney, rawMoney } from "../../utils/moneyInput";
 import {
   listBranches,
   createBranch,
@@ -83,6 +84,7 @@ function BranchesPage() {
     setEditing(null);
     if (kind === "branch") setForm({
       name: "", location: "", is_active: true, image_file: null,
+      location_code: "other", location_label: "",
       working_days_per_month: 26, monthly_expense_limit: "0",
     });
     if (kind === "room-type") setForm({ name: "" });
@@ -107,11 +109,13 @@ function BranchesPage() {
     if (kind === "branch") setForm({
       name: row.name,
       location: row.location || "",
+      location_code: row.location_code || "other",
+      location_label: row.location_label || "",
       is_active: row.is_active,
       image_file: null,
       existing_image_url: row.image_url || null,
       working_days_per_month: row.working_days_per_month ?? 26,
-      monthly_expense_limit: row.monthly_expense_limit ?? "0",
+      monthly_expense_limit: fmtMoney(row.monthly_expense_limit ?? "0"),
     });
     if (kind === "room-type") setForm({ name: row.name });
     if (kind === "room") setForm({
@@ -132,9 +136,11 @@ function BranchesPage() {
     const payload = {
       name: form.name.trim(),
       location: form.location.trim(),
+      location_code: form.location_code || "other",
+      location_label: (form.location_label || "").trim(),
       is_active: form.is_active,
       working_days_per_month: Number(form.working_days_per_month) || 26,
-      monthly_expense_limit: String(form.monthly_expense_limit ?? "0"),
+      monthly_expense_limit: rawMoney(form.monthly_expense_limit) || "0",
     };
     if (editing) await updateBranch(editing.id, payload, form.image_file || null);
     else await createBranch(payload, form.image_file || null);
@@ -230,13 +236,36 @@ function BranchesPage() {
         {modalKind === "branch" && (
           <>
             <Input id="b-name" label="Name" value={form.name || ""} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
-            <Input id="b-location" label="Location" value={form.location || ""} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} />
+            <div className="form-group">
+              <label className="label" htmlFor="b-region">Region (Tashkent district)</label>
+              <Select
+                id="b-region"
+                value={form.location_code || "other"}
+                onChange={(v) => setForm((f) => ({ ...f, location_code: v }))}
+                options={[
+                  { value: "chilanzar",     label: "Chilanzar" },
+                  { value: "yunusabad",     label: "Yunusabad" },
+                  { value: "mirzo_ulugbek", label: "Mirzo Ulugʻbek" },
+                  { value: "sergeli",       label: "Sergeli" },
+                  { value: "shayhantahur",  label: "Shayhantahur" },
+                  { value: "yashnabad",     label: "Yashnabad" },
+                  { value: "mirobod",       label: "Mirobod" },
+                  { value: "uchtepa",       label: "Uchtepa" },
+                  { value: "bektemir",      label: "Bektemir" },
+                  { value: "olmazar",       label: "Olmazar" },
+                  { value: "yakkasaray",    label: "Yakkasaray" },
+                  { value: "samarqand",     label: "Samarqand" },
+                  { value: "other",         label: "Other" },
+                ]}
+              />
+            </div>
+            <Input id="b-location" label="Street / building (free text)" value={form.location || ""} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} />
             <Input id="b-wdays" type="number" min="1" max="31" label="Working days / month"
               value={form.working_days_per_month ?? 26}
               onChange={(e) => setForm((f) => ({ ...f, working_days_per_month: e.target.value }))} />
-            <Input id="b-limit" type="number" min="0" step="10000" label="Monthly expense limit (сум)"
-              value={form.monthly_expense_limit ?? "0"}
-              onChange={(e) => setForm((f) => ({ ...f, monthly_expense_limit: e.target.value }))} />
+            <Input id="b-limit" type="text" inputMode="numeric" label="Monthly expense limit (сум)"
+              value={fmtMoney(form.monthly_expense_limit ?? "0")}
+              onChange={(e) => setForm((f) => ({ ...f, monthly_expense_limit: fmtMoney(e.target.value) }))} />
             <div className="form-group">
               <label className="label" htmlFor="b-image">Branch image</label>
               <input
@@ -388,7 +417,7 @@ function BranchesPage() {
         )}
 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
-          <Button variant="ghost" type="button" onClick={closeModal}>Cancel</Button>
+          <Button variant="secondary" type="button" onClick={closeModal}>Cancel</Button>
           <Button type="submit" disabled={saving}>{saving ? "Saving…" : submitLabel}</Button>
         </div>
       </form>
@@ -422,7 +451,7 @@ function BranchesPage() {
               <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", border: "1px solid var(--border)", borderRadius: 8 }}>
                 <span>{t.name}</span>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <Button size="sm" variant="ghost" onClick={() => { setTypesModalOpen(false); openEdit("room-type", t); }}>Edit</Button>
+                  <Button size="sm" variant="secondary" onClick={() => { setTypesModalOpen(false); openEdit("room-type", t); }}>Edit</Button>
                   <Button
                     size="sm"
                     variant="danger"
@@ -448,7 +477,7 @@ function BranchesPage() {
       <div>
         <div className="page-header">
           <div>
-            <Button variant="ghost" onClick={() => setSelectedBranchId(null)}>← Back to branches</Button>
+            <Button variant="secondary" size="sm" onClick={() => setSelectedBranchId(null)}>← Back to branches</Button>
             <h1 style={{ margin: "6px 0 0" }}>
               {selectedBranch.name} <span style={{ color: "var(--text-secondary)", fontWeight: 400, fontSize: 16 }}>— Rooms</span>
             </h1>
@@ -506,7 +535,7 @@ function BranchesPage() {
                     </div>
                   </div>
                   <div className="image-card__actions">
-                    <Button size="sm" variant="ghost" onClick={() => openEdit("room", r)}>Edit</Button>
+                    <Button size="sm" variant="secondary" onClick={() => openEdit("room", r)}>Edit</Button>
                     <Button
                       size="sm"
                       variant="danger"
@@ -533,7 +562,7 @@ function BranchesPage() {
       <div className="page-header">
         <h1>Branches & Rooms</h1>
         <div style={{ display: "flex", gap: 8 }}>
-          <Button variant="ghost" onClick={() => setTypesModalOpen(true)}>
+          <Button variant="secondary" onClick={() => setTypesModalOpen(true)}>
             Manage room types ({roomTypes.length})
           </Button>
           <Button onClick={() => openCreate("branch")}>+ New branch</Button>
@@ -576,7 +605,7 @@ function BranchesPage() {
                       <div className="image-card__meta">{b.location || "No location set"}</div>
                     </div>
                     <div className="image-card__actions" onClick={(e) => e.stopPropagation()}>
-                      <Button size="sm" variant="ghost" onClick={() => openEdit("branch", b)}>Edit</Button>
+                      <Button size="sm" variant="secondary" onClick={() => openEdit("branch", b)}>Edit</Button>
                       <Button
                         size="sm"
                         variant="danger"

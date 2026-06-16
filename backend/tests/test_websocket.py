@@ -516,10 +516,10 @@ class TestWebSocketConfiguration:
 
         assert "default" in settings.CHANNEL_LAYERS
 
-    def test_routing_has_three_paths(self):
+    def test_routing_has_five_paths(self):
         from config.routing import websocket_urlpatterns
 
-        assert len(websocket_urlpatterns) == 3
+        assert len(websocket_urlpatterns) == 5
 
     def test_routing_paths(self):
         from config.routing import websocket_urlpatterns

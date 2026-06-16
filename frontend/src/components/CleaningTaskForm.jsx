@@ -253,7 +253,7 @@ function CleaningTaskForm({ isOpen, onClose, mode, task, branchId, onSubmit, sub
           <hr className="cl-form__rule" />
 
           <div className="cl-form__actions">
-            <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
+            <Button type="button" variant="secondary" onClick={onClose} disabled={submitting}>
               Cancel
             </Button>
             <Button type="submit" disabled={submitting}>

@@ -49,9 +49,8 @@ class AccountSerializer(serializers.ModelSerializer):
     Account representation used by the Super Admin user-management UI.
 
     Read fields expose the account + its primary role profile (full_name,
-    branch, is_general_manager). Write fields allow Super Admin to create
-    accounts with a role + role-specific data, change phone/password, toggle
-    status, and flag a Director as General Manager.
+    branch). Write fields allow Super Admin to create accounts with a role +
+    role-specific data, change phone/password, and toggle status.
 
     NOTE: dual-role accounts have been removed (April 2026 refactor). Every
     Director now also performs Administrator duties for their branch via the
@@ -64,12 +63,14 @@ class AccountSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     branch_id = serializers.SerializerMethodField()
     branch_name = serializers.SerializerMethodField()
-    is_general_manager = serializers.SerializerMethodField()
     client_profile_id = serializers.SerializerMethodField()
     staff_profile_id = serializers.SerializerMethodField()
 
     # ---- Write-only inputs (used on create / update) ----------------------
     password = serializers.CharField(
+        write_only=True, required=False, min_length=6, allow_blank=False,
+    )
+    confirm_password = serializers.CharField(
         write_only=True, required=False, min_length=6, allow_blank=False,
     )
     role_input = serializers.ChoiceField(
@@ -82,14 +83,6 @@ class AccountSerializer(serializers.ModelSerializer):
         write_only=True, required=False, allow_null=True,
         queryset=Branch.objects.all(),
     )
-    is_general_manager_input = serializers.BooleanField(
-        write_only=True, required=False,
-        help_text=(
-            "When creating/updating a Director, marks them as General Manager "
-            "(extra salary bonus + personal yearly workbook). Ignored for "
-            "every other role."
-        ),
-    )
 
     class Meta:
         model = Account
@@ -97,15 +90,13 @@ class AccountSerializer(serializers.ModelSerializer):
             # read
             "id", "telegram_id", "telegram_chat_id", "phone", "is_active",
             "roles", "role", "full_name", "branch_id", "branch_name",
-            "is_general_manager",
             "client_profile_id", "staff_profile_id", "created_at", "updated_at",
             # write
-            "password", "role_input", "full_name_input", "branch",
-            "is_general_manager_input",
+            "password", "confirm_password", "role_input", "full_name_input", "branch",
         ]
         read_only_fields = [
             "id", "telegram_id", "roles", "role", "full_name",
-            "branch_id", "branch_name", "is_general_manager",
+            "branch_id", "branch_name",
             "client_profile_id", "staff_profile_id", "created_at", "updated_at",
         ]
         extra_kwargs = {
@@ -146,16 +137,17 @@ class AccountSerializer(serializers.ModelSerializer):
         branch = getattr(profile, "branch", None) if profile else None
         return branch.name if branch else None
 
-    def get_is_general_manager(self, obj: Account) -> bool:
-        director = getattr(obj, "director_profile", None)
-        return bool(director and director.is_general_manager)
-
     # ------------------------------------------------------------------
     # Validation
     # ------------------------------------------------------------------
     def validate_phone(self, value: str) -> str:
+        from apps.common.validators import validate_phone as _validate_e164
         value = (value or "").strip()
         if value:
+            try:
+                value = _validate_e164(value, field="phone")
+            except serializers.ValidationError as exc:
+                raise serializers.ValidationError(str(exc.detail[0])) from exc
             qs = Account.objects.filter(phone=value)
             if self.instance is not None:
                 qs = qs.exclude(pk=self.instance.pk)
@@ -165,6 +157,21 @@ class AccountSerializer(serializers.ModelSerializer):
                 )
         return value
 
+    def validate_full_name_input(self, value: str) -> str:
+        """Require at least two name parts, each ≥ 2 characters."""
+        value = (value or "").strip()
+        parts = [p for p in value.split() if p]
+        if len(parts) < 2:
+            raise serializers.ValidationError(
+                "Provide both a first name and a last name separated by a space."
+            )
+        for part in parts:
+            if len(part) < 2:
+                raise serializers.ValidationError(
+                    f"Each name part must be at least 2 characters (got '{part}')."
+                )
+        return " ".join(parts)
+
     def validate(self, attrs):
         is_create = self.instance is None
         role = attrs.get("role_input")
@@ -172,6 +179,15 @@ class AccountSerializer(serializers.ModelSerializer):
         if is_create:
             self._validate_create_required(attrs, role)
             self._validate_one_director_per_branch(role, attrs.get("branch"))
+            self._validate_superadmin_cap(role)
+            self._validate_branch_active(role, attrs.get("branch"))
+            if (
+                attrs.get("confirm_password")
+                and attrs.get("password") != attrs.get("confirm_password")
+            ):
+                raise serializers.ValidationError(
+                    {"confirm_password": "Passwords do not match."}
+                )
 
         return attrs
 
@@ -186,6 +202,10 @@ class AccountSerializer(serializers.ModelSerializer):
         if not attrs.get("password"):
             raise serializers.ValidationError(
                 {"password": "Password is required."},
+            )
+        if not attrs.get("confirm_password"):
+            raise serializers.ValidationError(
+                {"confirm_password": "Please confirm the password."},
             )
         if not attrs.get("full_name_input"):
             raise serializers.ValidationError(
@@ -208,16 +228,42 @@ class AccountSerializer(serializers.ModelSerializer):
                 ),
             })
 
+    @staticmethod
+    def _validate_superadmin_cap(role):
+        """Enforce the global SuperAdmin limit before creating a new one."""
+        if role != "superadmin":
+            return
+        if SuperAdmin.objects.count() >= SuperAdmin.MAX_SUPERADMINS:
+            raise serializers.ValidationError({
+                "role_input": (
+                    f"Cannot create more than {SuperAdmin.MAX_SUPERADMINS} "
+                    "SuperAdmin accounts. Disable an existing one first."
+                ),
+            })
+
+    @staticmethod
+    def _validate_branch_active(role, branch):
+        """Reject assignment to an inactive branch."""
+        if role not in ROLES_NEEDING_BRANCH or branch is None:
+            return
+        if not branch.is_active:
+            raise serializers.ValidationError({
+                "branch": (
+                    f"Branch '{branch.name}' is currently inactive. "
+                    "Activate it before assigning staff."
+                ),
+            })
+
     # ------------------------------------------------------------------
     # Create / update
     # ------------------------------------------------------------------
     @transaction.atomic
     def create(self, validated_data):
         password = validated_data.pop("password")
+        validated_data.pop("confirm_password", None)
         role = validated_data.pop("role_input")
         full_name = validated_data.pop("full_name_input")
         branch = validated_data.pop("branch", None)
-        is_gm = bool(validated_data.pop("is_general_manager_input", False))
 
         account = Account(
             telegram_id=_next_placeholder_telegram_id(),
@@ -228,32 +274,23 @@ class AccountSerializer(serializers.ModelSerializer):
         account.set_password(password)
         account.save()
 
-        self._create_role_profile(
-            account, role, full_name, branch, is_general_manager=is_gm,
-        )
+        self._create_role_profile(account, role, full_name, branch)
         return account
 
     @transaction.atomic
     def update(self, instance: Account, validated_data):
         # Allow editing phone / password / is_active / chat_id and the
         # full_name on the existing role profile. Role itself is immutable
-        # in v1 (delete + recreate to switch roles). The General Manager
-        # flag is editable for Directors.
+        # in v1 (delete + recreate to switch roles).
         password = validated_data.pop("password", None)
+        validated_data.pop("confirm_password", None)
         full_name = validated_data.pop("full_name_input", None)
-        gm_provided = "is_general_manager_input" in validated_data
-        is_gm = bool(validated_data.pop("is_general_manager_input", False))
         # role_input / branch are accepted but ignored on update for safety.
         validated_data.pop("role_input", None)
         validated_data.pop("branch", None)
 
         self._apply_account_fields(instance, validated_data, password)
         self._sync_profile_fields(instance, full_name)
-        if gm_provided:
-            director = getattr(instance, "director_profile", None)
-            if director is not None and director.is_general_manager != is_gm:
-                director.is_general_manager = is_gm
-                director.save(update_fields=["is_general_manager"])
 
         return instance
 
@@ -288,8 +325,7 @@ class AccountSerializer(serializers.ModelSerializer):
     # Helpers
     # ------------------------------------------------------------------
     @staticmethod
-    def _create_role_profile(account, role, full_name, branch,
-                             *, is_general_manager: bool = False):
+    def _create_role_profile(account, role, full_name, branch):
         if role == "superadmin":
             SuperAdmin.objects.create(account=account, full_name=full_name)
         elif role == "director":
@@ -297,7 +333,6 @@ class AccountSerializer(serializers.ModelSerializer):
                 account=account,
                 branch=branch,
                 full_name=full_name,
-                is_general_manager=is_general_manager,
             )
         elif role == "administrator":
             Administrator.objects.create(

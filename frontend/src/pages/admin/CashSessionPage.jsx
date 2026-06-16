@@ -346,7 +346,7 @@ function CashSessionPage() {
     try {
       await openCashSession({
         shift_type: openForm.shift_type,
-        opening_balance: openForm.opening_balance,
+        opening_balance: rawMoney(openForm.opening_balance),
         note: openForm.note,
       });
       setOpenModal(false);
@@ -374,7 +374,7 @@ function CashSessionPage() {
   const liveVariance = (target, counted) => {
     if (!target || counted === "" || counted == null) return null;
     const expected = Number(target.expected_balance ?? 0);
-    const c = Number(counted);
+    const c = Number(rawMoney(counted));
     if (!Number.isFinite(expected) || !Number.isFinite(c)) return null;
     return c - expected;
   };
@@ -410,7 +410,10 @@ function CashSessionPage() {
     }
     setActionLoading(closeTarget.id);
     try {
-      await closeCashSession(closeTarget.id, closeForm);
+      await closeCashSession(closeTarget.id, {
+        ...closeForm,
+        closing_balance: rawMoney(closeForm.closing_balance),
+      });
       setCloseModal(false);
       toast.success("Cash session closed");
       fetchAll();
@@ -460,7 +463,7 @@ function CashSessionPage() {
     try {
       await handoverCashSession(handoverTarget.id, {
         handed_over_to: Number(handoverForm.handed_over_to),
-        closing_balance: handoverForm.closing_balance,
+        closing_balance: rawMoney(handoverForm.closing_balance),
         note: handoverForm.note,
       });
       setHandoverModal(false);
@@ -629,14 +632,13 @@ function CashSessionPage() {
           </div>
           <Input
             label="Opening Balance (counted cash)"
-            type="number"
-            value={openForm.opening_balance}
+            type="text"
+            inputMode="numeric"
+            value={fmtMoney(openForm.opening_balance)}
             onChange={(e) =>
-              setOpenForm((p) => ({ ...p, opening_balance: e.target.value }))
+              setOpenForm((p) => ({ ...p, opening_balance: fmtMoney(e.target.value) }))
             }
             required
-            min="0"
-            step="1000"
           />
           <Input
             label="Note (optional)"
@@ -689,14 +691,13 @@ function CashSessionPage() {
           )}
           <Input
             label="Closing Balance (counted cash)"
-            type="number"
-            value={closeForm.closing_balance}
+            type="text"
+            inputMode="numeric"
+            value={fmtMoney(closeForm.closing_balance)}
             onChange={(e) =>
-              setCloseForm((p) => ({ ...p, closing_balance: e.target.value }))
+              setCloseForm((p) => ({ ...p, closing_balance: fmtMoney(e.target.value) }))
             }
             required
-            min="0"
-            step="1000"
           />
           <Input
             label={closeNoteRequired ? "Note (required)" : "Note (optional)"}
@@ -768,14 +769,13 @@ function CashSessionPage() {
           </div>
           <Input
             label="Closing Balance (counted cash)"
-            type="number"
-            value={handoverForm.closing_balance}
+            type="text"
+            inputMode="numeric"
+            value={fmtMoney(handoverForm.closing_balance)}
             onChange={(e) =>
-              setHandoverForm((p) => ({ ...p, closing_balance: e.target.value }))
+              setHandoverForm((p) => ({ ...p, closing_balance: fmtMoney(e.target.value) }))
             }
             required
-            min="0"
-            step="1000"
           />
           <Input
             label={handoverNoteRequired ? "Note (required)" : "Note (optional)"}

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useMemo } from "react";
 import PropTypes from "prop-types";
+import { CheckCircle2, XCircle, AlertTriangle, X } from "lucide-react";
 
 const ToastContext = createContext(null);
 
@@ -48,9 +49,9 @@ export function useToast() {
 }
 
 const ICONS = {
-  success: "✅",
-  error: "❌",
-  warning: "⚠️",
+  success: CheckCircle2,
+  error: XCircle,
+  warning: AlertTriangle,
 };
 
 function ToastContainer({ toasts, onRemove }) {
@@ -58,19 +59,26 @@ function ToastContainer({ toasts, onRemove }) {
 
   return (
     <div className="toast-container">
-      {toasts.map((toast) => (
-        <div key={toast.id} className={`toast toast-${toast.type}`}>
-          <span className="toast-icon">{ICONS[toast.type]}</span>
-          <span className="toast-message">{toast.message}</span>
-          <button
-            className="toast-close"
-            onClick={() => onRemove(toast.id)}
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </div>
-      ))}
+      {toasts.map((toast) => {
+        const Icon = ICONS[toast.type];
+        return (
+          <div key={toast.id} className={`toast toast-${toast.type}`}>
+            {Icon && (
+              <span className="toast-icon">
+                <Icon size={18} strokeWidth={1.8} aria-hidden />
+              </span>
+            )}
+            <span className="toast-message">{toast.message}</span>
+            <button
+              className="toast-close"
+              onClick={() => onRemove(toast.id)}
+              aria-label="Close"
+            >
+              <X size={16} strokeWidth={2} aria-hidden />
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }

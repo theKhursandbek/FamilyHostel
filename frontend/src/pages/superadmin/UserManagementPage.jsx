@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   listAccounts,
   createAccount,
@@ -11,11 +11,12 @@ import {
 } from "../../services/accountsService";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
+import { useBranchScope } from "../../context/BranchScopeContext";
+import usePersistedBranch from "../../hooks/usePersistedBranch";
 import Button from "../../components/Button";
 import Input from "../../components/Input";
 import Select from "../../components/Select";
 import Modal from "../../components/Modal";
-import Table from "../../components/Table";
 import Loader from "../../components/Loader";
 import ErrorMessage from "../../components/ErrorMessage";
 
@@ -40,14 +41,13 @@ const ROLE_PILL_BASE = {
   border: "1px solid",
 };
 
-// Old-money palette — deep, low-chroma tones inspired by leather-bound
-// libraries, hunter green, oxblood, and brass on cream stationery.
+// Refined role-pill palette — clean, distinct, professional
 const ROLE_PILL_THEME = {
-  superadmin:    { bg: "#ede1df", fg: "#5e1a14", border: "rgba(94,26,20,0.30)" },   // oxblood
-  director:      { bg: "#e9e3d3", fg: "#6b5417", border: "rgba(107,84,23,0.30)" },  // brass / camel
-  administrator: { bg: "#dde4e2", fg: "#1f3a36", border: "rgba(31,58,54,0.30)" },   // deep teal
-  staff:         { bg: "#dfe6dc", fg: "#2a4327", border: "rgba(42,67,39,0.30)" },   // hunter green
-  client:        { bg: "#e6e1d6", fg: "#4a3f2c", border: "rgba(74,63,44,0.30)" },   // taupe
+  superadmin:    { bg: "#eae8f5", fg: "#3b2f8a", border: "rgba(59,47,138,0.22)" },  // royal indigo
+  director:      { bg: "#fef4e4", fg: "#854d00", border: "rgba(133,77,0,0.22)" },   // rich amber
+  administrator: { bg: "#e2f0f4", fg: "#0d5c6c", border: "rgba(13,92,108,0.22)" }, // ocean teal
+  staff:         { bg: "#e8f4e8", fg: "#2a6b2a", border: "rgba(42,107,42,0.22)" }, // clean green
+  client:        { bg: "#edeef4", fg: "#3a4060", border: "rgba(58,64,96,0.22)" },  // slate blue
 };
 
 function rolePillStyle(role) {
@@ -62,12 +62,13 @@ function rolePillStyle(role) {
 
 const EMPTY_FORM = {
   role_input: "staff",
-  full_name_input: "",
+  first_name: "",
+  last_name: "",
   phone: "",
   password: "",
+  confirm_password: "",
   branch: "",
   is_active: true,
-  is_general_manager_input: false,
 };
 
 function getSubmitLabel(saving, editing) {
@@ -85,9 +86,14 @@ function UserManagementPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [roleFilter, setRoleFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [search, setSearch] = useState("");
+  const [branchId, setBranchId] = usePersistedBranch(
+    "branchScope:userManagement", true, null,
+  );
+
+  // Register branch scope in the global fixed header
+  const { register, unregister } = useBranchScope();
+  useEffect(() => { register(branchId, setBranchId); }, [branchId, register, setBranchId]);
+  useEffect(() => () => unregister(), [unregister]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null); // null = create, object = edit
@@ -95,15 +101,16 @@ function UserManagementPage() {
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState(null);
+  // CEO accounts have no branch so we show them separately when a branch
+  // filter is active — they would otherwise be hidden by the branch param.
+  const [ceoAccounts, setCeoAccounts] = useState([]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const params = {};
-      if (roleFilter) params.role = roleFilter;
-      if (statusFilter) params.is_active = statusFilter;
-      if (search) params.search = search;
+      if (branchId) params.branch = branchId;
 
       const [accountsData, branchesData] = await Promise.all([
         listAccounts(params),
@@ -114,8 +121,23 @@ function UserManagementPage() {
       const internalOnly = (accountsData || []).filter(
         (acc) => acc.role && acc.role !== "client",
       );
-      setAccounts(internalOnly);
+      // When scoped to a branch, surface CEO accounts separately and avoid
+      // showing them twice by excluding `superadmin` from the main list.
+      if (branchId) setAccounts(internalOnly.filter((a) => a.role !== "superadmin"));
+      else setAccounts(internalOnly);
       if (!branches.length) setBranches(branchesData);
+
+      // When scoped to a branch, also surface CEO accounts (no branch FK).
+      if (branchId) {
+        try {
+          const ceoData = await listAccounts({ role: "superadmin" });
+          setCeoAccounts((ceoData || []).filter((a) => a.role === "superadmin"));
+        } catch {
+          setCeoAccounts([]);
+        }
+      } else {
+        setCeoAccounts([]);
+      }
     } catch (err) {
       setError(
         err.response?.data?.detail ||
@@ -126,7 +148,7 @@ function UserManagementPage() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roleFilter, statusFilter, search]);
+  }, [branchId]);
 
   useEffect(() => {
     fetchAll();
@@ -164,25 +186,37 @@ function UserManagementPage() {
 
   const openEdit = (account) => {
     const primary = account.role || "staff";
+    const [firstName = "", ...rest] = (account.full_name || "").trim().split(/\s+/);
     setEditing(account);
     setForm({
       role_input: primary,
-      full_name_input: account.full_name || "",
+      first_name: firstName,
+      last_name: rest.join(" "),
       phone: account.phone || "",
       password: "",
+      confirm_password: "",
       branch: account.branch_id ? String(account.branch_id) : "",
       is_active: account.is_active,
-      is_general_manager_input: !!account.is_general_manager,
     });
     setFormError("");
     setModalOpen(true);
   };
 
   const validateCreate = () => {
-    if (!form.phone.trim()) return "Phone is required.";
+    const phone = form.phone.trim();
+    if (!phone) return "Phone is required.";
+    if (!/^\+?[1-9]\d{7,14}$/.test(phone.replace(/[\s\-()+]/g, "")))
+      return "Phone must be in E.164 format, e.g. +998901234567.";
+    const firstName = form.first_name.trim();
+    const lastName = form.last_name.trim();
+    if (!firstName || firstName.length < 2)
+      return "First name must be at least 2 characters.";
+    if (!lastName || lastName.length < 2)
+      return "Last name must be at least 2 characters.";
     if (!form.password || form.password.length < 6)
       return "Password must be at least 6 characters.";
-    if (!form.full_name_input.trim()) return "Full name is required.";
+    if (!form.confirm_password) return "Please confirm the password.";
+    if (form.password !== form.confirm_password) return "Passwords do not match.";
     if (ROLES_NEEDING_BRANCH.has(form.role_input) && !form.branch)
       return "Branch is required for this role.";
     return "";
@@ -191,16 +225,14 @@ function UserManagementPage() {
   const buildCreatePayload = () => {
     const payload = {
       phone: form.phone.trim(),
-      full_name_input: form.full_name_input.trim(),
+      full_name_input: `${form.first_name.trim()} ${form.last_name.trim()}`.trim(),
       is_active: form.is_active,
       role_input: form.role_input,
       password: form.password,
+      confirm_password: form.confirm_password,
     };
     if (ROLES_NEEDING_BRANCH.has(form.role_input)) {
       payload.branch = Number(form.branch);
-    }
-    if (form.role_input === "director") {
-      payload.is_general_manager_input = !!form.is_general_manager_input;
     }
     return payload;
   };
@@ -208,13 +240,10 @@ function UserManagementPage() {
   const buildUpdatePayload = () => {
     const payload = {
       phone: form.phone.trim(),
-      full_name_input: form.full_name_input.trim(),
+      full_name_input: `${form.first_name.trim()} ${form.last_name.trim()}`.trim(),
       is_active: form.is_active,
     };
     if (form.password) payload.password = form.password;
-    if (editing?.role === "director") {
-      payload.is_general_manager_input = !!form.is_general_manager_input;
-    }
     return payload;
   };
 
@@ -304,83 +333,70 @@ function UserManagementPage() {
   };
 
   // ---------------------------------------------------------------------
-  // Table definition
+  // User row renderer
   // ---------------------------------------------------------------------
-  const columns = useMemo(
-    () => [
-      { key: "full_name", label: "Name", render: (val) => val || <em className="text-muted">—</em> },
-      { key: "phone", label: "Phone", render: (val) => val || <em className="text-muted">—</em> },
-      {
-        key: "role",
-        label: "Role",
-        render: (val) =>
-          val ? (
-            <span style={rolePillStyle(val)}>
-              {ROLE_LABEL[val] || val}
-            </span>
+  const renderUserRow = (acc) => {
+    const initial = (acc.full_name || acc.phone || "?").trim().charAt(0).toUpperCase();
+    const isSelf = acc.id === user?.id;
+    return (
+      <tr key={acc.id}>
+        <td>
+          <div className="user-cell">
+            <span className="user-cell__avatar">{initial}</span>
+            <div className="user-cell__id">
+              <span className="user-cell__name">
+                {acc.full_name || <em className="text-muted">Unnamed</em>}
+              </span>
+              <span className="user-cell__phone">{acc.phone || "—"}</span>
+            </div>
+          </div>
+        </td>
+        <td>
+          {acc.role ? (
+            <span style={rolePillStyle(acc.role)}>{ROLE_LABEL[acc.role] || acc.role}</span>
           ) : (
-            <em className="text-muted">none</em>
-          ),
-      },
-      {
-        key: "branch_name",
-        label: "Branch",
-        render: (val) => val || <em className="text-muted">—</em>,
-      },
-      {
-        key: "is_active",
-        label: "Status",
-        render: (val) => (
-          <span className={`badge ${val ? "badge-success" : "badge-muted"}`}>
-            {val ? "Active" : "Disabled"}
+            <span className="text-muted">—</span>
+          )}
+        </td>
+        <td className="user-cell__branch">
+          {acc.branch_name || <span className="text-muted">—</span>}
+        </td>
+        <td>
+          <span className={`user-pill-status ${acc.is_active ? "is-active" : "is-disabled"}`}>
+            {acc.is_active ? "Active" : "Disabled"}
           </span>
-        ),
-      },
-      {
-        key: "_actions",
-        label: "",
-        render: (_, row) => (
-          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+        </td>
+        <td>
+          <div className="user-row-actions">
             <Button
               variant="secondary"
               size="sm"
-              disabled={busyId === row.id}
-              onClick={(e) => {
-                e.stopPropagation();
-                openEdit(row);
-              }}
+              disabled={busyId === acc.id}
+              onClick={() => openEdit(acc)}
             >
               Edit
             </Button>
             <Button
-              variant={row.is_active ? "warning" : "success"}
+              variant={acc.is_active ? "warning" : "success"}
               size="sm"
-              disabled={busyId === row.id || row.id === user?.id}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleToggleActive(row);
-              }}
+              disabled={busyId === acc.id || isSelf}
+              onClick={() => handleToggleActive(acc)}
             >
-              {row.is_active ? "Disable" : "Enable"}
+              {acc.is_active ? "Disable" : "Enable"}
             </Button>
             <Button
               variant="danger"
               size="sm"
-              disabled={busyId === row.id || row.id === user?.id}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDelete(row);
-              }}
+              disabled={busyId === acc.id || isSelf}
+              onClick={() => handleDelete(acc)}
             >
               Delete
             </Button>
           </div>
-        ),
-      },
-    ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [busyId, user?.id]
-  );
+        </td>
+      </tr>
+    );
+  };
 
   // ---------------------------------------------------------------------
   // Render
@@ -394,64 +410,45 @@ function UserManagementPage() {
         style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
       >
         <h1>Users &amp; Roles</h1>
-        <Button variant="primary" onClick={openCreate}>
-          + Add User
-        </Button>
-      </div>
-
-      {/* Filters */}
-      <div
-        style={{
-          display: "flex",
-          gap: 12,
-          flexWrap: "wrap",
-          marginBottom: 16,
-          alignItems: "flex-end",
-        }}
-      >
-        <div className="form-group" style={{ minWidth: 180 }}>
-          <label className="label" htmlFor="role-filter">Role</label>
-          <Select
-            id="role-filter"
-            value={roleFilter}
-            onChange={(v) => setRoleFilter(v)}
-            placeholder="All roles"
-            options={[
-              { value: "", label: "All roles" },
-              ...ROLE_OPTIONS,
-              { value: "client", label: "Client" },
-            ]}
-          />
-        </div>
-        <div className="form-group" style={{ minWidth: 150 }}>
-          <label className="label" htmlFor="status-filter">Status</label>
-          <Select
-            id="status-filter"
-            value={statusFilter}
-            onChange={(v) => setStatusFilter(v)}
-            placeholder="All"
-            options={[
-              { value: "", label: "All" },
-              { value: "true", label: "Active" },
-              { value: "false", label: "Disabled" },
-            ]}
-          />
-        </div>
-        <div className="form-group" style={{ flex: 1, minWidth: 200 }}>
-          <label className="label" htmlFor="user-search">Search</label>
-          <input
-            id="user-search"
-            className="input"
-            placeholder="Phone or telegram id"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <Button variant="primary" onClick={openCreate}>
+            + Add User
+          </Button>
         </div>
       </div>
 
       {error && <ErrorMessage message={error} onRetry={fetchAll} />}
 
-      <Table columns={columns} data={accounts} emptyMessage="No accounts found." />
+      {accounts.length === 0 && ceoAccounts.length === 0 ? (
+        <div className="empty-state">No accounts found.</div>
+      ) : (
+        <div className="user-table-wrap">
+          <table className="user-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Role</th>
+                <th>Branch</th>
+                <th>Status</th>
+                <th className="user-table__actions-col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {accounts.map(renderUserRow)}
+              {branchId && ceoAccounts.length > 0 && (
+                <>
+                  {accounts.length > 0 && (
+                    <tr className="user-table__sep" aria-hidden="true">
+                      <td colSpan={5} />
+                    </tr>
+                  )}
+                  {ceoAccounts.map(renderUserRow)}
+                </>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Create / Edit modal */}
       <Modal
@@ -476,10 +473,18 @@ function UserManagementPage() {
           )}
 
           <Input
-            label="Full Name"
+            label="First Name"
             required
-            value={form.full_name_input}
-            onChange={(e) => setForm({ ...form, full_name_input: e.target.value })}
+            value={form.first_name}
+            onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+            disabled={saving}
+          />
+
+          <Input
+            label="Last Name"
+            required
+            value={form.last_name}
+            onChange={(e) => setForm({ ...form, last_name: e.target.value })}
             disabled={saving}
           />
 
@@ -500,6 +505,17 @@ function UserManagementPage() {
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             disabled={saving}
           />
+
+          {!editing && (
+            <Input
+              label="Confirm Password"
+              type="password"
+              required
+              value={form.confirm_password}
+              onChange={(e) => setForm({ ...form, confirm_password: e.target.value })}
+              disabled={saving}
+            />
+          )}
 
           {!editing && ROLES_NEEDING_BRANCH.has(form.role_input) && (
             <div className="form-group">
@@ -528,52 +544,6 @@ function UserManagementPage() {
                   director per branch).
                 </p>
               )}
-            </div>
-          )}
-
-          {/* General Manager checkbox — Director-only.
-              GM directors get extra salary bonuses + a personal yearly Excel
-              workbook (visible only to them and the CEO). */}
-          {((!editing && form.role_input === "director") ||
-            editing?.role === "director") && (
-            <div className="form-group">
-              <label
-                className="label"
-                style={{ display: "flex", alignItems: "center", gap: 8 }}
-              >
-                <input
-                  type="checkbox"
-                  checked={!!form.is_general_manager_input}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      is_general_manager_input: e.target.checked,
-                    })
-                  }
-                  disabled={saving}
-                />
-                <span>
-                  Acts as General Manager (Бош менеджер — extra bonus + personal
-                  yearly report)
-                </span>
-              </label>
-            </div>
-          )}
-
-          {editing && (
-            <div className="form-group">
-              <label
-                className="label"
-                style={{ display: "flex", alignItems: "center", gap: 8 }}
-              >
-                <input
-                  type="checkbox"
-                  checked={form.is_active}
-                  onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-                  disabled={saving}
-                />
-                <span>Account is active</span>
-              </label>
             </div>
           )}
 

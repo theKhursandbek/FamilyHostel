@@ -1,15 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  getAvailableWorkbooks,
   downloadBranchWorkbook,
-  downloadGeneralManagerWorkbook,
   saveBlob,
   getBranchDashboard,
 } from "../../services/reportService";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
+import { useBranchScope } from "../../context/BranchScopeContext";
 import usePersistedBranch from "../../hooks/usePersistedBranch";
-import BranchSelector from "../../components/BranchSelector";
 import Button from "../../components/Button";
 import Select from "../../components/Select";
 import Loader from "../../components/Loader";
@@ -21,31 +19,48 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+// Survives React Router navigation so the dashboard stays visible immediately
+// on revisit instead of showing a loader while fresh data arrives.
+const _dashCache = new Map();
+
 /**
  * Reports — REFACTOR_PLAN_2026_04 §4.
  *
  * Non-CEO: pinned to own branch · in-page dashboard + sticky download.
- * CEO: branch picker → dashboard + per-branch download + per-GM workbook (Q7).
+ * CEO: branch picker → dashboard + per-branch download.
  */
 function ReportsPage() {
   const { user } = useAuth();
   const toast = useToast();
   const today = new Date();
   const isCeo = (user?.roles || []).includes("superadmin");
+  const isDirector = (user?.roles || []).includes("director");
+  const canEdit = isCeo || isDirector;
 
   const [branchId, setBranchId] = usePersistedBranch(
     "branchScope:reports",
     isCeo,
     user?.branch_id ?? null,
   );
+
+  // Register branch scope in global fixed header
+  const { register, unregister } = useBranchScope();
+  useEffect(() => { register(branchId, setBranchId); }, [branchId, register, setBranchId]);
+  useEffect(() => () => unregister(), [unregister]);
+
   const [year, setYear] = useState(String(today.getFullYear()));
   const [month, setMonth] = useState(String(today.getMonth() + 1));
 
-  const [dashboard, setDashboard] = useState(null);
+  const isCurrentMonth =
+    Number(year) === today.getFullYear() && Number(month) === today.getMonth() + 1;
+
+  const [dashboard, setDashboard] = useState(() => {
+    const key = branchId ? `${branchId}|${year}|${month}` : null;
+    return key ? (_dashCache.get(key) ?? null) : null;
+  });
   const [dashLoading, setDashLoading] = useState(false);
   const [dashError, setDashError] = useState(null);
 
-  const [items, setItems] = useState([]);
   const [downloadingKey, setDownloadingKey] = useState(null);
 
   const ceoMustPick = isCeo && !branchId;
@@ -55,12 +70,16 @@ function ReportsPage() {
       setDashboard(null);
       return;
     }
+    const key = `${branchId}|${year}|${month}`;
+    const cached = _dashCache.get(key);
+    if (cached) setDashboard(cached);
     try {
       setDashLoading(true);
       setDashError(null);
       const data = await getBranchDashboard({
         branchId, year: Number(year), month: Number(month),
       });
+      _dashCache.set(key, data);
       setDashboard(data);
     } catch (err) {
       setDashError(err.response?.data?.detail || "Failed to load dashboard");
@@ -69,17 +88,7 @@ function ReportsPage() {
     }
   }, [branchId, year, month]);
 
-  const loadWorkbooks = useCallback(async () => {
-    try {
-      const data = await getAvailableWorkbooks();
-      setItems(data);
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to load workbook list");
-    }
-  }, [toast]);
-
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
-  useEffect(() => { loadWorkbooks(); }, [loadWorkbooks]);
 
   const handleDownloadBranch = async () => {
     if (!branchId) return;
@@ -96,24 +105,6 @@ function ReportsPage() {
     }
   };
 
-  const handleDownloadGm = async (item) => {
-    const key = `gm-${item.director_id}-${item.year}`;
-    try {
-      setDownloadingKey(key);
-      const response = await downloadGeneralManagerWorkbook(
-        item.director_id, item.year,
-      );
-      const safe = (item.director_name || `director_${item.director_id}`)
-        .replaceAll(/\s+/g, "_");
-      saveBlob(response, `gm_${safe}_${item.year}.xlsx`);
-      toast.success("GM workbook downloaded");
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Download failed");
-    } finally {
-      setDownloadingKey(null);
-    }
-  };
-
   const yearOptions = useMemo(() => {
     const cur = today.getFullYear();
     return [cur - 1, cur, cur + 1].map((y) => ({
@@ -122,18 +113,10 @@ function ReportsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const gmItems = useMemo(
-    () => items.filter(
-      (i) => i.kind === "general_manager" && String(i.year) === String(year),
-    ),
-    [items, year],
-  );
-
   return (
     <div>
       <div className="page-header">
         <h1>Reports</h1>
-        {isCeo && <BranchSelector value={branchId} onChange={setBranchId} />}
       </div>
 
       <div
@@ -174,21 +157,6 @@ function ReportsPage() {
                 : `Download branch workbook (${year})`}
             </Button>
           )}
-          {gmItems.map((item) => {
-            const key = `gm-${item.director_id}-${item.year}`;
-            return (
-              <Button
-                key={key}
-                variant="secondary"
-                onClick={() => handleDownloadGm(item)}
-                disabled={downloadingKey === key}
-              >
-                {downloadingKey === key
-                  ? "Generating…"
-                  : `Download ${item.director_name}'s GM workbook`}
-              </Button>
-            );
-          })}
         </div>
       </div>
 
@@ -205,10 +173,19 @@ function ReportsPage() {
         <ErrorMessage message={dashError} onRetry={loadDashboard} />
       )}
 
-      {!ceoMustPick && dashLoading && <Loader />}
+      {!ceoMustPick && dashLoading && !dashboard && <Loader />}
 
-      {!ceoMustPick && !dashLoading && !dashError && (
-        <BranchDashboard data={dashboard} />
+      {!ceoMustPick && !dashError && dashboard && (
+        <div style={{ opacity: dashLoading ? 0.5 : 1, transition: "opacity 0.25s" }}>
+          <BranchDashboard
+            data={dashboard}
+            branchId={branchId}
+            year={Number(year)}
+            month={Number(month)}
+            canAddAdjustment={canEdit && isCurrentMonth}
+            onRefresh={loadDashboard}
+          />
+        </div>
       )}
     </div>
   );

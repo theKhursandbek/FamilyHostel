@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import PropTypes from "prop-types";
 import { getRooms } from "../services/bookingService";
 import { useToast } from "../context/ToastContext";
+import { fmtMoney, rawMoney } from "../utils/moneyInput";
 import Input from "./Input";
 import Button from "./Button";
 import Select from "./Select";
@@ -12,7 +13,7 @@ import Select from "./Select";
  * Every booking made through the admin panel is for a brand-new guest who
  * walks in off the street.  We capture identity (name, phone, passport) plus
  * the room and dates, then submit one atomic walk-in payload to
- * POST /bookings/bookings/walk-in/.
+ * POST /bookings/bookings/walk-in/
  */
 function BookingForm({ onSubmit, loading = false }) {
   const toast = useToast();
@@ -20,9 +21,11 @@ function BookingForm({ onSubmit, loading = false }) {
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [form, setForm] = useState({
-    full_name: "",
+    first_name: "",
+    last_name: "",
     phone: "",
     passport_number: "",
+    date_of_birth: "",
     room: "",
     branch: "",
     check_in_date: "",
@@ -76,16 +79,18 @@ function BookingForm({ onSubmit, loading = false }) {
 
   const validate = () => {
     const newErrors = {};
-    if (!form.full_name.trim()) newErrors.full_name = "Full name is required";
+    if (!form.first_name.trim()) newErrors.first_name = "First name is required";
+    if (!form.last_name.trim()) newErrors.last_name = "Last name is required";
     if (!form.phone.trim()) newErrors.phone = "Phone is required";
     if (!form.passport_number.trim()) newErrors.passport_number = "Passport number is required";
+    if (!form.date_of_birth) newErrors.date_of_birth = "Date of birth is required";
     if (!form.room) newErrors.room = "Room is required";
     if (!form.check_in_date) newErrors.check_in_date = "Check-in date is required";
     if (!form.check_out_date) newErrors.check_out_date = "Check-out date is required";
     if (form.check_in_date && form.check_out_date && form.check_out_date <= form.check_in_date) {
       newErrors.check_out_date = "Check-out must be after check-in";
     }
-    if (Number(form.discount_amount) < 0) {
+    if (Number(rawMoney(form.discount_amount)) < 0) {
       newErrors.discount_amount = "Discount cannot be negative";
     }
     setErrors(newErrors);
@@ -96,14 +101,15 @@ function BookingForm({ onSubmit, loading = false }) {
     e.preventDefault();
     if (!validate()) return;
     onSubmit({
-      full_name: form.full_name.trim(),
+      full_name: `${form.first_name.trim()} ${form.last_name.trim()}`.trim(),
       phone: form.phone.trim(),
       passport_number: form.passport_number.trim(),
+      date_of_birth: form.date_of_birth,
       room: Number(form.room),
       branch: Number(form.branch),
       check_in_date: form.check_in_date,
       check_out_date: form.check_out_date,
-      discount_amount: form.discount_amount || "0",
+      discount_amount: rawMoney(form.discount_amount) || "0",
     });
   };
 
@@ -115,7 +121,7 @@ function BookingForm({ onSubmit, loading = false }) {
           style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
         >
           <span>Could not load available rooms.</span>
-          <Button type="button" variant="ghost" onClick={fetchRooms} disabled={roomsLoading}>
+          <Button type="button" variant="secondary" onClick={fetchRooms} disabled={roomsLoading}>
             Retry
           </Button>
         </div>
@@ -145,13 +151,22 @@ function BookingForm({ onSubmit, loading = false }) {
         </div>
 
         <Input
-          label="Full Name"
-          id="full_name"
-          value={form.full_name}
-          onChange={handleChange("full_name")}
-          placeholder="e.g. Aliyev Botir"
+          label="First Name"
+          id="first_name"
+          value={form.first_name}
+          onChange={handleChange("first_name")}
+          placeholder="e.g. Botir"
           required
-          error={errors.full_name}
+          error={errors.first_name}
+        />
+        <Input
+          label="Last Name"
+          id="last_name"
+          value={form.last_name}
+          onChange={handleChange("last_name")}
+          placeholder="e.g. Aliyev"
+          required
+          error={errors.last_name}
         />
         <Input
           label="Phone"
@@ -171,6 +186,15 @@ function BookingForm({ onSubmit, loading = false }) {
           placeholder="e.g. AA1234567"
           required
           error={errors.passport_number}
+        />
+        <Input
+          label="Date of Birth"
+          id="date_of_birth"
+          type="date"
+          value={form.date_of_birth}
+          onChange={handleChange("date_of_birth")}
+          required
+          error={errors.date_of_birth}
         />
       </div>
 
@@ -245,14 +269,16 @@ function BookingForm({ onSubmit, loading = false }) {
       <Input
         label="Discount (optional)"
         id="discount_amount"
-        type="number"
-        value={form.discount_amount}
-        onChange={handleChange("discount_amount")}
+        type="text"
+        inputMode="numeric"
+        value={fmtMoney(form.discount_amount)}
+        onChange={(e) => {
+          const v = fmtMoney(e.target.value);
+          setForm((prev) => ({ ...prev, discount_amount: v }));
+          setErrors((prev) => ({ ...prev, discount_amount: "" }));
+        }}
         placeholder="0"
         error={errors.discount_amount}
-        min="0"
-        max="50000"
-        step="1000"
       />
 
       <div className="form-actions">

@@ -209,8 +209,8 @@ def get_admin_income(
         Payment.objects.filter(
             booking__branch_id=branch_id,
             is_paid=True,
-            created_at__date__gte=date_from,
-            created_at__date__lte=date_to,
+            booking__check_in_date__gte=date_from,
+            booking__check_in_date__lte=date_to,
             created_by__isnull=False,
         )
         .values("created_by__pk", "created_by__full_name")

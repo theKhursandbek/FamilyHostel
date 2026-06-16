@@ -3,17 +3,14 @@ import api from "./api";
 /**
  * CEO (SuperAdmin) management endpoints.
  *
- * Backend mounts these under /api/v1/admin-panel/ and /api/v1/.
+ * Backend mounts these under /api/v1/admin-panel/.
  * The global response interceptor strips the {success,data} envelope,
  * so callers receive the plain payload.
  */
 
 const SETTINGS = "/admin-panel/system-settings/";
 const RULES = "/admin-panel/income-rules/";
-const OVERRIDES = "/admin-panel/overrides/";
 const ROLE_PEOPLE = "/admin-panel/role-people/";
-const AUDIT_LOGS = "/audit-logs/";
-const SUSPICIOUS = "/suspicious-activities/";
 
 // ---------------------------------------------------------------------------
 // System settings (singleton)
@@ -51,14 +48,6 @@ export async function deleteIncomeRule(id) {
 }
 
 // ---------------------------------------------------------------------------
-// Override (logged)
-// ---------------------------------------------------------------------------
-export async function performOverride(payload) {
-  const { data } = await api.post(OVERRIDES, payload);
-  return data;
-}
-
-// ---------------------------------------------------------------------------
 // Per-person salary overrides
 // ---------------------------------------------------------------------------
 export async function listRolePeople(role, params = {}) {
@@ -71,60 +60,4 @@ export async function updateRolePersonSalary(role, id, salaryOverride) {
     salary_override: salaryOverride,
   });
   return data;
-}
-
-// ---------------------------------------------------------------------------
-// Activity / monitoring
-// ---------------------------------------------------------------------------
-export async function listAuditLogs(params = {}) {
-  const { data } = await api.get(AUDIT_LOGS, { params });
-  return data?.results ?? data ?? [];
-}
-
-/**
- * Paginated audit-log fetch — returns the full envelope with metadata
- * ({ count, total_pages, page, page_size, next, previous, results }).
- */
-export async function listAuditLogsPaged(params = {}) {
-  const { data } = await api.get(AUDIT_LOGS, { params });
-  if (Array.isArray(data)) {
-    return {
-      results: data,
-      count: data.length,
-      page: 1,
-      page_size: data.length,
-      total_pages: 1,
-      next: null,
-      previous: null,
-    };
-  }
-  return data;
-}
-
-export async function getAuditLogFacets() {
-  const { data } = await api.get(`${AUDIT_LOGS}facets/`);
-  return data ?? { roles: [], actions: [], entity_types: [] };
-}
-
-/**
- * Reverse a previously-recorded audit row. The backend re-applies
- * ``before_data`` to the live entity and writes a new audit row tagged
- * ``<original_action>.undone``. Throws if the row is not reversible
- * (`code: not_reversible`) or a newer change blocks the restore
- * (`code: conflict`).
- */
-export async function undoAuditLog(id) {
-  const { data } = await api.post(`${AUDIT_LOGS}${id}/undo/`);
-  return data;
-}
-
-/** Re-apply a previously undone audit row. */
-export async function redoAuditLog(id) {
-  const { data } = await api.post(`${AUDIT_LOGS}${id}/redo/`);
-  return data;
-}
-
-export async function listSuspiciousActivities(params = {}) {
-  const { data } = await api.get(SUSPICIOUS, { params });
-  return data?.results ?? data ?? [];
 }

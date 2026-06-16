@@ -159,16 +159,6 @@ class SystemSettings(models.Model):
         default=Decimal("150000"),
         help_text="Administrator's per-shift rate in UZS.",
     )
-    gm_bonus_percent = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        default=Decimal("0"),
-        help_text=(
-            "General Manager bonus as a percentage of the director's full "
-            "salary. Applied on top of the Director payout when "
-            "`Director.is_general_manager=True`. Default 0 (= no bonus)."
-        ),
-    )
 
     class Meta:
         db_table = "system_settings"

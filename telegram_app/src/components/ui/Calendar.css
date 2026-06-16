@@ -1,0 +1,72 @@
+.ui-cal {
+  background: var(--tg-secondary-bg);
+  border-radius: var(--r-lg);
+  padding: var(--s-3);
+  user-select: none;
+}
+.ui-cal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--s-2);
+}
+.ui-cal__month {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.ui-cal__nav {
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  color: var(--tg-text);
+  cursor: pointer;
+}
+.ui-cal__nav:disabled { opacity: 0.3; cursor: not-allowed; }
+.ui-cal__nav:hover:not(:disabled) { background: rgba(0,0,0,0.04); }
+
+.ui-cal__weekdays,
+.ui-cal__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.ui-cal__weekdays {
+  text-align: center;
+  font-size: var(--font-xs);
+  color: var(--tg-hint);
+  padding: var(--s-1) 0;
+}
+.ui-cal__cell {
+  background: transparent;
+  border: none;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-md);
+  border-radius: var(--r-sm);
+  color: var(--tg-text);
+  cursor: pointer;
+  font-family: inherit;
+}
+.ui-cal__cell--empty { visibility: hidden; }
+.ui-cal__cell--disabled {
+  opacity: 0.3;
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+.ui-cal__cell--in {
+  background: rgba(37, 99, 235, 0.12);
+  border-radius: 0;
+}
+.ui-cal__cell--start,
+.ui-cal__cell--end {
+  background: var(--tg-button);
+  color: var(--tg-button-text);
+  font-weight: 700;
+}
+.ui-cal__cell--start { border-radius: var(--r-sm) 0 0 var(--r-sm); }
+.ui-cal__cell--end { border-radius: 0 var(--r-sm) var(--r-sm) 0; }

@@ -1,46 +1,38 @@
 import { useState, useEffect, useCallback } from "react";
+import PropTypes from "prop-types";
 import { getDirectorDashboard } from "../../services/dashboardService";
 import { useSocket } from "../../hooks/useSocket";
 import StatCard from "../../components/StatCard";
-import Table from "../../components/Table";
 import Loader from "../../components/Loader";
 import ErrorMessage from "../../components/ErrorMessage";
 
-const performanceColumns = [
-  { key: "staff_name", label: "Staff" },
-  {
-    key: "tasks_completed",
-    label: "Tasks Completed",
-    render: (val) => val ?? 0,
-  },
-  {
-    key: "tasks_retried",
-    label: "Retries",
-    render: (val) => val ?? 0,
-  },
-];
+const fmt = (n) => Number(n || 0).toLocaleString();
 
-const attendanceColumns = [
-  { key: "staff_name", label: "Staff" },
-  { key: "days_present", label: "Present", render: (val) => val ?? 0 },
-  { key: "days_absent", label: "Absent", render: (val) => val ?? 0 },
-  { key: "days_off", label: "Days Off", render: (val) => val ?? 0 },
-];
-
-const issueColumns = [
-  {
-    key: "type",
-    label: "Type",
-    render: (val) => (
-      <span className="badge badge-sm" style={{ backgroundColor: val === "retry" ? "#ef4444" : "#f59e0b" }}>
-        {val === "retry" ? "Cleaning Retry" : "Penalty"}
+function Row({ label, value, color, bold }) {
+  return (
+    <div style={{
+      display: "flex", justifyContent: "space-between", alignItems: "center",
+      padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 14,
+    }}>
+      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {color && (
+          <span style={{
+            width: 8, height: 8, borderRadius: "50%",
+            background: color, flexShrink: 0,
+          }} />
+        )}
+        <span className="text-muted">{label}</span>
       </span>
-    ),
-  },
-  { key: "description", label: "Description" },
-  { key: "staff_name", label: "Staff" },
-  { key: "date", label: "Date" },
-];
+      <span style={{ fontWeight: bold ? 700 : 600 }}>{value}</span>
+    </div>
+  );
+}
+Row.propTypes = {
+  label: PropTypes.string.isRequired,
+  value: PropTypes.node.isRequired,
+  color: PropTypes.string,
+  bold: PropTypes.bool,
+};
 
 function DirectorDashboard() {
   const [data, setData] = useState(null);
@@ -51,8 +43,7 @@ function DirectorDashboard() {
     setLoading(true);
     setError("");
     try {
-      const result = await getDirectorDashboard();
-      setData(result);
+      setData(await getDirectorDashboard());
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to load director dashboard.");
     } finally {
@@ -60,92 +51,109 @@ function DirectorDashboard() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchDashboard();
-  }, [fetchDashboard]);
+  useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
 
-  // Real-time updates via WebSocket
   useSocket("director", {
-    booking_created: () => fetchDashboard(),
-    payment_completed: () => fetchDashboard(),
+    booking_created:       () => fetchDashboard(),
+    payment_completed:     () => fetchDashboard(),
     cleaning_task_updated: () => fetchDashboard(),
-    attendance_updated: () => fetchDashboard(),
+    attendance_updated:    () => fetchDashboard(),
   });
 
   if (loading) return <Loader message="Loading director dashboard..." />;
-  if (error) return <ErrorMessage message={error} onRetry={fetchDashboard} />;
-  if (!data) return <div className="empty-state">No dashboard data available.</div>;
+  if (error)   return <ErrorMessage message={error} onRetry={fetchDashboard} />;
+  if (!data)   return <div className="empty-state">No dashboard data available.</div>;
 
-  const revenueToday = data.revenue_today ?? data.revenue?.today ?? 0;
-  const revenueMonth = data.revenue_month ?? data.revenue?.month ?? 0;
-  const totalBookings = data.total_bookings ?? data.bookings?.total ?? 0;
-  const activeBookings = data.active_bookings ?? data.bookings?.active ?? 0;
-  const pendingRetries = data.pending_retries ?? data.cleaning_retries ?? 0;
-  const totalPenalties = data.total_penalties ?? data.penalties_count ?? 0;
-  const staffPerformance = data.staff_performance ?? [];
-  const attendance = data.attendance ?? [];
-  const pendingIssues = data.pending_issues ?? [];
+  const branch     = data.branch || {};
+  const revenue    = data.revenue || {};
+  const today      = data.booking_stats?.today || {};
+  const month      = data.booking_stats?.month || {};
+  const attendance = data.attendance_summary || {};
+  const issues     = data.pending_issues || {};
+  const perf       = data.staff_performance || [];
+
+  const attendanceTotal = (attendance.present ?? 0) + (attendance.late ?? 0) + (attendance.absent ?? 0);
+  const presentPct = attendanceTotal
+    ? Math.round(((attendance.present ?? 0) / attendanceTotal) * 100)
+    : 0;
 
   return (
     <div>
-      <div className="page-header"><h1>Director Dashboard</h1></div>
+      <div className="page-header">
+        <div>
+          <h1 style={{ marginBottom: 4 }}>Director Dashboard</h1>
+          {branch.name && (
+            <span className="text-muted" style={{ fontSize: 14 }}>{branch.name}</span>
+          )}
+        </div>
+      </div>
 
-      {/* Revenue & Booking cards */}
       <div className="stat-grid">
         <StatCard
           title="Revenue Today"
-          value={`${Number(revenueToday).toLocaleString()} UZS`}
+          value={`${fmt(revenue.today)} UZS`}
+          subtitle={`${fmt(revenue.month)} UZS this month`}
         />
         <StatCard
-          title="Revenue This Month"
-          value={`${Number(revenueMonth).toLocaleString()} UZS`}
+          title="Bookings Today"
+          value={today.total ?? 0}
+          subtitle={`${today.paid ?? 0} paid · ${today.pending ?? 0} pending · ${today.canceled ?? 0} canceled`}
         />
         <StatCard
-          title="Total Bookings"
-          value={totalBookings}
-          subtitle={`${activeBookings} active`}
+          title="Bookings This Month"
+          value={month.total ?? 0}
+          subtitle={`${month.paid ?? 0} paid · ${month.canceled ?? 0} canceled`}
         />
         <StatCard
           title="Pending Issues"
-          value={pendingRetries + totalPenalties}
-          subtitle={`${pendingRetries} retries · ${totalPenalties} penalties`}
+          value={(issues.cleaning_retries ?? 0) + (issues.pending_cleaning ?? 0)}
+          subtitle={`${issues.cleaning_retries ?? 0} retries · ${issues.pending_cleaning ?? 0} pending tasks`}
         />
       </div>
 
-      {/* Staff Performance */}
-      <div className="section">
-        <h3 className="section-title">
-          Staff Performance
-        </h3>
-        <Table
-          columns={performanceColumns}
-          data={staffPerformance}
-          emptyMessage="No staff performance data"
-        />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 8 }}>
+        <div className="card" style={{ margin: 0 }}>
+          <h3 className="section-title" style={{ marginTop: 0 }}>Today's Bookings</h3>
+          <Row label="Paid"     value={today.paid ?? 0}     color="#22c55e" />
+          <Row label="Pending"  value={today.pending ?? 0}  color="#f59e0b" />
+          <Row label="Canceled" value={today.canceled ?? 0} color="#ef4444" />
+          <Row label="Total"    value={today.total ?? 0}    bold />
+        </div>
+
+        <div className="card" style={{ margin: 0 }}>
+          <h3 className="section-title" style={{ marginTop: 0 }}>Attendance Today</h3>
+          {attendanceTotal === 0 ? (
+            <p className="text-muted" style={{ fontSize: 13, margin: "12px 0 0" }}>
+              No attendance recorded yet for today.
+            </p>
+          ) : (
+            <>
+              <Row label="Present"  value={`${attendance.present ?? 0} (${presentPct}%)`} color="#22c55e" />
+              <Row label="Late"     value={attendance.late ?? 0}    color="#f59e0b" />
+              <Row label="Absent"   value={attendance.absent ?? 0}  color="#ef4444" />
+              <Row label="Total"    value={attendanceTotal}         bold />
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Attendance */}
-      <div className="section">
-        <h3 className="section-title">
-          Attendance Summary
-        </h3>
-        <Table
-          columns={attendanceColumns}
-          data={attendance}
-          emptyMessage="No attendance data"
-        />
-      </div>
-
-      {/* Pending Issues */}
-      <div className="section">
-        <h3 className="section-title">
-          Pending Issues
-        </h3>
-        <Table
-          columns={issueColumns}
-          data={pendingIssues}
-          emptyMessage="No pending issues — all clear!"
-        />
+      <div className="card" style={{ marginTop: 16 }}>
+        <h3 className="section-title" style={{ marginTop: 0 }}>Staff Performance (this month)</h3>
+        {perf.length === 0 ? (
+          <p className="text-muted" style={{ fontSize: 13, margin: "12px 0 0" }}>
+            No completed cleaning tasks recorded yet this month.
+          </p>
+        ) : (
+          <div>
+            {perf.map((p) => (
+              <Row
+                key={p.staff_id || p.staff_name}
+                label={p.staff_name}
+                value={`${fmt(p.tasks_completed ?? 0)} done · ${fmt(p.tasks_retried ?? 0)} retried`}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

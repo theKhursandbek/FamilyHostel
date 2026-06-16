@@ -1,11 +1,23 @@
+import { useState } from "react";
 import PropTypes from "prop-types";
+import { CheckCircle2, XCircle, Check, X } from "lucide-react";
 import Modal from "./Modal";
+import Lightbox from "./Lightbox";
 
 const STATUS_LABELS = {
   pending: "Pending",
   in_progress: "In Progress",
+  ai_checking: "AI Checking…",
   completed: "Completed",
   retry_required: "Retry Required",
+};
+
+const ZONE_LABELS = {
+  bed: "Bed",
+  bathroom: "Bathroom",
+  floor: "Floor",
+  trash: "Trash & surfaces",
+  extra: "Extra",
 };
 
 function InfoRow({ label, value }) {
@@ -23,10 +35,11 @@ InfoRow.propTypes = {
 };
 
 function CleaningTaskDetail({ task, isOpen, onClose }) {
+  const [lightboxIndex, setLightboxIndex] = useState(null);
   if (!task) return null;
 
   const aiResults = task.ai_results || [];
-  const images = task.images || [];
+  const images = (task.images || []).filter((img) => img.image_url && !img.is_purged);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Task #${task.id} — Room ${task.room_number}`}>
@@ -47,34 +60,24 @@ function CleaningTaskDetail({ task, isOpen, onClose }) {
         value={task.completed_at ? new Date(task.completed_at).toLocaleString() : "—"}
       />
 
-      {/* Images */}
+      {/* Zone photos */}
       <h4 className="section-title" style={{ margin: "16px 0 8px" }}>
         Photos ({images.length})
       </h4>
       {images.length === 0 ? (
-        <p className="text-secondary" style={{ fontSize: 13 }}>No photos uploaded yet.</p>
+        <p className="text-secondary" style={{ fontSize: 13 }}>No photos available.</p>
       ) : (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {images.map((img) => (
-            <a
+        <div className="clean-detail__zones">
+          {images.map((img, i) => (
+            <button
               key={img.id}
-              href={img.image_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ display: "block" }}
+              type="button"
+              className="clean-detail__zone"
+              onClick={() => setLightboxIndex(i)}
             >
-              <img
-                src={img.image_url}
-                alt={`Cleaning result ${img.id}`}
-                style={{
-                  width: 100,
-                  height: 100,
-                  objectFit: "cover",
-                  borderRadius: 6,
-                  border: "1px solid var(--border)",
-                }}
-              />
-            </a>
+              <img src={img.image_url} alt={`${img.zone} zone`} className="clean-detail__zone-img" />
+              <span className="clean-detail__zone-tag">{ZONE_LABELS[img.zone] || img.zone}</span>
+            </button>
           ))}
         </div>
       )}
@@ -98,24 +101,59 @@ function CleaningTaskDetail({ task, isOpen, onClose }) {
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                <strong className={result.result === "approved" ? "text-success" : "text-accent"}>
-                  {result.result === "approved" ? "✅ Approved" : "❌ Rejected"}
+                <strong
+                  className={result.result === "approved" ? "text-success" : "text-accent"}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+                >
+                  {result.result === "approved" ? (
+                    <><CheckCircle2 size={15} strokeWidth={2} /> Approved</>
+                  ) : (
+                    <><XCircle size={15} strokeWidth={2} /> Rejected</>
+                  )}
                 </strong>
                 <span className="text-secondary" style={{ fontSize: 12 }}>
-                  {result.analyzed_at ? new Date(result.analyzed_at).toLocaleString() : ""}
+                  {result.created_at ? new Date(result.created_at).toLocaleString() : ""}
                 </span>
               </div>
-              {result.notes && (
-                <p style={{ margin: 0, color: "var(--text)" }}>{result.notes}</p>
+              {result.feedback_text && (
+                <p style={{ margin: 0, color: "var(--text)" }}>{result.feedback_text}</p>
               )}
-              {result.model_version && (
+              {Array.isArray(result.zones) && result.zones.length > 0 && (
+                <ul className="clean-detail__ai-zones">
+                  {result.zones.map((z) => (
+                    <li key={z.zone} className={z.clean ? "is-clean" : "is-dirty"}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, textTransform: "capitalize" }}>
+                        {z.clean ? <Check size={13} strokeWidth={2.6} /> : <X size={13} strokeWidth={2.6} />} {z.zone}
+                      </span>
+                      {!z.clean && (z.issues || []).length > 0 && (
+                        <span className="clean-detail__ai-issues"> — {z.issues.join(", ")}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {result.failure_reason && (
                 <p className="text-secondary" style={{ margin: "4px 0 0", fontSize: 12 }}>
-                  Model: {result.model_version}
+                  Verification could not run ({result.failure_reason}).
+                </p>
+              )}
+              {result.ai_model_version && (
+                <p className="text-secondary" style={{ margin: "4px 0 0", fontSize: 12 }}>
+                  Model: {result.ai_model_version}
+                  {result.confidence != null && ` · confidence ${Math.round(result.confidence * 100)}%`}
                 </p>
               )}
             </div>
           ))}
         </div>
+      )}
+
+      {lightboxIndex !== null && (
+        <Lightbox
+          images={images.map((img) => ({ id: img.id, url: img.image_url, alt: img.zone }))}
+          startIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
       )}
     </Modal>
   );

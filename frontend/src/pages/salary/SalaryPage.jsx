@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { Navigate } from "react-router-dom";
 import PropTypes from "prop-types";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   getSalaries,
   previewSalary,
   getSalaryRoster,
   getSalaryAudit,
-  exportRosterCsv,
   getSalaryLifecycleStatus,
   payAdvance,
   payFinal,
@@ -13,13 +14,12 @@ import {
 } from "../../services/salaryService";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
+import { useBranchScope } from "../../context/BranchScopeContext";
 import usePersistedBranch from "../../hooks/usePersistedBranch";
-import BranchSelector from "../../components/BranchSelector";
 import Loader from "../../components/Loader";
 import ErrorMessage from "../../components/ErrorMessage";
 import Button from "../../components/Button";
 import Modal from "../../components/Modal";
-import MonthlyAdjustmentsPanel from "./MonthlyAdjustmentsPanel";
 
 // ─────────────────────────── helpers ───────────────────────────
 
@@ -168,7 +168,7 @@ function PeriodNav({ anchor, onAnchor }) {
         onClick={() => onAnchor(shiftPeriod(anchor, -1))}
         aria-label="Previous period"
       >
-        ◀
+        <ChevronLeft size={16} strokeWidth={2} aria-hidden />
       </button>
       <div className="period-nav__label">
         <span className="period-nav__title">{periodLabel(period_start)}</span>
@@ -180,7 +180,7 @@ function PeriodNav({ anchor, onAnchor }) {
         onClick={() => onAnchor(shiftPeriod(anchor, +1))}
         aria-label="Next period"
       >
-        ▶
+        <ChevronRight size={16} strokeWidth={2} aria-hidden />
       </button>
     </div>
   );
@@ -226,10 +226,10 @@ function PersonalSalaryView() {
 
   return (
     <div className="salary-shell">
-      <div className="page-header">
-        <h1>My Salary</h1>
+      <header className="salary-page-hd">
+        <h1 className="salary-page-hd__title">My Salary</h1>
         <PeriodNav anchor={anchor} onAnchor={setAnchor} />
-      </div>
+      </header>
 
       {(() => {
         if (loading) return <Loader />;
@@ -264,30 +264,32 @@ function PersonalSalaryView() {
             {history.length === 0 ? (
               <div className="salary-empty">No salary records yet.</div>
             ) : (
-              <table className="salary-table">
-                <thead>
-                  <tr>
-                    <th>Period</th>
-                    <th className="salary-table__num">Amount</th>
-                    <th>Status</th>
-                    <th>Locked</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((row) => (
-                    <tr key={row.id}>
-                      <td>{fmtDate(row.period_start)} — {fmtDate(row.period_end)}</td>
-                      <td className="salary-table__num">{fmtMoney(row.amount)}</td>
-                      <td>
-                        <span className={`salary-pill ${STATUS_TONE[row.status] || ""}`}>
-                          {row.status}
-                        </span>
-                      </td>
-                      <td className="salary-table__muted">{fmtDate(row.created_at)}</td>
+              <div className="salary-table-wrap">
+                <table className="salary-table">
+                  <thead>
+                    <tr>
+                      <th>Period</th>
+                      <th className="salary-table__num">Amount</th>
+                      <th>Status</th>
+                      <th>Locked</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {history.map((row) => (
+                      <tr key={row.id}>
+                        <td>{fmtDate(row.period_start)} — {fmtDate(row.period_end)}</td>
+                        <td className="salary-table__num">{fmtMoney(row.amount)}</td>
+                        <td>
+                          <span className={`salary-pill ${STATUS_TONE[row.status] || ""}`}>
+                            {row.status}
+                          </span>
+                        </td>
+                        <td className="salary-table__muted">{fmtDate(row.created_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
         </>
@@ -430,6 +432,12 @@ function ManagerSalaryView({ user, isSuperAdmin }) {
     isSuperAdmin,
     user?.branch_id ?? null,
   );
+
+  // Register branch scope in global fixed header
+  const { register, unregister } = useBranchScope();
+  useEffect(() => { register(branchId, setBranchId); }, [branchId, register, setBranchId]);
+  useEffect(() => () => unregister(), [unregister]);
+
   const [anchor, setAnchor] = useState(() => new Date());
   const { period_start, period_end } = useMemo(
     () => computePeriod(anchor),
@@ -534,18 +542,6 @@ function ManagerSalaryView({ user, isSuperAdmin }) {
     }
   };
 
-  const handleExport = async () => {
-    try {
-      await exportRosterCsv({
-        period_start, period_end,
-        ...(branchId ? { branch: branchId } : {}),
-      });
-      toast.success("CSV downloaded");
-    } catch {
-      toast.error("CSV export failed");
-    }
-  };
-
   const totals = roster?.totals;
   const adv = lifecycle?.advance_window;
   const fin = lifecycle?.final_window;
@@ -564,7 +560,6 @@ function ManagerSalaryView({ user, isSuperAdmin }) {
     <div className="salary-shell">
       <div className="page-header">
         <h1>Salary Records</h1>
-        <BranchSelector value={branchId} onChange={setBranchId} />
       </div>
 
       {ceoMustPick ? (
@@ -673,10 +668,6 @@ function ManagerSalaryView({ user, isSuperAdmin }) {
 
           <div className="salary-toolbar">
             <PeriodNav anchor={anchor} onAnchor={setAnchor} />
-            <div className="salary-toolbar__spacer" />
-            <Button variant="secondary" size="sm" onClick={handleExport} disabled={loading}>
-              Export CSV
-            </Button>
           </div>
 
           <section className="salary-kpis">
@@ -757,7 +748,7 @@ function ManagerSalaryView({ user, isSuperAdmin }) {
                             </td>
                             <td className="salary-table__actions">
                               {row.record_id && (
-                                <Button size="sm" variant="ghost" onClick={() => setAuditRecordId(row.record_id)}>
+                                <Button size="sm" variant="secondary" onClick={() => setAuditRecordId(row.record_id)}>
                                   Audit
                                 </Button>
                               )}
@@ -771,8 +762,6 @@ function ManagerSalaryView({ user, isSuperAdmin }) {
               );
             })()}
           </section>
-
-          <MonthlyAdjustmentsPanel branchId={branchId} canEdit />
 
           <section className="salary-panel">
             <div className="salary-panel__head">
@@ -839,18 +828,13 @@ ManagerSalaryView.propTypes = {
 function SalaryPage() {
   const { user } = useAuth();
   const roles = user?.roles || [];
-  // Per April 2026 spec (Q10): only CEO sees the manager UI. Staff,
-  // Administrators AND Directors all see the read-only personal view of
-  // their own salary. Colleague salaries are visible only via the branch
-  // Excel report download.
-  const isManager = roles.includes("superadmin");
+  const isCeo = roles.includes("superadmin");
 
-  if (!isManager) {
-    return <PersonalSalaryView />;
+  // CEO manages payroll from the Reports page — no salary personal view needed.
+  if (isCeo) {
+    return <Navigate to="/reports" replace />;
   }
-  return (
-    <ManagerSalaryView user={user} isSuperAdmin />
-  );
+  return <PersonalSalaryView />;
 }
 
 export default SalaryPage;

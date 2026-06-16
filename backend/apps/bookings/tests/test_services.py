@@ -100,8 +100,33 @@ class TestCancelBooking:
         booking.room.refresh_from_db()
         assert booking.room.status == Room.RoomStatus.AVAILABLE
 
-    def test_cannot_cancel_paid_booking(self, booking):
+    def test_cancel_paid_booking_no_refund(self, booking):
+        """Plan D6: paid bookings can be canceled, but money is never refunded."""
+        from apps.payments.models import Payment
+
         booking.status = "paid"
+        booking.save()
+        Payment.objects.create(
+            booking=booking,
+            amount=booking.final_price,
+            payment_type=Payment.PaymentType.ONLINE,
+            is_paid=True,
+            payment_intent_id="pi_test_existing",
+        )
+
+        result = cancel_booking(booking)
+
+        assert result.status == "canceled"
+        booking.room.refresh_from_db()
+        assert booking.room.status == Room.RoomStatus.AVAILABLE
+        # The original payment row is left intact and no refund row is added.
+        assert Payment.objects.filter(booking=booking).count() == 1
+        original = Payment.objects.get(booking=booking)
+        assert original.is_paid is True
+        assert original.amount == booking.final_price
+
+    def test_cannot_cancel_completed_booking(self, booking):
+        booking.status = "completed"
         booking.save()
         with pytest.raises(ValidationError, match="Cannot cancel"):
             cancel_booking(booking)

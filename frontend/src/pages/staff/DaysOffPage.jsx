@@ -1,34 +1,25 @@
 import { useState, useEffect, useCallback } from "react";
+import { CalendarDays } from "lucide-react";
 import { getDayOffRequests, createDayOffRequest } from "../../services/staffService";
 import { useToast } from "../../context/ToastContext";
 import Button from "../../components/Button";
 import Input from "../../components/Input";
 import Modal from "../../components/Modal";
-import Table from "../../components/Table";
 import Loader from "../../components/Loader";
 import ErrorMessage from "../../components/ErrorMessage";
 
-const BADGE_MAP = {
-  pending: "badge-warning",
-  approved: "badge-success",
-  rejected: "badge-danger",
+const STATUS_TONE = {
+  pending: "staff-badge--warning",
+  approved: "staff-badge--success",
+  rejected: "staff-badge--danger",
 };
 
-const columns = [
-  { key: "start_date", label: "Start" },
-  { key: "end_date", label: "End" },
-  { key: "reason", label: "Reason", render: (val) => val || "—" },
-  {
-    key: "status",
-    label: "Status",
-    render: (val) => (
-      <span className={`badge ${BADGE_MAP[val] || "badge-muted"}`} style={{ textTransform: "capitalize" }}>
-        {val}
-      </span>
-    ),
-  },
-  { key: "reviewer_comment", label: "Comment", render: (val) => val || "—" },
-];
+function fmtDate(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
 
 function DaysOffPage() {
   const toast = useToast();
@@ -94,13 +85,45 @@ function DaysOffPage() {
   if (error) return <ErrorMessage message={error} onRetry={fetchRequests} />;
 
   return (
-    <div>
-      <div className="page-header">
-        <h1>Days Off Requests</h1>
-        <Button onClick={() => setModalOpen(true)}>+ New Request</Button>
-      </div>
+    <div className="staff-page">
+      <header className="staff-hero staff-hero--split">
+        <div>
+          <h1 className="staff-hero__title">Days Off</h1>
+          <p className="staff-hero__sub">Request and track your time off</p>
+        </div>
+        <Button size="sm" onClick={() => setModalOpen(true)}>+ New</Button>
+      </header>
 
-      <Table columns={columns} data={requests} emptyMessage="No day-off requests" />
+      {requests.length === 0 ? (
+        <div className="staff-empty">
+          <span className="staff-empty__icon" aria-hidden>
+            <CalendarDays size={26} strokeWidth={1.6} />
+          </span>
+          <p className="staff-empty__title">No requests yet</p>
+          <p className="staff-empty__sub">Tap “+ New” to request a day off.</p>
+        </div>
+      ) : (
+        <ul className="staff-stack">
+          {requests.map((r) => (
+            <li key={r.id} className="staff-rec">
+              <div className="staff-rec__top">
+                <span className="staff-rec__title">
+                  {fmtDate(r.start_date)} → {fmtDate(r.end_date)}
+                </span>
+                <span className={`staff-badge ${STATUS_TONE[r.status] || ""}`}>
+                  {r.status}
+                </span>
+              </div>
+              {r.reason && <p className="staff-rec__meta">{r.reason}</p>}
+              {r.reviewer_comment && (
+                <p className="staff-rec__meta">
+                  <strong>Reviewer:</strong> {r.reviewer_comment}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Request Day Off">
         <form onSubmit={handleSubmit}>

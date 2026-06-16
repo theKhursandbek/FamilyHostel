@@ -38,7 +38,7 @@ function GreetingHero({ user }) {
         {greeting}, <span className="name">{friendlyName}</span>
       </h1>
       <div className="greeting-sub">
-        Here&apos;s your personalised hostel dashboard.
+        Here&apos;s your dashboard.
       </div>
     </section>
   );
@@ -83,6 +83,11 @@ function DashboardPage() {
   else if (roles.includes("staff")) RoleDashboard = StaffDashboard;
 
   if (RoleDashboard) {
+    // Staff get a bespoke mobile home screen that already greets the user
+    // and shows the shift / check-in chip — skip the shared hero for them.
+    if (RoleDashboard === StaffDashboard) {
+      return <StaffDashboard />;
+    }
     return (
       <>
         <GreetingHero user={user} />

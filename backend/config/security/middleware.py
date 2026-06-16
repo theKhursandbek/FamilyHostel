@@ -73,23 +73,6 @@ class SecurityLoggingMiddleware:
     detection service so that repeated offenders get auto-blocked.
     """
 
-    # Map HTTP status → suspicious-activity type for the detection service.
-    # 401 is split based on the request path so that an expired JWT on a
-    # normal API call is not misclassified as a failed login attempt.
-    _STATUS_TO_ACTIVITY: dict[int, str] = {
-        403: "unauthorized_access",
-        429: "rate_limit_exceeded",
-    }
-
-    # Paths that are *real* authentication endpoints. Only a 401 on one of
-    # these counts as a failed_login attempt; any other 401 (expired token,
-    # missing auth header on a normal endpoint, …) is logged as a generic
-    # ``unauthorized_access`` so the suspicious-activity dashboard isn't
-    # flooded with noise from legitimate users whose session lapsed.
-    _LOGIN_PATH_PREFIXES: tuple[str, ...] = (
-        "/api/v1/auth/",
-    )
-
     def __init__(self, get_response):
         self.get_response = get_response
 
@@ -105,7 +88,6 @@ class SecurityLoggingMiddleware:
             user_info = self._resolve_user_info(user)
 
             self._log_event(status_code, client_ip, request.method, request.path, user_info, duration)
-            self._feed_detection(status_code, client_ip, user, request.path)
 
         return response
 
@@ -130,32 +112,8 @@ class SecurityLoggingMiddleware:
                 client_ip, method, path, user_info, status_code, duration,
             )
 
-    def _feed_detection(self, status_code, client_ip, user, path):
-        """Feed event into the suspicious-activity detection service (Step 21.2)."""
-        if status_code == 401:
-            # Only count as failed_login when the request actually hit a
-            # login / token endpoint. Any other 401 is a generic auth issue
-            # (expired access token on a normal API call) and gets logged
-            # as ``unauthorized_access`` instead.
-            if any(path.startswith(p) for p in self._LOGIN_PATH_PREFIXES):
-                activity_type = "failed_login"
-            else:
-                activity_type = "unauthorized_access"
-        else:
-            activity_type = self._STATUS_TO_ACTIVITY.get(status_code)
-        if not activity_type:
-            return
-        try:
-            from config.security.detection import track_suspicious_activity
-
-            account = user if user and getattr(user, "is_authenticated", False) else None
-            track_suspicious_activity(
-                ip_address=client_ip,
-                activity_type=activity_type,
-                account=account,
-            )
-        except Exception:  # noqa: BLE001 — never let detection crash request
-            logger.exception("Detection service error")
+    def _feed_detection(self, status_code, client_ip, user, path):  # noqa: ARG002
+        """Deprecated no-op kept for backward compat with any external caller."""
 
     @staticmethod
     def _resolve_user_info(user) -> str:
@@ -173,59 +131,14 @@ class SecurityLoggingMiddleware:
 
 
 class BlockedUserMiddleware:
-    """
-    Reject requests from blocked IPs / accounts with 403 Forbidden (Step 21.2).
+    """Deprecated — suspicious-activity blocking has been removed.
 
-    This middleware runs early in the stack (right after
-    ``AuthenticationMiddleware``) so that blocked callers are rejected
-    before any view logic executes.
-
-    The ``is_blocked()`` call is lightweight — a single indexed query —
-    and also garbage-collects expired blocks automatically.
+    Kept as a no-op pass-through so settings and tests that reference it
+    keep working. Safe to drop from MIDDLEWARE in a future cleanup.
     """
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
-        client_ip = self._get_client_ip(request)
-        user = getattr(request, "user", None)
-        account = (
-            user
-            if user and getattr(user, "is_authenticated", False)
-            else None
-        )
-
-        try:
-            from config.security.detection import is_blocked
-
-            if is_blocked(ip_address=client_ip, account=account):
-                logger.warning(
-                    "REQUEST_BLOCKED | ip=%s | %s %s | account=%s",
-                    client_ip, request.method, request.path, account or "anonymous",
-                )
-                return JsonResponse(
-                    {
-                        "success": False,
-                        "error": {
-                            "code": "blocked",
-                            "message": (
-                                "Your access has been temporarily blocked due to "
-                                "suspicious activity. Please try again later."
-                            ),
-                        },
-                    },
-                    status=403,
-                )
-        except Exception:  # noqa: BLE001 — never let detection crash request
-            logger.exception("BlockedUserMiddleware error")
-
         return self.get_response(request)
-
-    @staticmethod
-    def _get_client_ip(request: HttpRequest) -> str:
-        """Extract client IP, respecting X-Forwarded-For behind reverse proxies."""
-        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-        if x_forwarded_for:
-            return x_forwarded_for.split(",")[0].strip()
-        return request.META.get("REMOTE_ADDR", "unknown")

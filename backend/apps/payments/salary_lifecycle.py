@@ -133,14 +133,13 @@ def _monthly_base_for_advance(account, period_start, period_end) -> Decimal:
     that depend on whole-month income.
 
     For staff/admin: ``shift_rate × shift_count`` for the WHOLE month.
-    For directors: their fixed salary (no GM bonus, no income bonus).
+    For directors: their fixed salary (no income bonus).
     """
     settings = get_system_settings()
 
     director = Director.objects.filter(account_id=account.pk).first()
     if director is not None:
-        fixed, _gm = resolve_director_payout(director, settings)
-        return fixed
+        return resolve_director_payout(director, settings)
 
     rate = resolve_per_shift_rate(account.pk, settings)
     full_shifts = count_valid_shifts(account.pk, period_start, period_end)

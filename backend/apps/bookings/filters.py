@@ -36,4 +36,4 @@ class BookingFilter(django_filters.FilterSet):
 
     class Meta:
         model = Booking
-        fields = ["branch", "room", "client", "status"]
+        fields = ["branch", "room", "client", "status", "branch_number", "source"]

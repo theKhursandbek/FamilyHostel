@@ -18,14 +18,48 @@ from django.db import models
 
 class Branch(models.Model):
     """
-    Hostel branch / location.
+    Hotel branch / location.
 
     Fields per README:
         - id, name, location, is_active
+
+    Telegram Mini App plan §4.2 / D14:
+        - ``location_code`` is a controlled enum used for catalogue filtering.
+        - ``location_label`` is free-text street/building shown in the UI.
+        - Legacy ``location`` is kept for back-compat with the admin web app
+          and existing reports; new client surfaces should use the new pair.
     """
+
+    class Location(models.TextChoices):
+        CHILANZAR = "chilanzar", "Chilanzar"
+        YUNUSABAD = "yunusabad", "Yunusabad"
+        MIRZO_ULUGBEK = "mirzo_ulugbek", "Mirzo Ulug'bek"
+        SERGELI = "sergeli", "Sergeli"
+        SHAYHANTAHUR = "shayhantahur", "Shayhantahur"
+        YASHNABAD = "yashnabad", "Yashnabad"
+        MIROBOD = "mirobod", "Mirobod"
+        UCHTEPA = "uchtepa", "Uchtepa"
+        BEKTEMIR = "bektemir", "Bektemir"
+        OLMAZAR = "olmazar", "Olmazar"
+        YAKKASARAY = "yakkasaray", "Yakkasaray"
+        SAMARQAND = "samarqand", "Samarqand"
+        OTHER = "other", "Other"
 
     name = models.CharField(max_length=255)
     location = models.CharField(max_length=500)
+    location_code = models.CharField(
+        max_length=24,
+        choices=Location.choices,
+        default=Location.OTHER,
+        db_index=True,
+        help_text="Controlled enum used by the public catalogue location filter.",
+    )
+    location_label = models.CharField(
+        max_length=128,
+        blank=True,
+        default="",
+        help_text="Free-text street / building shown next to the location pill.",
+    )
     image = models.ImageField(
         upload_to="branch_images/%Y/%m/%d/",
         blank=True,
@@ -130,6 +164,13 @@ class Room(models.Model):
         unique_together = ("branch", "room_number")
         verbose_name = "Room"
         verbose_name_plural = "Rooms"
+        indexes = [
+            # Plan §8 R10 — catalogue listing filter (branch + active rooms)
+            models.Index(
+                fields=["branch", "status", "is_active"],
+                name="idx_room_branch_status_active",
+            ),
+        ]
 
     def __str__(self):
         return f"Room {self.room_number} ({self.branch.name})"

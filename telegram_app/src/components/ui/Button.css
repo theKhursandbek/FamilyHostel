@@ -1,0 +1,49 @@
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: var(--font-md);
+  cursor: pointer;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+  min-height: 44px;
+  padding: 0 var(--s-4);
+  font-family: inherit;
+}
+.ui-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ui-btn:active:not(:disabled) { transform: scale(0.98); }
+
+.ui-btn--block { width: 100%; }
+.ui-btn--sm { min-height: 36px; padding: 0 var(--s-3); font-size: var(--font-sm); }
+.ui-btn--lg { min-height: 52px; padding: 0 var(--s-5); font-size: var(--font-lg); }
+
+.ui-btn--primary {
+  background: var(--tg-button);
+  color: var(--tg-button-text);
+}
+.ui-btn--secondary {
+  background: var(--tg-secondary-bg);
+  color: var(--tg-text);
+}
+.ui-btn--ghost {
+  background: transparent;
+  color: var(--tg-link);
+}
+.ui-btn--danger {
+  background: var(--c-danger);
+  color: #fff;
+}
+
+.ui-btn__spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: ui-btn-spin 0.7s linear infinite;
+}
+@keyframes ui-btn-spin { to { transform: rotate(360deg); } }

@@ -1,0 +1,56 @@
+.ui-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.ui-sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  animation: ui-sheet-fade var(--transition-base);
+}
+.ui-sheet__panel {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  padding-bottom: calc(var(--s-4) + var(--safe-bottom));
+  animation: ui-sheet-rise var(--transition-base) ease-out;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.ui-sheet__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--s-4) var(--s-4) var(--s-2);
+  border-bottom: 1px solid var(--tg-card-border);
+}
+.ui-sheet__header h3 { margin: 0; font-size: var(--font-lg); }
+.ui-sheet__close {
+  background: transparent;
+  border: none;
+  color: var(--tg-hint);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 4px var(--s-2);
+}
+.ui-sheet__body { padding: var(--s-4); }
+.ui-sheet__footer {
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--tg-card-border);
+}
+
+@keyframes ui-sheet-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ui-sheet-rise {
+  from { transform: translateY(20%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

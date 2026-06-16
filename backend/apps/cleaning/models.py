@@ -34,6 +34,7 @@ class CleaningTask(models.Model):
     class TaskStatus(models.TextChoices):
         PENDING = "pending", "Pending"
         IN_PROGRESS = "in_progress", "In Progress"
+        AI_CHECKING = "ai_checking", "AI Checking"
         COMPLETED = "completed", "Completed"
         RETRY_REQUIRED = "retry_required", "Retry Required"
 
@@ -104,11 +105,23 @@ class CleaningTask(models.Model):
 
 class CleaningImage(models.Model):
     """
-    Photo uploaded by staff for cleaning verification.
+    Photo captured by staff for cleaning verification.
 
-    Fields per README:
-        - id, task_id (FK), image_url, uploaded_at
+    Captured via the live in-app camera (one per zone). The server strips
+    EXIF, recompresses, and computes a perceptual hash (``phash``) for
+    duplicate detection. Files are purged ``CLEANING_IMAGE_RETENTION_DAYS``
+    after the parent task completes; the ``AIResult`` verdict is kept forever.
     """
+
+    class Zone(models.TextChoices):
+        BED = "bed", "Bed & sleeping area"
+        BATHROOM = "bathroom", "Bathroom"
+        FLOOR = "floor", "Floor & general view"
+        TRASH = "trash", "Trash bin & surfaces"
+        EXTRA = "extra", "Extra / issue report"
+
+    #: The four zones a staff member MUST capture to submit a task.
+    REQUIRED_ZONES = ("bed", "bathroom", "floor", "trash")
 
     task = models.ForeignKey(
         CleaningTask,
@@ -116,15 +129,42 @@ class CleaningImage(models.Model):
         related_name="images",
     )
     image = models.ImageField(upload_to="cleaning_images/%Y/%m/%d/")
+    zone = models.CharField(
+        max_length=12,
+        choices=Zone.choices,
+        default=Zone.EXTRA,
+        help_text="Which part of the room this photo documents.",
+    )
+    phash = models.CharField(
+        max_length=16,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="64-bit perceptual hash (hex) for duplicate detection.",
+    )
+    width = models.PositiveIntegerField(default=0)
+    height = models.PositiveIntegerField(default=0)
+    byte_size = models.PositiveIntegerField(default=0)
+    captured_via = models.CharField(
+        max_length=10,
+        default="camera",
+        help_text="camera | upload — staff submissions must be 'camera'.",
+    )
+    is_purged = models.BooleanField(
+        default=False,
+        help_text="True once the image file has been deleted by retention.",
+    )
+    purged_at = models.DateTimeField(null=True, blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "cleaning_images"
+        ordering = ["zone", "uploaded_at"]
         verbose_name = "Cleaning Image"
         verbose_name_plural = "Cleaning Images"
 
     def __str__(self):
-        return f"Image for Task #{self.task.pk} ({self.image.name})"
+        return f"Image for Task #{self.task.pk} ({self.zone})"
 
 
 class AIResult(models.Model):
@@ -147,6 +187,27 @@ class AIResult(models.Model):
     )
     result = models.CharField(max_length=10, choices=Result.choices)
     feedback_text = models.TextField(blank=True, default="")
+    zones = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Per-zone breakdown: [{zone, clean, issues:[...]}, ...].",
+    )
+    confidence = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Model self-reported confidence (0–1).",
+    )
+    raw_response = models.TextField(
+        blank=True,
+        default="",
+        help_text="Raw model JSON for audit/debugging.",
+    )
+    failure_reason = models.CharField(
+        max_length=120,
+        blank=True,
+        default="",
+        help_text="Set when the verdict was fail-closed (quota/timeout/parse).",
+    )
     ai_model_version = models.CharField(max_length=50, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
 

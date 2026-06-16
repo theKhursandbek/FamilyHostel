@@ -1,5 +1,5 @@
 # ==============================================================================
-# Docker Compose — FamilyHostel production stack (Steps 22-23)
+# Docker Compose — Hotel production stack (Steps 22-23)
 #
 # Services:
 #   - nginx       : Reverse proxy (port 80) — static/media/WebSocket

@@ -60,7 +60,6 @@ class IncomeRuleSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "branch",
-            "shift_type",
             "min_income",
             "max_income",
             "percent",

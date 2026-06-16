@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { getTasks, assignTask, completeTask, uploadImages, retryTask } from "../../services/cleaningService";
+import { CheckCircle2 } from "lucide-react";
+import { getTasks, assignTask, uploadImages, retryTask } from "../../services/cleaningService";
 import { useToast } from "../../context/ToastContext";
 import CleaningTaskCard from "../../components/CleaningTaskCard";
 import Loader from "../../components/Loader";
@@ -16,7 +17,7 @@ function MyTasksPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getTasks({ assigned_to_me: true });
+      const data = await getTasks({ mine: true });
       setTasks(data.results ?? data);
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to load tasks");
@@ -46,21 +47,37 @@ function MyTasksPage() {
   if (loading) return <Loader />;
   if (error) return <ErrorMessage message={error} onRetry={fetchTasks} />;
 
+  const taskWord = tasks.length === 1 ? "task" : "tasks";
+  const subtitle =
+    tasks.length > 0
+      ? `${tasks.length} ${taskWord} assigned to you`
+      : "Your cleaning assignments appear here";
+
   return (
-    <div>
-      <div className="page-header"><h1>My Tasks</h1></div>
+    <div className="staff-page">
+      <header className="staff-hero">
+        <h1 className="staff-hero__title">My Tasks</h1>
+        <p className="staff-hero__sub">{subtitle}</p>
+      </header>
+
       {tasks.length === 0 ? (
-        <p className="empty-state">No tasks assigned to you.</p>
+        <div className="staff-empty">
+          <span className="staff-empty__icon" aria-hidden>
+            <CheckCircle2 size={26} strokeWidth={1.6} />
+          </span>
+          <p className="staff-empty__title">Nothing to clean</p>
+          <p className="staff-empty__sub">No tasks are assigned to you right now.</p>
+        </div>
       ) : (
         tasks.map((task) => (
           <CleaningTaskCard
             key={task.id}
             task={task}
+            isStaff
             isDirector={false}
             actionLoading={actionLoading}
             onAssign={(id) => withAction(id, () => assignTask(id))}
-            onComplete={(id) => withAction(id, () => completeTask(id))}
-            onUpload={(id, files) => withAction(id, () => uploadImages(id, files))}
+            onUpload={(id, items) => withAction(id, () => uploadImages(id, items))}
             onRetry={(id) => withAction(id, () => retryTask(id))}
             onOverride={() => {}}
             onViewDetail={() => {}}

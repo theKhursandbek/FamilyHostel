@@ -1,17 +1,13 @@
 """
-Custom API exceptions (Step 21).
-
-Provides exception classes not included in DRF's built-in set.
+Custom API exceptions for consistent error responses.
 """
 
 from rest_framework.exceptions import APIException
 
-__all__ = ["ServiceUnavailable"]
-
 
 class ServiceUnavailable(APIException):
-    """503 — service temporarily unavailable."""
+    """Service is temporarily unavailable."""
 
     status_code = 503
-    default_detail = "Service temporarily unavailable."
+    default_detail = "Service is temporarily unavailable."
     default_code = "service_unavailable"

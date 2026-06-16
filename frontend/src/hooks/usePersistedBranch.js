@@ -15,9 +15,11 @@ import { useEffect, useState } from "react";
  */
 function usePersistedBranch(storageKey, isSuperAdmin, fallback) {
   const [branchId, setBranchId] = useState(() => {
-    if (!isSuperAdmin) return fallback;
+    if (!isSuperAdmin) return fallback ?? null;
     try {
       const raw = sessionStorage.getItem(storageKey);
+      // Return persisted value; BranchSelector will auto-pick first branch
+      // if this comes back null (no prior session).
       return raw ? Number(raw) : null;
     } catch {
       return null;

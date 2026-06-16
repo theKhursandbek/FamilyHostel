@@ -216,10 +216,14 @@ class TelegramAuthView(APIView):
         # Generate JWT tokens (README Section 25.5)
         refresh = RefreshToken.for_user(account)
 
+        client_profile = getattr(account, "client_profile", None)
+        phone_verified = bool(getattr(client_profile, "phone_verified", False))
+
         logger.info(
-            "TELEGRAM_AUTH_OK | telegram_id=%s | new=%s",
+            "TELEGRAM_AUTH_OK | telegram_id=%s | new=%s | verified=%s",
             telegram_id,
             created,
+            phone_verified,
         )
 
         return Response({
@@ -227,6 +231,9 @@ class TelegramAuthView(APIView):
             "telegram_id": account.telegram_id,
             "roles": account.roles,
             "is_new": created,
+            "phone": account.phone or "",
+            "phone_verified": phone_verified,
+            "language": account.language or "uz",
             "access": str(refresh.access_token),
             "refresh": str(refresh),
         })

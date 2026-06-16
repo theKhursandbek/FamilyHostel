@@ -14,7 +14,7 @@ from .base import *  # noqa: F401, F403  # NOSONAR — standard Django settings 
 # PRODUCTION OVERRIDES
 # ==============================================================================
 
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = env("ALLOWED_HOSTS")  # noqa: F405
 

@@ -11,8 +11,8 @@ class PaymentAdmin(admin.ModelAdmin):
 
 @admin.register(IncomeRule)
 class IncomeRuleAdmin(admin.ModelAdmin):
-    list_display = ("id", "branch", "shift_type", "min_income", "max_income", "percent")
-    list_filter = ("branch", "shift_type")
+    list_display = ("id", "branch", "min_income", "max_income", "percent")
+    list_filter = ("branch",)
 
 
 @admin.register(SalaryRecord)

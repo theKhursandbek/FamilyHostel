@@ -1,0 +1,13 @@
+.ui-badge {
+  display: inline-block;
+  padding: 2px var(--s-2);
+  border-radius: var(--r-pill);
+  font-size: var(--font-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.ui-badge--success { background: var(--c-success-bg); color: var(--c-success-text); }
+.ui-badge--warning { background: var(--c-warning-bg); color: var(--c-warning-text); }
+.ui-badge--danger  { background: var(--c-danger-bg);  color: var(--c-danger-text); }
+.ui-badge--info    { background: var(--c-info-bg);    color: var(--c-info-text); }
+.ui-badge--muted   { background: var(--tg-secondary-bg); color: var(--tg-hint); }

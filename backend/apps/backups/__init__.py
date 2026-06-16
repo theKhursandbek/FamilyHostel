@@ -1,5 +1,5 @@
 """
-Backup & Restore system for FamilyHostel (Step 26).
+Backup & Restore system for Hotel (Step 26).
 
 Provides:
     - backup_db / restore_db management commands

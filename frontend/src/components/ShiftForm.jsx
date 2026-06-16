@@ -145,7 +145,7 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
           style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
         >
           <span>Could not load accounts &amp; branches. Check your connection.</span>
-          <Button type="button" variant="ghost" onClick={fetchData} disabled={dataLoading}>
+          <Button type="button" variant="secondary" onClick={fetchData} disabled={dataLoading}>
             Retry
           </Button>
         </div>
@@ -209,7 +209,7 @@ function ShiftForm({ onSubmit, loading = false, existingShifts = [] }) {
       />
 
       <div className="form-actions">
-        <Button type="button" variant="ghost" onClick={handleReset} disabled={loading}>
+        <Button type="button" variant="secondary" onClick={handleReset} disabled={loading}>
           Reset
         </Button>
         <Button type="submit" disabled={loading}>

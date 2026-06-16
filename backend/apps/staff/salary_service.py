@@ -6,8 +6,6 @@ Per-role rate resolution
 - **Staff**         → `Staff.salary_override` else `SystemSettings.staff_shift_rate`.
 - **Administrator** → `Administrator.salary_override` else `SystemSettings.admin_shift_rate`.
 - **Director**      → `Director.salary_override` else `SystemSettings.director_fixed_salary`.
-                       Plus a GM bonus = `settings.gm_bonus_percent × full_director_salary`
-                       when `Director.is_general_manager=True`.
 
 Formula
 -------
@@ -16,7 +14,6 @@ salary =
   + Σ (branch_income × percent from matching IncomeRule)  # admin & director
   + (completed_cleaning_tasks × per_room_rate, if salary_mode == "per_room")
   + director_fixed                                        # director only
-  + gm_bonus                                              # GM director only
   - total_penalties
 
 Constraints
@@ -69,7 +66,6 @@ class SalaryBreakdown(TypedDict):
     income_bonus: Decimal
     cleaning_bonus: Decimal
     director_fixed: Decimal
-    gm_bonus: Decimal
     penalties: Decimal
     adjustment_penalty: Decimal
     adjustment_bonus_plus: Decimal
@@ -147,8 +143,8 @@ def calculate_income_bonus(
     period_end: datetime.date,
 ) -> Decimal:
     """
-    For each branch + shift_type combination the account worked (valid
-    attendance), look up the matching ``IncomeRule`` and add
+    For each branch the account worked (valid attendance within the period),
+    look up the matching monthly ``IncomeRule`` and add
     ``branch_income × percent / 100``.
     """
     valid_qs = Attendance.objects.filter(
@@ -163,28 +159,25 @@ def calculate_income_bonus(
 
     # .order_by() clears the model's default ordering ("-date") which would
     # otherwise leak into the SELECT DISTINCT and produce duplicate combos.
-    combos = (
+    branch_ids = (
         valid_qs
-        .order_by("branch_id", "shift_type")
-        .values("branch_id", "shift_type")
+        .order_by("branch_id")
+        .values_list("branch_id", flat=True)
         .distinct()
     )
     bonus = Decimal("0")
 
-    for combo in combos:
-        branch_id = combo["branch_id"]
-        shift_type = combo["shift_type"]
-
+    for branch_id in branch_ids:
         income = get_branch_income(branch_id, period_start, period_end)
         if income <= 0:
             continue
 
+        # Highest min_income threshold that is still ≤ actual income wins.
         rule = IncomeRule.objects.filter(
             branch_id=branch_id,
-            shift_type=shift_type,
             min_income__lte=income,
             max_income__gte=income,
-        ).first()
+        ).order_by("-min_income").first()
 
         if rule:
             bonus += income * rule.percent / Decimal("100")
@@ -329,22 +322,15 @@ def resolve_per_shift_rate(account_id: int, settings: SystemSettings) -> Decimal
 
 def resolve_director_payout(
     director: Director, settings: SystemSettings,
-) -> tuple[Decimal, Decimal]:
+) -> Decimal:
     """
-    Return ``(fixed_salary, gm_bonus)`` for *director* using the rules from
-    REFACTOR_PLAN_2026_04 §5.1:
+    Return the fixed monthly salary for *director* per
+    REFACTOR_PLAN_2026_04 §5.1.
 
-    - Fixed salary = ``director.salary_override`` else
-      ``settings.director_fixed_salary``.
-    - GM bonus = ``settings.gm_bonus_percent / 100 × fixed_salary`` when
-      ``director.is_general_manager`` is True; else 0.
+    Fixed salary = ``director.salary_override`` else
+    ``settings.director_fixed_salary``.
     """
-    fixed = Decimal(director.salary_override or settings.director_fixed_salary)
-    gm_bonus = Decimal("0")
-    if director.is_general_manager:
-        pct = Decimal(settings.gm_bonus_percent or 0)
-        gm_bonus = fixed * pct / Decimal("100")
-    return fixed, gm_bonus
+    return Decimal(director.salary_override or settings.director_fixed_salary)
 
 
 def calculate_salary(
@@ -407,12 +393,11 @@ def calculate_salary_breakdown(
         account_id, period_start, period_end,
     )
 
-    # 6. Director fixed salary + GM bonus -------------------------------------
+    # 6. Director fixed salary -------------------------------------------------
     director_fixed = Decimal("0")
-    gm_bonus = Decimal("0")
     director = Director.objects.filter(account_id=account_id).first()
     if director is not None:
-        director_fixed, gm_bonus = resolve_director_payout(director, settings)
+        director_fixed = resolve_director_payout(director, settings)
 
     # 7. No shifts + not a director → salary is 0 -----------------------------
     if shift_count == 0 and director_fixed == 0:
@@ -422,7 +407,6 @@ def calculate_salary_breakdown(
             income_bonus=Decimal("0"),
             cleaning_bonus=Decimal("0"),
             director_fixed=Decimal("0"),
-            gm_bonus=Decimal("0"),
             penalties=Decimal("0"),
             adjustment_penalty=Decimal("0"),
             adjustment_bonus_plus=Decimal("0"),
@@ -435,7 +419,6 @@ def calculate_salary_breakdown(
         + income_bonus
         + cleaning_bonus
         + director_fixed
-        + gm_bonus
         + adj_bonus_plus
         - penalties
         - adj_penalty
@@ -448,7 +431,6 @@ def calculate_salary_breakdown(
         income_bonus=income_bonus,
         cleaning_bonus=cleaning_bonus,
         director_fixed=director_fixed,
-        gm_bonus=gm_bonus,
         penalties=penalties,
         adjustment_penalty=adj_penalty,
         adjustment_bonus_plus=adj_bonus_plus,

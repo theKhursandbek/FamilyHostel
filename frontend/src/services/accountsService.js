@@ -39,7 +39,6 @@ export async function getAccount(id) {
  *     role_input: "staff" | "administrator" | "director" | "superadmin",
  *     full_name_input: string,
  *     branch?: number,                  // required for staff/admin/director
- *     is_general_manager_input?: boolean, // director only — extra bonus + personal report
  *     telegram_chat_id?: string,
  *   }
  *
@@ -52,9 +51,8 @@ export async function createAccount(payload) {
 }
 
 /**
- * Patch editable fields: phone, password, full_name_input,
- * is_general_manager_input (director only), is_active, telegram_chat_id.
- * Role is immutable (delete + recreate).
+ * Patch editable fields: phone, password, full_name_input, is_active,
+ * telegram_chat_id. Role is immutable (delete + recreate).
  */
 export async function updateAccount(id, payload) {
   const response = await api.patch(`${BASE}${id}/`, payload);

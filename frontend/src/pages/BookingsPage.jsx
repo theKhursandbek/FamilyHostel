@@ -4,43 +4,31 @@ import PropTypes from "prop-types";
 import {
   getBookings,
   getBooking,
-  createWalkInBooking,
-  cancelBooking,
+  createBookingHold,
   checkoutBooking,
   extendBooking,
 } from "../services/bookingService";
-import { recordPayment } from "../services/paymentService";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
+import { useBranchScope } from "../context/BranchScopeContext";
 import usePersistedBranch from "../hooks/usePersistedBranch";
 import Modal from "../components/Modal";
+import ConfirmDialog from "../components/ConfirmDialog";
 import BookingWizard from "../components/BookingWizard";
 import ExtendBookingForm from "../components/ExtendBookingForm";
-import BranchSelector from "../components/BranchSelector";
 import Button from "../components/Button";
 import Loader from "../components/Loader";
 import ErrorMessage from "../components/ErrorMessage";
 
 const STATUS_LABELS = {
-  pending:   "Pending",
   paid:      "Paid",
   completed: "Checked out",
   canceled:  "Canceled",
 };
 
-const BADGE_MAP = {
-  pending:   "badge-warning",
-  paid:      "badge-success",
-  completed: "badge-muted",
-  canceled:  "badge-danger",
-};
-
 const FILTERS = [
-  { key: "all",       label: "All" },
-  { key: "pending",   label: "Pending" },
-  { key: "paid",      label: "Paid" },
-  { key: "completed", label: "Checked out" },
-  { key: "canceled",  label: "Canceled" },
+  { key: "active", label: "Active" },
+  { key: "past", label: "Past" },
 ];
 
 const fmtMoney = (n) =>
@@ -62,7 +50,17 @@ const nightsBetween = (a, b) => {
   return Math.max(0, Math.round(ms / (1000 * 60 * 60 * 24)));
 };
 
-function BookingCard({ booking, onOpen, onExtend, onCancel, onComplete, onMarkPaid, busy }) {
+// True when checkout happens before the scheduled check-out date (no refund).
+const isEarlyCheckout = (booking) => {
+  if (!booking?.check_out_date) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const co = new Date(booking.check_out_date);
+  co.setHours(0, 0, 0, 0);
+  return today < co;
+};
+
+function BookingCard({ booking, onOpen, onExtend, onComplete, busy }) {
   const n = nightsBetween(booking.check_in_date, booking.check_out_date);
   const discount = Number(booking.discount_amount || 0);
   const baseRate = Number(booking.room_base_price || 0);
@@ -78,161 +76,90 @@ function BookingCard({ booking, onOpen, onExtend, onCancel, onComplete, onMarkPa
   else if (storedPrice > 0) total = Math.max(0, storedPrice - discount);
   else if (baseRate > 0 && n > 0) total = Math.max(0, baseRate * n - discount);
 
-  // Per-night hint: prefer the room's current nightly rate, else derive.
-  let perNight = 0;
-  if (baseRate > 0) {
-    perNight = baseRate;
-  } else if (n > 0 && storedPrice > 0) {
-    perNight = Math.round(storedPrice / n);
-  }
-
   // Backend-authoritative balance fields (fall back to client-side math).
   const paid = Number(booking.paid_total ?? 0);
   const balance = booking.balance_due == null
     ? Math.max(0, total - paid)
     : Number(booking.balance_due);
 
+  const status = booking.status || "paid";
   const handleCardClick = () => onOpen(booking);
-  const handleCardKey = (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onOpen(booking);
-    }
-  };
   const stop = (e) => e.stopPropagation();
 
   return (
-    <div
-      className={`booking-card booking-card--lux is-${booking.status || "pending"}`}
-      role="button"
-      tabIndex={0}
-      onClick={handleCardClick}
-      onKeyDown={handleCardKey}
-    >
-      <span className="booking-card__rail" aria-hidden />
-
-      {/* Head: crest + ID on the left, status + name stacked on the right */}
-      <div className="booking-card__head">
-        <div className="booking-card__crest-wrap">
-          <span className="booking-card__crest" aria-hidden>
-            {String(booking.room_number ?? "·")}
-          </span>
-          <span className="booking-card__bid" aria-label={`Booking ID ${booking.id}`}>
-            #{booking.id}
-          </span>
-        </div>
-        <div className="booking-card__head-body">
-          <span className={`booking-card__status is-${booking.status || "pending"}`}>
-            {STATUS_LABELS[booking.status] || booking.status}
-          </span>
-          {booking.source === "telegram" && (
-            <span
-              className="booking-card__source-badge"
-              title="Booked via Telegram"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                fontSize: "0.72rem",
-                padding: "2px 8px",
-                borderRadius: 999,
-                background: "#e0f2fe",
-                color: "#0369a1",
-                fontWeight: 600,
-                marginTop: 4,
-              }}
-            >
-              ✈ Telegram
+    <div className={`bk-card is-${status}`}>
+      <button
+        type="button"
+        className="bk-card__open-area"
+        onClick={handleCardClick}
+      >
+        {/* Head: room chip · guest + id · status */}
+        <div className="bk-card__head">
+          <span className="bk-card__room">{String(booking.room_number ?? "—")}</span>
+          <div className="bk-card__head-main">
+            <h3 className="bk-card__guest" title={booking.client_name || "Guest"}>
+              {booking.client_name || "Guest"}
+            </h3>
+            <span className="bk-card__sub">
+              #{booking.branch_number ?? booking.id}
+              {booking.source === "telegram" && (
+                <span className="bk-card__tg" title="Booked online via Telegram">✈ Telegram</span>
+              )}
             </span>
-          )}
-          <h3 className="booking-card__title" title={booking.client_name || "Guest"}>
-            {booking.client_name || "Guest"}
-          </h3>
+          </div>
+          <span className={`bk-card__status is-${status}`}>
+            {STATUS_LABELS[status] || status}
+          </span>
         </div>
-      </div>
 
-      {/* Date ledger */}
-      <div className="booking-card__dates">
-        <div>
-          <div className="booking-card__dlabel">Check-in</div>
-          <div className="booking-card__dval">{fmtDate(booking.check_in_date)}</div>
+        {/* Stay strip */}
+        <div className="bk-card__stay">
+          <div className="bk-card__leg">
+            <span className="bk-card__leg-lbl">Check-in</span>
+            <span className="bk-card__leg-val">{fmtDate(booking.check_in_date)}</span>
+          </div>
+          <span className="bk-card__nights">{n} night{n === 1 ? "" : "s"}</span>
+          <div className="bk-card__leg bk-card__leg--end">
+            <span className="bk-card__leg-lbl">Check-out</span>
+            <span className="bk-card__leg-val">{fmtDate(booking.check_out_date)}</span>
+          </div>
         </div>
-        <div className="booking-card__arrow">—</div>
-        <div>
-          <div className="booking-card__dlabel">Check-out</div>
-          <div className="booking-card__dval">{fmtDate(booking.check_out_date)}</div>
-        </div>
-        <div className="booking-card__nights">
-          {n} night{n === 1 ? "" : "s"}
-        </div>
-      </div>
 
-      {/* Foot: billing nameplate + actions */}
-      <div className="booking-card__foot">
-        <div className="booking-card__price">
-          <span className="booking-card__plabel">Total due</span>
-          <span className="booking-card__pval">{fmtMoney(total)}</span>
-          {perNight > 0 && n > 0 && (
-            <span className="booking-card__phint">
-              {fmtMoney(perNight)} × {n} night{n === 1 ? "" : "s"}
-              {discount > 0 ? ` − ${fmtMoney(discount)}` : ""}
-            </span>
-          )}
-          {paid > 0 && balance > 0 && (
-            <span className="booking-card__phint">
-              Paid {fmtMoney(paid)} · Balance <strong>{fmtMoney(balance)}</strong>
-            </span>
-          )}
+        {/* Footer: money */}
+        <div className="bk-card__foot">
+          <div className="bk-card__money">
+            <span className="bk-card__total">{fmtMoney(total)}</span>
+            {balance > 0 ? (
+              <span className="bk-card__balance">Balance due {fmtMoney(balance)}</span>
+            ) : (
+              paid > 0 && <span className="bk-card__paid">Paid in full</span>
+            )}
+          </div>
         </div>
-        <div
-          className="booking-card__actions"
-          onClick={stop}
-          onKeyDown={stop}
-          role="toolbar"
-          aria-label="Booking actions"
-        >
-          {(booking.status === "pending" || booking.status === "paid") && (
-            <Button variant="ghost" size="sm" className="booking-card__btn" onClick={() => onExtend(booking)}>
-              Extend
-            </Button>
-          )}
-          {booking.status === "pending" && !(paid > 0 && balance <= 0) && (
-            <Button
-              variant="primary"
-              size="sm"
-              className="booking-card__btn"
-              disabled={busy.pay === booking.id}
-              onClick={() => onMarkPaid(booking, balance > 0 ? balance : total)}
-            >
-              {(() => {
-                if (busy.pay === booking.id) return "…";
-                return paid > 0 ? "Pay balance" : "Pay";
-              })()}
-            </Button>
-          )}
-          {booking.status === "pending" && (
-            <Button
-              variant="danger"
-              size="sm"
-              className="booking-card__btn"
-              disabled={busy.cancel === booking.id}
-              onClick={() => onCancel(booking)}
-            >
-              {busy.cancel === booking.id ? "…" : "Cancel"}
-            </Button>
-          )}
-          {booking.status === "paid" && (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="booking-card__btn"
-              disabled={busy.complete === booking.id}
-              onClick={() => onComplete(booking)}
-            >
-              {busy.complete === booking.id ? "…" : "Complete"}
-            </Button>
-          )}
-        </div>
+      </button>
+
+      <div
+        className="bk-card__actions"
+        onClick={stop}
+        onKeyDown={stop}
+        role="toolbar"
+        aria-label="Booking actions"
+      >
+        {status === "paid" && (
+          <Button variant="secondary" size="sm" onClick={() => onExtend(booking)}>
+            Extend
+          </Button>
+        )}
+        {status === "paid" && (
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={busy.complete === booking.id}
+            onClick={() => onComplete(booking)}
+          >
+            {busy.complete === booking.id ? "…" : "Complete"}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -242,9 +169,7 @@ BookingCard.propTypes = {
   booking: PropTypes.object.isRequired,
   onOpen: PropTypes.func.isRequired,
   onExtend: PropTypes.func.isRequired,
-  onCancel: PropTypes.func.isRequired,
   onComplete: PropTypes.func.isRequired,
-  onMarkPaid: PropTypes.func.isRequired,
   busy: PropTypes.object.isRequired,
 };
 
@@ -258,19 +183,23 @@ function BookingsPage() {
     isSuperAdmin,
     user?.branch_id ?? null,
   );
+
+  // Register branch scope in header
+  const { register, unregister } = useBranchScope();
+  useEffect(() => { register(branchId, setBranchId); }, [branchId, register, setBranchId]);
+  useEffect(() => () => unregister(), [unregister]);
+
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [cancellingId, setCancellingId] = useState(null);
+  const [pendingHold, setPendingHold] = useState(null);
   const [completingId, setCompletingId] = useState(null);
-  const [payingId, setPayingId] = useState(null);
-  const [payTarget, setPayTarget] = useState(null); // { booking, amount } when pay modal is open
-  const [payMethod, setPayMethod] = useState("cash");
+  const [completeTarget, setCompleteTarget] = useState(null); // booking pending checkout
   const [extendTarget, setExtendTarget] = useState(null);
   const [extending, setExtending] = useState(false);
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState("active");
   const [search, setSearch] = useState("");
 
   const fetchBookings = useCallback(async () => {
@@ -299,10 +228,15 @@ function BookingsPage() {
   const handleCreate = async (formData) => {
     setCreating(true);
     try {
-      await createWalkInBooking(formData);
+      const draft = await createBookingHold(formData);
+      setPendingHold({
+        draftId: draft.draft_id,
+        roomNumber: formData.room_number,
+        guestName: formData.full_name,
+        expiresAt: draft.expires_at,
+      });
       setIsModalOpen(false);
-      toast.success("Guest checked in & booking created");
-      fetchBookings();
+      toast.success("Room held for 5 minutes");
     } catch (err) {
       const detail = err.response?.data;
       let msg = "Failed to create booking";
@@ -349,42 +283,19 @@ function BookingsPage() {
     }
   };
 
-  const handleCancel = async (booking) => {
-    if (booking.status !== "pending") return;
-    if (!globalThis.confirm(`Cancel booking for room ${booking.room_number}?`)) return;
-    setCancellingId(booking.id);
-    try {
-      await cancelBooking(booking.id);
-      toast.success("Booking canceled");
-      fetchBookings();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to cancel booking");
-    } finally {
-      setCancellingId(null);
-    }
+  const handleComplete = (booking) => {
+    if (booking.status !== "paid") return;
+    setCompleteTarget(booking);
   };
 
-  const handleComplete = async (booking) => {
-    if (booking.status !== "paid") return;
-
-    // Detect early checkout (today is before scheduled check-out date) so
-    // the confirm message warns the user no refund will be issued.
-    const todayDate = new Date();
-    todayDate.setHours(0, 0, 0, 0);
-    const checkout = new Date(booking.check_out_date);
-    checkout.setHours(0, 0, 0, 0);
-    const isEarly = todayDate < checkout;
-
-    const message = isEarly
-      ? `Early checkout for room ${booking.room_number}. ` +
-        "The unused nights will NOT be refunded. Continue?"
-      : `Check out room ${booking.room_number}?`;
-    if (!globalThis.confirm(message)) return;
-
+  const confirmComplete = async () => {
+    const booking = completeTarget;
+    if (!booking) return;
     setCompletingId(booking.id);
     try {
       await checkoutBooking(booking.id);
       toast.success("Guest checked out");
+      setCompleteTarget(null);
       fetchBookings();
     } catch (err) {
       const detail = err.response?.data;
@@ -400,104 +311,86 @@ function BookingsPage() {
     }
   };
 
-  const handleMarkPaid = (booking, total) => {
-    if (booking.status !== "pending") return;
-    const paidSoFar = Number(booking.paid_total ?? 0);
-    const backendBalance = booking.balance_due == null
-      ? null
-      : Number(booking.balance_due);
-    if (backendBalance === 0 && paidSoFar > 0) {
-      toast.error("This booking is already fully paid — please refresh.");
-      fetchBookings();
-      return;
-    }
-    const amount = Number(total);
-    if (!amount || amount <= 0) {
-      toast.error("Cannot determine amount to pay");
-      return;
-    }
-    // Open the payment modal — the user picks a method via a real Select.
-    setPayMethod("cash");
-    setPayTarget({ booking, amount });
-  };
-
-  const submitPayment = async () => {
-    if (!payTarget) return;
-    const { booking, amount } = payTarget;
-    setPayingId(booking.id);
-    try {
-      await recordPayment({
-        booking: booking.id,
-        amount,
-        payment_type: "manual",
-        method: payMethod,
-      });
-      toast.success("Payment recorded");
-      setPayTarget(null);
-      fetchBookings();
-    } catch (err) {
-      const detail = err.response?.data;
-      const msg =
-        typeof detail === "string"
-          ? detail
-          : detail?.error?.message ||
-            detail?.detail ||
-            detail?.amount?.[0] ||
-            detail?.booking?.[0] ||
-            detail?.method?.[0] ||
-            detail?.non_field_errors?.[0] ||
-            "Failed to record payment";
-      toast.error(msg);
-    } finally {
-      setPayingId(null);
-    }
-  };
-
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const raw = search.trim().toLowerCase();
+    // A leading "#" searches by Booking ID only; anything else is a standard
+    // text / phone search that never matches the id.
+    const isIdSearch = raw.startsWith("#");
+    const q = isIdSearch ? raw.slice(1).trim() : raw;
     return bookings.filter((b) => {
-      if (filter !== "all" && b.status !== filter) return false;
+      if (filter === "active" && b.status !== "paid") return false;
+      if (filter === "past" && !(b.status === "completed" || b.status === "canceled")) return false;
       if (!q) return true;
+      if (isIdSearch) {
+        const id = String(b.branch_number ?? b.id).toLowerCase();
+        return id === q || id.includes(q);
+      }
       return (
         String(b.room_number || "").toLowerCase().includes(q) ||
         String(b.client_name || "").toLowerCase().includes(q) ||
-        String(b.branch_name || "").toLowerCase().includes(q)
+        String(b.client_phone || "").toLowerCase().includes(q)
       );
     });
   }, [bookings, filter, search]);
 
   const counts = useMemo(() => {
-    const c = { all: bookings.length };
-    for (const b of bookings) c[b.status] = (c[b.status] || 0) + 1;
+    const c = { all: bookings.length, active: 0, past: 0 };
+    for (const b of bookings) {
+      if (b.status === "paid") c.active++;
+      else if (b.status === "completed" || b.status === "canceled") c.past++;
+    }
     return c;
   }, [bookings]);
 
-  if (loading) return <Loader />;
-  if (error) return <ErrorMessage message={error} onRetry={fetchBookings} />;
-
   const ceoMustPick = isSuperAdmin && !branchId;
+
+  const pendingHoldLabel = pendingHold?.expiresAt
+    ? new Date(pendingHold.expiresAt).toLocaleString()
+    : "";
+
+  let completeMsg = "";
+  if (completeTarget) {
+    completeMsg = isEarlyCheckout(completeTarget)
+      ? `Early checkout for room ${completeTarget.room_number}. The unused nights will NOT be refunded.`
+      : `Check out room ${completeTarget.room_number}?`;
+  }
+  const completeTone = completeTarget && isEarlyCheckout(completeTarget) ? "danger" : "primary";
 
   return (
     <div>
       <div className="page-header">
         <h1>Bookings</h1>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <BranchSelector value={branchId} onChange={setBranchId} />
-          {!ceoMustPick && (
-            <Button onClick={() => setIsModalOpen(true)}>+ New Booking</Button>
-          )}
-        </div>
       </div>
 
-      {ceoMustPick ? (
+      {error && !ceoMustPick && (
+        <ErrorMessage message={error} onRetry={fetchBookings} />
+      )}
+      {loading && !ceoMustPick && !error && <Loader />}
+
+      {ceoMustPick && (
         <div className="branch-empty">
           <p className="branch-empty__title">Select a branch to begin</p>
           <p className="branch-empty__hint">
             As CEO you oversee every branch. Pick one above to view and manage its bookings.
           </p>
         </div>
-      ) : (
+      )}
+
+      {!ceoMustPick && !loading && !error && (
         <>
+          {pendingHold && (
+            <div className="alert alert-info" style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+              <div>
+                <strong>Room hold active.</strong>{" "}
+                {pendingHold.roomNumber ? `Room № ${pendingHold.roomNumber}` : "Selected room"}
+                {pendingHold.guestName ? ` for ${pendingHold.guestName}` : ""}
+                {pendingHoldLabel ? ` until ${pendingHoldLabel}` : ""}.
+              </div>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setPendingHold(null)}>
+                Dismiss
+              </Button>
+            </div>
+          )}
           <div className="bookings-toolbar">
         <div className="bookings-filter">
           {FILTERS.map((f) => (
@@ -512,13 +405,16 @@ function BookingsPage() {
             </button>
           ))}
         </div>
-        <input
-          type="search"
-          className="input bookings-search"
-          placeholder="Search room, guest, branch…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <div className="bookings-search-row">
+          <input
+            type="search"
+            className="input bookings-search"
+            placeholder="Search #id · room · guest · phone"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <Button onClick={() => setIsModalOpen(true)}>New Booking</Button>
+        </div>
       </div>
 
       {filtered.length === 0 ? (
@@ -540,10 +436,8 @@ function BookingsPage() {
                   setExtendTarget(b);
                 }
               }}
-              onCancel={handleCancel}
               onComplete={handleComplete}
-              onMarkPaid={handleMarkPaid}
-              busy={{ cancel: cancellingId, complete: completingId, pay: payingId }}
+              busy={{ complete: completingId }}
             />
           ))}
         </div>
@@ -574,105 +468,17 @@ function BookingsPage() {
         )}
       </Modal>
 
-      <Modal
-        isOpen={Boolean(payTarget)}
-        onClose={() => { if (!payingId) setPayTarget(null); }}
-        title="Record Payment"
-      >
-        {payTarget && (
-          <div>
-            <div
-              style={{
-                marginBottom: 16,
-                padding: "12px 14px",
-                background: "var(--brand-cream, #fdfbf6)",
-                border: "1px solid rgba(31,42,68,0.12)",
-                borderRadius: 8,
-              }}
-            >
-              <div style={{ fontSize: 13, color: "var(--brand-navy, #1f2a44)" }}>
-                Room <strong>{payTarget.booking.room_number}</strong>
-                {payTarget.booking.client_name ? ` — ${payTarget.booking.client_name}` : ""}
-              </div>
-              <div style={{ marginTop: 6, fontSize: 18, fontWeight: 700 }}>
-                {Number(payTarget.amount).toLocaleString()} UZS
-              </div>
-            </div>
-
-            <div className="form-group">
-              <div
-                className="label"
-                style={{ marginBottom: 8 }}
-                id="pay-method-label"
-              >
-                Payment method <span style={{ color: "var(--brand-danger)" }}>*</span>
-              </div>
-              <div
-                role="radiogroup"
-                aria-labelledby="pay-method-label"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                  gap: 8,
-                }}
-              >
-                {[
-                  { value: "cash", label: "Cash" },
-                  { value: "terminal", label: "Terminal (POS)" },
-                  { value: "qr", label: "QR code" },
-                  { value: "card_transfer", label: "Card transfer" },
-                ].map((opt) => {
-                  const active = payMethod === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={active}
-                      onClick={() => setPayMethod(opt.value)}
-                      style={{
-                        padding: "12px 14px",
-                        borderRadius: 10,
-                        border: active
-                          ? "2px solid var(--brand-primary, #1f2a44)"
-                          : "1px solid rgba(31,42,68,0.18)",
-                        background: active
-                          ? "var(--accent-soft, #efe7d4)"
-                          : "var(--bg-card, #fff)",
-                        color: "var(--brand-navy, #1f2a44)",
-                        fontWeight: active ? 700 : 500,
-                        cursor: "pointer",
-                        textAlign: "left",
-                        transition: "all 120ms ease",
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="form-actions" style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={Boolean(payingId)}
-                onClick={() => setPayTarget(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                disabled={Boolean(payingId)}
-                onClick={submitPayment}
-              >
-                {payingId ? "Saving..." : "Confirm Payment"}
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
+      {/* Checkout confirmation (warns on early checkout — no refund) */}
+      <ConfirmDialog
+        isOpen={Boolean(completeTarget)}
+        onClose={() => setCompleteTarget(null)}
+        onConfirm={confirmComplete}
+        title="Check out guest?"
+        tone={completeTone}
+        confirmLabel="Check out"
+        loading={Boolean(completingId)}
+        message={completeMsg}
+      />
     </div>
   );
 }

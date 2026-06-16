@@ -1,4 +1,4 @@
-"""
+﻿"""
 Payments & Salary models.
 
 Database schema: README Section 14.4 (payments) & 14.7 (income_rules, salary_records).
@@ -112,23 +112,17 @@ class Payment(models.Model):
 
 class IncomeRule(models.Model):
     """
-    Income percentage rules per branch & shift.
+    Monthly income percentage rules per branch.
 
-    Fields per README:
-        - id, branch_id (FK), shift_type, min_income,
-          max_income, percent
+    Fields:
+        - id, branch_id (FK), min_income, max_income, percent
     """
-
-    class ShiftType(models.TextChoices):
-        DAY = "day", "Day"
-        NIGHT = "night", "Night"
 
     branch = models.ForeignKey(
         "branches.Branch",
         on_delete=models.CASCADE,
         related_name="income_rules",
     )
-    shift_type = models.CharField(max_length=10, choices=ShiftType.choices)
     min_income = models.DecimalField(max_digits=14, decimal_places=2)
     max_income = models.DecimalField(max_digits=14, decimal_places=2)
     percent = models.DecimalField(max_digits=5, decimal_places=2)
@@ -140,7 +134,7 @@ class IncomeRule(models.Model):
         verbose_name_plural = "Income Rules"
 
     def __str__(self):
-        return f"Rule: {self.branch} {self.shift_type} ({self.percent}%)"
+        return f"Rule: {self.branch} ≥{self.min_income} ({self.percent}%)"
 
 
 class SalaryRecord(models.Model):
@@ -277,3 +271,119 @@ class ProcessedStripeEvent(models.Model):
 
     def __str__(self):
         return f"{self.event_type} — {self.event_id}"
+
+
+# ===========================================================================
+# Telegram Mini App — payment-first booking drafts (plan §4.2, D5).
+# ===========================================================================
+
+import uuid as _uuid
+
+from django.utils import timezone
+
+
+class _DraftStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    SUCCEEDED = "succeeded", "Succeeded"
+    FAILED = "failed", "Failed"
+    CANCELED = "canceled", "Canceled"
+
+
+class BookingDraft(models.Model):
+    """A would-be booking awaiting Stripe ``payment_intent.succeeded``.
+
+    Plan §4.2 / D5: clients never create a Booking directly. The Mini App
+    creates a draft, pays it via Stripe Elements, and the webhook converts
+    the draft into a real ``bookings.Booking`` row.
+    """
+
+    Status = _DraftStatus
+
+    id = models.UUIDField(primary_key=True, default=_uuid.uuid4, editable=False)
+    client = models.ForeignKey(
+        "accounts.Client",
+        on_delete=models.CASCADE,
+        related_name="booking_drafts",
+    )
+    room = models.ForeignKey(
+        "branches.Room", on_delete=models.PROTECT, related_name="+",
+    )
+    branch = models.ForeignKey(
+        "branches.Branch", on_delete=models.PROTECT, related_name="+",
+    )
+    check_in_date = models.DateField()
+    check_out_date = models.DateField()
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=8, default="uzs")
+    payment_intent_id = models.CharField(max_length=128, unique=True, db_index=True)
+    status = models.CharField(
+        max_length=16, choices=Status.choices, default=Status.PENDING,
+    )
+    booking = models.ForeignKey(
+        "bookings.Booking",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="originating_draft",
+    )
+    failure_reason = models.CharField(max_length=255, blank=True, default="")
+    expires_at = models.DateTimeField()  # created_at + 5 minutes (D12)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "booking_drafts"
+        ordering = ["-created_at"]
+        verbose_name = "Booking Draft"
+        verbose_name_plural = "Booking Drafts"
+        indexes = [
+            models.Index(fields=["client", "status"], name="idx_draft_client_status"),
+            models.Index(fields=["expires_at"], name="idx_draft_expires_at"),
+        ]
+
+    def __str__(self):
+        return f"BookingDraft {self.id} ({self.status})"
+
+    @property
+    def is_expired(self) -> bool:
+        return self.expires_at <= timezone.now()
+
+
+class ExtensionDraft(models.Model):
+    """A would-be booking extension awaiting Stripe payment (plan §4.2)."""
+
+    Status = _DraftStatus
+
+    id = models.UUIDField(primary_key=True, default=_uuid.uuid4, editable=False)
+    booking = models.ForeignKey(
+        "bookings.Booking",
+        on_delete=models.CASCADE,
+        related_name="extension_drafts",
+    )
+    new_check_out_date = models.DateField()
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=8, default="uzs")
+    payment_intent_id = models.CharField(max_length=128, unique=True, db_index=True)
+    status = models.CharField(
+        max_length=16, choices=_DraftStatus.choices, default=_DraftStatus.PENDING,
+    )
+    failure_reason = models.CharField(max_length=255, blank=True, default="")
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "extension_drafts"
+        ordering = ["-created_at"]
+        verbose_name = "Extension Draft"
+        verbose_name_plural = "Extension Drafts"
+        indexes = [
+            models.Index(fields=["booking", "status"], name="idx_ext_booking_status"),
+        ]
+
+    def __str__(self):
+        return f"ExtensionDraft {self.id} ({self.status})"
+
+    @property
+    def is_expired(self) -> bool:
+        return self.expires_at <= timezone.now()
+

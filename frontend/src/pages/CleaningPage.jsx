@@ -3,7 +3,6 @@ import {
   getTasks,
   getTask,
   assignTask,
-  completeTask,
   uploadImages,
   retryTask,
   overrideTask,
@@ -13,12 +12,12 @@ import {
 } from "../services/cleaningService";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useBranchScope } from "../context/BranchScopeContext";
 import { useSocket } from "../hooks/useSocket";
 import usePersistedBranch from "../hooks/usePersistedBranch";
 import CleaningTaskCard from "../components/CleaningTaskCard";
 import CleaningTaskDetail from "../components/CleaningTaskDetail";
 import CleaningTaskForm from "../components/CleaningTaskForm";
-import BranchSelector from "../components/BranchSelector";
 import Button from "../components/Button";
 import Loader from "../components/Loader";
 import ErrorMessage from "../components/ErrorMessage";
@@ -54,6 +53,11 @@ function CleaningPage() {
     isSuperAdmin,
     user?.branch_id ?? null,
   );
+
+  // Register branch scope in global header
+  const { register, unregister } = useBranchScope();
+  useEffect(() => { register(branchId, setBranchId); }, [branchId, register, setBranchId]);
+  useEffect(() => () => unregister(), [unregister]);
 
   // Detail modal
   const [detailTask, setDetailTask] = useState(null);
@@ -117,11 +121,10 @@ function CleaningPage() {
   };
 
   const handleAssign = (taskId) => withAction(taskId, () => assignTask(taskId));
-  const handleComplete = (taskId) => withAction(taskId, () => completeTask(taskId));
   const handleRetry = (taskId) => withAction(taskId, () => retryTask(taskId));
 
-  const handleUpload = (taskId, files) =>
-    withAction(taskId, () => uploadImages(taskId, files));
+  const handleUpload = (taskId, items) =>
+    withAction(taskId, () => uploadImages(taskId, items));
 
   const handleOverride = (taskId, reason) =>
     withAction(taskId, () => overrideTask(taskId, reason));
@@ -199,9 +202,6 @@ function CleaningPage() {
     withAction(task.id, () => deleteTask(task.id), "Task deleted");
   };
 
-  if (loading) return <Loader />;
-  if (error) return <ErrorMessage message={error} onRetry={fetchTasks} />;
-
   const ceoMustPick = isSuperAdmin && !branchId;
 
   return (
@@ -211,8 +211,6 @@ function CleaningPage() {
         <h1>Cleaning Tasks</h1>
 
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <BranchSelector value={branchId} onChange={setBranchId} />
-
           {/* Status filter */}
           <div style={{ display: "flex", gap: 4 }}>
             {STATUS_FILTERS.map((f) => (
@@ -234,14 +232,21 @@ function CleaningPage() {
         </div>
       </div>
 
-      {ceoMustPick ? (
+      {error && !ceoMustPick && (
+        <ErrorMessage message={error} onRetry={fetchTasks} />
+      )}
+      {loading && !ceoMustPick && !error && <Loader />}
+
+      {ceoMustPick && (
         <div className="branch-empty">
           <p className="branch-empty__title">Select a branch to begin</p>
           <p className="branch-empty__hint">
             As CEO you oversee every branch. Pick one above to view and manage its housekeeping.
           </p>
         </div>
-      ) : (
+      )}
+
+      {!ceoMustPick && !loading && !error && (
         <>
           {/* Task count */}
           <p className="text-muted" style={{ margin: "0 0 12px", fontSize: 13 }}>
@@ -265,7 +270,6 @@ function CleaningPage() {
                   canOverride={canManage}
                   actionLoading={actionLoading}
                   onAssign={handleAssign}
-                  onComplete={handleComplete}
                   onUpload={handleUpload}
                   onRetry={handleRetry}
                   onOverride={handleOverride}

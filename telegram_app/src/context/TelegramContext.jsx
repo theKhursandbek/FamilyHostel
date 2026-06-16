@@ -32,10 +32,12 @@ export function TelegramProvider({ children }) {
   const value = useMemo(() => {
     const initData = webApp?.initData || "";
     const tgUser = webApp?.initDataUnsafe?.user || null;
+    const startParam = webApp?.initDataUnsafe?.start_param || "";
     return {
       webApp,
       initData,
       user: tgUser,
+      startParam,
       isInsideTelegram: Boolean(webApp && initData),
       showBackButton(handler) {
         if (!webApp?.BackButton) return () => {};
@@ -48,6 +50,37 @@ export function TelegramProvider({ children }) {
       },
       hapticImpact(style = "light") {
         webApp?.HapticFeedback?.impactOccurred?.(style);
+      },
+      hapticNotification(type = "success") {
+        webApp?.HapticFeedback?.notificationOccurred?.(type);
+      },
+      openInvoice(slug) {
+        return new Promise((resolve) => {
+          if (!webApp?.openInvoice) {
+            resolve("unsupported");
+            return;
+          }
+          try {
+            webApp.openInvoice(slug, (status) => resolve(status));
+          } catch {
+            resolve("failed");
+          }
+        });
+      },
+      requestContact() {
+        return new Promise((resolve) => {
+          if (!webApp?.requestContact) { resolve(null); return; }
+          try {
+            webApp.requestContact((granted, response) => {
+              if (!granted || !response?.contact?.phone_number) { resolve(null); return; }
+              // Telegram gives "998901234567" or "+998901234567" — normalise to +
+              const raw = response.contact.phone_number;
+              resolve(raw.startsWith("+") ? raw : "+" + raw);
+            });
+          } catch {
+            resolve(null);
+          }
+        });
       },
     };
   }, [webApp]);

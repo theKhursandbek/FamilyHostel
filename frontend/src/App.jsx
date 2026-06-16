@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import MainLayout from "./layouts/MainLayout";
+import AppShell from "./layouts/AppShell";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import BookingsPage from "./pages/BookingsPage";
@@ -31,9 +31,6 @@ import SuperAdminDashboard from "./pages/superadmin/SuperAdminDashboard";
 import UserManagementPage from "./pages/superadmin/UserManagementPage";
 import SalarySettingsPage from "./pages/superadmin/SalarySettingsPage";
 import BranchesPage from "./pages/superadmin/BranchesPage";
-import ActivityLogPage from "./pages/superadmin/ActivityLogPage";
-import OverridePage from "./pages/superadmin/OverridePage";
-import ExpenseApprovalsPage from "./pages/superadmin/ExpenseApprovalsPage";
 
 function App() {
   return (
@@ -46,7 +43,7 @@ function App() {
         path="/"
         element={
           <ProtectedRoute>
-            <MainLayout />
+            <AppShell />
           </ProtectedRoute>
         }
       >
@@ -80,10 +77,6 @@ function App() {
         <Route path="super-admin/users" element={<UserManagementPage />} />
         <Route path="super-admin/branches" element={<BranchesPage />} />
         <Route path="super-admin/salary-settings" element={<SalarySettingsPage />} />
-        <Route path="super-admin/penalties" element={<PenaltyManagementPage />} />
-        <Route path="super-admin/activity" element={<ActivityLogPage />} />
-        <Route path="super-admin/override" element={<OverridePage />} />
-        <Route path="super-admin/expense-approvals" element={<ExpenseApprovalsPage />} />
 
         {/* 404 catch-all */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

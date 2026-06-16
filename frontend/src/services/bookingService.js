@@ -28,14 +28,20 @@ export async function createBooking(data) {
 }
 
 /**
- * Create a walk-in guest + their first booking in one atomic call.
+ * Create a walk-in booking.
  * POST /api/v1/bookings/bookings/walk-in/
- *
- * Payload: { full_name, phone, passport_number, room, branch,
- *            check_in_date, check_out_date, price_at_booking, discount_amount }
  */
 export async function createWalkInBooking(data) {
   const response = await api.post("/bookings/bookings/walk-in/", data);
+  return response.data;
+}
+
+/**
+ * Create a 5-minute room hold (Telegram Mini App flow).
+ * POST /api/v1/payments/draft/room/
+ */
+export async function createBookingHold(data) {
+  const response = await api.post("/payments/draft/room/", data);
   return response.data;
 }
 
@@ -56,6 +62,33 @@ export async function extendBooking(id, data) {
  */
 export async function cancelBooking(id) {
   const response = await api.post(`/bookings/bookings/${id}/cancel/`);
+  return response.data;
+}
+
+/**
+ * Cancel only the latest active extension on a booking (Scenario A) — the
+ * base stay survives. No refund is issued.
+ * POST /api/v1/bookings/bookings/{id}/cancel-extension/
+ */
+export async function cancelExtension(id) {
+  const response = await api.post(`/bookings/bookings/${id}/cancel-extension/`);
+  return response.data;
+}
+
+/**
+ * Fetch the occupied date windows for a room so the UI can block overlapping
+ * selections.
+ * GET /api/v1/bookings/bookings/availability/?room=<id>[&exclude=<pk>][&after=<date>]
+ *
+ * @param {number|string} roomId
+ * @param {{ exclude?: number|string, after?: string }} [opts]
+ * @returns {Promise<{ room: number, booked_ranges: Array, next_booking_start?: string|null }>}
+ */
+export async function getAvailability(roomId, { exclude, after } = {}) {
+  const params = { room: roomId };
+  if (exclude != null) params.exclude = exclude;
+  if (after) params.after = after;
+  const response = await api.get("/bookings/bookings/availability/", { params });
   return response.data;
 }
 

@@ -46,10 +46,30 @@ class AccountViewSet(AuditedModelViewSetMixin, viewsets.ModelViewSet):
         return [IsAuthenticated(), IsSuperAdmin()]
 
     def get_queryset(self):
+        from django.db.models import Q
+
         qs = super().get_queryset()
         role = self.request.query_params.get("role")
         is_active = self.request.query_params.get("is_active")
         free_for_cleaning = self.request.query_params.get("free_for_cleaning")
+        branch = self.request.query_params.get("branch")
+
+        # Branch filter — surfaces every account whose role profile lives in
+        # that branch. CEO (Super Admin) accounts have no branch by design;
+        # they are always included so the operator never loses the CEO row
+        # when narrowing down a branch.
+        if branch:
+            try:
+                branch_id = int(branch)
+            except (TypeError, ValueError):
+                branch_id = None
+            if branch_id is not None:
+                qs = qs.filter(
+                    Q(staff_profile__branch_id=branch_id)
+                    | Q(administrator_profile__branch_id=branch_id)
+                    | Q(director_profile__branch_id=branch_id)
+                    | Q(superadmin_profile__isnull=False)
+                )
 
         role_filters = {
             "superadmin": "superadmin_profile__isnull",
@@ -92,6 +112,24 @@ class AccountViewSet(AuditedModelViewSetMixin, viewsets.ModelViewSet):
         before = self._audit_snapshot(account)
         account.is_active = False
         account.save(update_fields=["is_active", "updated_at"])
+        
+        # Cleanup: unassign from active cleaning tasks
+        if account.is_staff_member():
+            from apps.cleaning.models import CleaningTask
+            CleaningTask.objects.filter(
+                assigned_to=account.staff_profile,
+                status__in=["pending", "in_progress", "ai_checking", "retry_required"]
+            ).update(assigned_to=None)
+        
+        # Cleanup: delete associated shift assignments
+        from apps.staff.models import ShiftAssignment
+        ShiftAssignment.objects.filter(account=account).delete()
+        
+        # Cleanup: delete associated cash sessions
+        if account.is_administrator():
+            from apps.admin_panel.models import CashSession
+            CashSession.objects.filter(admin=account.administrator_profile).delete()
+        
         self._audit_log(
             verb="disabled",
             entity_id=account.pk,
@@ -118,6 +156,24 @@ class AccountViewSet(AuditedModelViewSetMixin, viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         if instance == self.request.user:
             raise ValidationError("You cannot delete your own account.")
+        
+        # Cleanup: unassign from active cleaning tasks
+        if instance.is_staff_member():
+            from apps.cleaning.models import CleaningTask
+            CleaningTask.objects.filter(
+                assigned_to=instance.staff_profile,
+                status__in=["pending", "in_progress", "ai_checking", "retry_required"]
+            ).update(assigned_to=None)
+        
+        # Cleanup: delete associated shift assignments
+        from apps.staff.models import ShiftAssignment
+        ShiftAssignment.objects.filter(account=instance).delete()
+        
+        # Cleanup: delete associated cash sessions
+        if instance.is_administrator():
+            from apps.admin_panel.models import CashSession
+            CashSession.objects.filter(admin=instance.administrator_profile).delete()
+        
         # Defer to mixin so the deletion is audited.
         super().perform_destroy(instance)
 

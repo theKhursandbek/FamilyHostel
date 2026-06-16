@@ -1,6 +1,6 @@
 #!/bin/sh
 # ==============================================================================
-# Entrypoint — FamilyHostel backend container
+# Entrypoint — Hotel backend container
 # Waits for Postgres, runs migrations, then starts gunicorn.
 # ==============================================================================
 set -e

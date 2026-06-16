@@ -240,10 +240,11 @@ def complete_task(*, task: CleaningTask, performed_by=None) -> CleaningTask:
     """
     if task.status not in (
         CleaningTask.TaskStatus.IN_PROGRESS,
+        CleaningTask.TaskStatus.AI_CHECKING,
         CleaningTask.TaskStatus.RETRY_REQUIRED,
     ):
         raise ValidationError(
-            {"status": "Only in-progress or retry-required tasks can be completed."}
+            {"status": "Only in-progress, ai-checking or retry-required tasks can be completed."}
         )
 
     before = _task_snapshot(task)
@@ -357,29 +358,19 @@ def override_task(
 
 
 def analyze_cleaning_images(task: CleaningTask) -> tuple[str, str]:
+    """Compatibility shim — delegates to the Gemini analyser.
+
+    The real verification now lives in :mod:`apps.cleaning.ai.gemini` and is
+    driven by the Celery task. This wrapper is retained for callers/tests that
+    expect the ``(result, feedback_text)`` tuple shape. It fails closed.
     """
-    AI service stub — analyse images for a cleaning task.
+    from apps.cleaning.ai import gemini
 
-    This is a placeholder that always returns ``approved``.
-    In production, this would call an external AI API (e.g., Azure
-    Computer Vision) with the uploaded images and return the result.
-
-    Returns:
-        Tuple of (result, feedback_text) where result is
-        ``"approved"`` or ``"rejected"``.
-    """
-    image_count = task.images.count()
-    if image_count == 0:
-        return (
-            AIResult.Result.REJECTED,
-            "No images uploaded for verification.",
-        )
-
-    # --- STUB: always approve if images exist ---
-    return (
-        AIResult.Result.APPROVED,
-        f"Cleaning verified — {image_count} image(s) analysed.",
+    verdict = gemini.analyze(task)
+    result = (
+        AIResult.Result.APPROVED if verdict.approved else AIResult.Result.REJECTED
     )
+    return result, verdict.summary
 
 
 # ==============================================================================

@@ -31,15 +31,24 @@ class TestCleaningAPI:
         assert resp.status_code == 200
         assert resp.data["status"] == "in_progress"
 
-    def test_staff_can_complete_task(self, staff_client, staff_profile, room, branch):
+    def test_staff_cannot_self_complete_supervisor_can(
+        self, staff_client, staff_profile, director_profile, room, branch,
+    ):
+        """Anti-cheat: staff can't self-complete; a supervisor (Admin+) can."""
         staff_profile.branch = branch
         staff_profile.save()
         task = create_cleaning_task(room=room, branch=branch)
         # Assign first
         assign_url = reverse("cleaning:cleaning-task-assign", args=[task.pk])
         staff_client.post(assign_url)
-        # Complete
+
         complete_url = reverse("cleaning:cleaning-task-complete", args=[task.pk])
+        # Staff self-complete is forbidden — AI approval is their only path.
+        denied = staff_client.post(complete_url)
+        assert denied.status_code == 403
+
+        # Re-auth the shared client as a director and complete.
+        staff_client.force_authenticate(user=director_profile.account)
         resp = staff_client.post(complete_url)
         assert resp.status_code == 200
         assert resp.data["status"] == "completed"

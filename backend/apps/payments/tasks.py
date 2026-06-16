@@ -1,59 +1,60 @@
 """
-Celery tasks — Payment processing (Step 17).
-
-Offloads Stripe webhook event processing to a background worker
-for better HTTP response times on the webhook endpoint.
+Payments Celery tasks — async operations for payment processing.
 
 Tasks:
-    - ``process_payment_event_task`` — process a Stripe webhook event payload
+    - reap_stale_drafts: Clean up expired booking drafts (every 2 minutes)
+    - process_payment_event_task: Process Stripe webhook events asynchronously
 """
 
 from __future__ import annotations
 
 import logging
-
 from celery import shared_task
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(
-    bind=True,
-    name="payments.process_payment_event",
-    max_retries=3,
-    default_retry_delay=15,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=120,
-    acks_late=True,
-)
-def process_payment_event_task(
-    self,
-    event_id: str,
-    event_type: str,
-    event_data: dict,
-) -> bool:
+@shared_task(name="payments.reap_stale_drafts")
+def reap_stale_drafts() -> int:
     """
-    Process a Stripe webhook event in the background.
+    Delete expired booking drafts.
 
-    Args:
-        event_id: Stripe event ID (``evt_...``).
-        event_type: Event type string (``payment_intent.succeeded`` etc.).
-        event_data: The ``event.data`` dict from Stripe.
+    Scheduled every 2 minutes via CELERY_BEAT_SCHEDULE.
+    BookingDrafts expire 5 minutes after creation if not confirmed.
 
     Returns:
-        ``True`` if the event was processed for the first time.
-        ``False`` if it was a duplicate.
+        The number of drafts deleted
     """
-    from types import SimpleNamespace
+    from django.utils import timezone
+    from .models import BookingDraft
 
-    from apps.payments.stripe_service import process_webhook_event
+    now = timezone.now()
+    expired = BookingDraft.objects.filter(created_at__lt=now, status="pending")
+    count, _ = expired.delete()
+    logger.info(f"Reaped {count} stale booking drafts")
+    return count
 
-    # Reconstruct a minimal event-like object that process_webhook_event expects
-    event = SimpleNamespace(
-        id=event_id,
-        type=event_type,
-        data=SimpleNamespace(object=event_data.get("object", {})),
-    )
 
-    return process_webhook_event(event)  # type: ignore[arg-type]
+@shared_task(name="payments.process_payment_event_task")
+def process_payment_event_task(event_type: str, event_data: dict) -> None:
+    """
+    Process a Stripe webhook event asynchronously.
+
+    Called by the webhook handler to defer processing and ensure fast 200
+    response time back to Stripe.
+
+    Args:
+        event_type: The Stripe event type (e.g., "payment_intent.succeeded")
+        event_data: The event data dict
+
+    Returns:
+        None
+    """
+    from .stripe_service import process_webhook_event
+
+    try:
+        process_webhook_event({"type": event_type, "data": event_data})
+        logger.info(f"Processed Stripe event: {event_type}")
+    except Exception as exc:
+        logger.exception(f"Failed to process Stripe event {event_type}: {exc}")
+        raise

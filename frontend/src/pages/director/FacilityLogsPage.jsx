@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { fmtMoney, rawMoney } from "../../utils/moneyInput";
 import {
   getFacilityLogs,
   createFacilityLog,
@@ -88,7 +89,7 @@ function FacilityLogsPage() {
     setCreating(true);
     try {
       const payload = { type: form.type, description: form.description };
-      if (form.cost) payload.cost = form.cost;
+      if (form.cost) payload.cost = rawMoney(form.cost);
       if (form.shift_type) payload.shift_type = form.shift_type;
       await createFacilityLog(payload);
       setModalOpen(false);
@@ -167,7 +168,7 @@ function FacilityLogsPage() {
         if (row.status === "paid") {
           return (
             <Button
-              variant="ghost" size="sm"
+              variant="secondary" size="sm"
               disabled={actingId === row.id}
               onClick={(e) => { e.stopPropagation(); handleResolve(row); }}
             >{actingId === row.id ? "…" : "Resolve"}</Button>
@@ -245,9 +246,9 @@ function FacilityLogsPage() {
               placeholder="What needs to be bought / fixed?" />
           </div>
 
-          <Input label="Cost (сум)" type="number" min="0" step="1000"
-            value={form.cost}
-            onChange={(e) => setForm((p) => ({ ...p, cost: e.target.value }))} />
+          <Input label="Cost (сум)" type="text" inputMode="numeric"
+            value={fmtMoney(form.cost)}
+            onChange={(e) => setForm((p) => ({ ...p, cost: fmtMoney(e.target.value) }))} />
 
           <div className="form-actions">
             <Button type="submit" disabled={creating}>

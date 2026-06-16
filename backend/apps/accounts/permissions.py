@@ -38,6 +38,7 @@ __all__ = [
     "IsAdministrator",
     "IsStaff",
     "IsClient",
+    "IsPhoneVerifiedClient",
     # Hierarchical (role OR above)
     "IsDirectorOrHigher",
     "IsAdminOrHigher",
@@ -138,6 +139,26 @@ class IsClient(BasePermission):
 
     def has_permission(self, request: Request, view: APIView) -> bool:
         return _has_role(request.user, "is_client")
+
+
+class IsPhoneVerifiedClient(BasePermission):
+    """
+    Mini App gate: client must have completed bot phone verification.
+
+    Used by booking, payment, and extension endpoints (TELEGRAM_MINI_APP_PLAN.md
+    §3.1). Returns 403 with a stable error code so the frontend can route the
+    user back to the bot to finish onboarding.
+    """
+
+    message = "Phone verification required. Open the bot to finish onboarding."
+    code = "phone_verification_required"
+
+    def has_permission(self, request: Request, view: APIView) -> bool:
+        user = request.user
+        if not (user and user.is_authenticated and getattr(user, "is_client", False)):
+            return False
+        client = getattr(user, "client_profile", None)
+        return bool(client and client.phone_verified)
 
 
 # ==============================================================================

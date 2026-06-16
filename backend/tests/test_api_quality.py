@@ -212,7 +212,7 @@ class TestStandardPagination:
 
     def test_max_page_size(self):
         paginator = StandardPagination()
-        assert paginator.max_page_size == 100
+        assert paginator.max_page_size == 1000
 
 
 # ==============================================================================

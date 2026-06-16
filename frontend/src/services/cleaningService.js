@@ -70,14 +70,18 @@ export async function completeTask(id) {
 }
 
 /**
- * Upload images for a cleaning task.
+ * Submit cleaning verification photos for a task.
  * POST /api/v1/cleaning/tasks/{id}/upload/
  * Content-Type: multipart/form-data
+ *
+ * @param {number} id
+ * @param {Array<{ zone: string, file: File|Blob }>} items - one per zone.
  */
-export async function uploadImages(id, files) {
+export async function uploadImages(id, items) {
   const formData = new FormData();
-  for (const file of files) {
+  for (const { zone, file } of items) {
     formData.append("images", file);
+    formData.append("zones", zone);
   }
   const response = await api.post(`/cleaning/tasks/${id}/upload/`, formData, {
     headers: { "Content-Type": "multipart/form-data" },
@@ -95,10 +99,11 @@ export async function retryTask(id) {
 }
 
 /**
- * Manual override — admin / director / superadmin force-approve.
+ * Mark cleaned — supervisor (admin / director / superadmin) force-complete.
+ * Reason is OPTIONAL, even over a negative AI verdict.
  * POST /api/v1/cleaning/tasks/{id}/override/
  */
-export async function overrideTask(id, reason) {
+export async function overrideTask(id, reason = "") {
   const response = await api.post(`/cleaning/tasks/${id}/override/`, { reason });
   return response.data;
 }

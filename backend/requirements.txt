@@ -18,3 +18,5 @@ django-storages[azure]==1.14.4
 whitenoise==6.8.2
 dj-database-url==2.3.0
 sentry-sdk[django]==2.19.2
+google-genai==1.21.0
+ImageHash==4.3.1

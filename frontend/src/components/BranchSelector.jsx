@@ -45,6 +45,17 @@ function BranchSelector({ value, onChange, className }) {
         if (cancelled) return;
         const list = Array.isArray(data) ? data : data?.results ?? [];
         setBranches(list);
+        if (list.length > 0) {
+          if (value != null && value !== "") {
+            // Auto-heal: if persisted id no longer exists, fall back to first.
+            const valNum = Number(value);
+            const stillExists = list.some((b) => Number(b.id) === valNum);
+            if (!stillExists) onChange(Number(list[0].id));
+          } else {
+            // Nothing selected yet — auto-pick the first branch.
+            onChange(Number(list[0].id));
+          }
+        }
       })
       .catch(() => {
         if (!cancelled) setBranches([]);
@@ -55,13 +66,13 @@ function BranchSelector({ value, onChange, className }) {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSuperAdmin]);
 
   // Director / Admin / Staff — read-only nameplate
   if (!isSuperAdmin) {
     return (
       <div className={`branch-pin ${className || ""}`}>
-        <span className="branch-pin__lbl">Branch</span>
         <span className="branch-pin__val">
           {user?.branch_name || "—"}
         </span>
@@ -72,12 +83,11 @@ function BranchSelector({ value, onChange, className }) {
   // SuperAdmin — selectable
   return (
     <div className={`branch-picker ${className || ""}`}>
-      <span className="branch-picker__lbl">Branch</span>
       <Select
         className="branch-picker__custom"
         value={value ?? ""}
         onChange={(v) => onChange(v ? Number(v) : null)}
-        placeholder="— Select a branch —"
+        placeholder="— Select branch —"
         loading={loading}
         options={branches.map((b) => ({ value: b.id, label: b.name }))}
       />

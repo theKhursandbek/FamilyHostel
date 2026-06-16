@@ -64,6 +64,13 @@ class Account(AbstractBaseUser, PermissionsMixin):
         default="",
         verbose_name="Phone Number",
     )
+    language = models.CharField(
+        max_length=8,
+        blank=True,
+        default="ru",
+        verbose_name="Preferred language",
+        help_text="BCP-47-ish code (ru/uz/en); used for bot push localisation.",
+    )
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(
         default=False,
@@ -154,6 +161,20 @@ class Client(models.Model):
         db_index=True,
         help_text="Passport / ID document number. Required for walk-in guests; "
                   "may be blank for legacy or telegram-only clients.",
+    )
+    phone_verified = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text=(
+            "True once the client has confirmed phone ownership through the "
+            "Telegram bot onboarding (contact share + OTP). Required before "
+            "issuing a Mini App JWT. See TELEGRAM_MINI_APP_PLAN.md §3.1."
+        ),
+    )
+    date_of_birth = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Client's date of birth (collected at Mini App registration).",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -249,7 +270,7 @@ class Director(models.Model):
 
     Fields per README:
         - id, account_id (FK), branch_id (FK), full_name,
-          salary_override, is_general_manager, is_active
+          salary_override, is_active
     """
 
     account = models.OneToOneField(
@@ -271,15 +292,6 @@ class Director(models.Model):
         help_text=(
             "Per-person fixed monthly salary override in UZS. If null, "
             "`SystemSettings.director_fixed_salary` is used."
-        ),
-    )
-    is_general_manager = models.BooleanField(
-        default=False,
-        help_text=(
-            "Marks the director who acts as General Manager (Бош менеджер — "
-            "e.g. Лобар Pazilova). General Managers receive an extra salary "
-            "bonus and a personal yearly Excel workbook visible only to "
-            "themselves and the CEO."
         ),
     )
     is_active = models.BooleanField(default=True)
@@ -348,7 +360,7 @@ class SuperAdmin(models.Model):
 
 
 # ==============================================================================
-# SECURITY — SUSPICIOUS ACTIVITY DETECTION (Step 21.2)
+# OTP TOKENS — Mini App phone verification (TELEGRAM_MINI_APP_PLAN.md §4.1)
 # ==============================================================================
 
 
@@ -429,3 +441,75 @@ class SuspiciousActivity(models.Model):
             f"{self.activity_type} | {self.ip_address} | "
             f"count={self.count} | {status}"
         )
+
+
+# ==============================================================================
+# OTP TOKENS — Mini App phone verification (TELEGRAM_MINI_APP_PLAN.md §4.1)
+# ==============================================================================
+
+
+class OtpToken(models.Model):
+    """
+    One-time password issued during the Telegram Mini App onboarding.
+
+    Lifecycle:
+        1. Bot or Mini App calls POST /auth/telegram/phone/start with a
+           phone number → row is created with `code_hash`, `expires_at`
+           (5 min from now) and an SMS is dispatched via the configured
+           backend.
+        2. Client submits the 6-digit code → POST /auth/telegram/phone/verify
+           checks `code_hash`, marks `consumed_at`, flips
+           `Client.phone_verified=True`.
+        3. Codes expire after 5 minutes; at most 5 active codes per phone
+           are permitted (enforced at the view layer to keep the model
+           agnostic of business policy).
+    """
+
+    PURPOSE_ONBOARDING = "onboarding"
+    PURPOSE_RELOGIN = "relogin"
+    PURPOSE_REGISTER = "register"
+    PURPOSE_CHANGE_PASSWORD = "change_password"
+    PURPOSE_FORGOT_PASSWORD = "forgot_password"
+    PURPOSE_CHOICES = (
+        (PURPOSE_ONBOARDING, "Onboarding"),
+        (PURPOSE_RELOGIN, "Re-login"),
+        (PURPOSE_REGISTER, "Registration"),
+        (PURPOSE_CHANGE_PASSWORD, "Change Password"),
+        (PURPOSE_FORGOT_PASSWORD, "Forgot Password"),
+    )
+
+    phone = models.CharField(
+        max_length=20,
+        db_index=True,
+        help_text="E.164-formatted phone number (+998XXXXXXXXX).",
+    )
+    code_hash = models.CharField(
+        max_length=128,
+        help_text="SHA-256 hex digest of the OTP. Plain code is never stored.",
+    )
+    purpose = models.CharField(
+        max_length=20,
+        choices=PURPOSE_CHOICES,
+        default=PURPOSE_ONBOARDING,
+    )
+    attempts = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Number of failed verify attempts; locked after 5.",
+    )
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(db_index=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "otp_tokens"
+        ordering = ["-created_at"]
+        verbose_name = "OTP Token"
+        verbose_name_plural = "OTP Tokens"
+        indexes = [
+            models.Index(fields=["phone", "consumed_at"], name="idx_otp_phone_unused"),
+        ]
+
+    def __str__(self):
+        state = "used" if self.consumed_at else "active"
+        return f"OTP {self.phone} ({self.purpose}, {state})"

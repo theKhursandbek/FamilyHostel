@@ -1,31 +1,26 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
-import { getBooking, cancelBooking, checkoutBooking } from "../services/bookingService";
+import { getBooking, checkoutBooking } from "../services/bookingService";
 import { getBookingPayments } from "../services/paymentService";
 import { useToast } from "../context/ToastContext";
 import Button from "../components/Button";
 import Loader from "../components/Loader";
 import ErrorMessage from "../components/ErrorMessage";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const STATUS_LABELS = {
-  pending: "Pending",
   paid: "Paid",
   completed: "Checked out",
   canceled: "Canceled",
 };
 
-const BADGE_MAP = {
-  pending: "badge-warning",
-  paid: "badge-success",
-  completed: "badge-muted",
-  canceled: "badge-danger",
-};
-
+// Booking origin channels. Telegram bookings are taken & paid *online*, so the
+// money ledger surfaces them as "Online" (the channel badge shows "Telegram").
 const SOURCE_LABELS = {
   walk_in: "Walk-in",
   manual: "Manual entry",
-  telegram: "Telegram bot",
+  telegram: "Online",
 };
 
 const PAY_METHOD_LABELS = {
@@ -35,30 +30,139 @@ const PAY_METHOD_LABELS = {
   card_transfer: "Card transfer",
 };
 
-function InfoRow({ label, value }) {
-  return (
-    <div className="info-row">
-      <span className="info-row-label">{label}</span>
-      <span className="info-row-value">{value ?? "—"}</span>
-    </div>
-  );
-}
-
-InfoRow.propTypes = {
-  label: PropTypes.string.isRequired,
-  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.node]),
+// Online (Stripe / Telegram) payments don't have a physical cash method, so
+// the ledger shows them as "Online".
+const payMethodLabel = (p) => {
+  if (p.payment_type === "online") return "Online";
+  return PAY_METHOD_LABELS[p.method] || p.method || "—";
 };
 
-function StatusBadge({ status }) {
+const fmtDate = (s) => {
+  if (!s) return "—";
+  try {
+    return new Date(s).toLocaleDateString(undefined, {
+      month: "short", day: "numeric", year: "numeric",
+    });
+  } catch {
+    return s;
+  }
+};
+
+const nightsBetween = (a, b) => {
+  if (!a || !b) return 0;
+  const ms = new Date(b).getTime() - new Date(a).getTime();
+  return Math.max(0, Math.round(ms / (1000 * 60 * 60 * 24)));
+};
+
+// True when checkout happens before the scheduled check-out date (no refund).
+const isEarlyCheckout = (booking) => {
+  if (!booking?.check_out_date) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const co = new Date(booking.check_out_date);
+  co.setHours(0, 0, 0, 0);
+  return today < co;
+};
+
+// Most-recent successful payment (for the billing summary line).
+const latestPaidPayment = (payments) => {
+  const paid = payments.filter((p) => p.is_paid);
+  if (paid.length === 0) return null;
+  return [...paid].sort((a, b) =>
+    String(b.created_at).localeCompare(String(a.created_at)),
+  )[0];
+};
+
+// Telegram bookings are paid online → ledger label is always "Online".
+const resolvePrimaryMethodLabel = (booking, payments) => {
+  if (booking.source === "telegram") return "Online";
+  const last = latestPaidPayment(payments);
+  return last ? payMethodLabel(last) : "—";
+};
+
+/** Payment statement rows (paid + pending). */
+function PaymentHistoryPanel({ payments, formatPrice }) {
   return (
-    <span className={`badge ${BADGE_MAP[status] || "badge-muted"}`}>
-      {STATUS_LABELS[status] || status}
-    </span>
+    <section className="bk-panel">
+      <h3 className="bk-panel__title">Payment history</h3>
+      {payments.length === 0 ? (
+        <p className="bk-panel__empty">No payments recorded yet.</p>
+      ) : (
+        <ul className="bk-pays">
+          {payments.map((p) => (
+            <li className={`bk-pays__row ${p.is_paid ? "is-paid" : "is-pending"}`} key={p.id}>
+              <div className="bk-pays__main">
+                <span className="bk-pays__amt">{formatPrice(p.amount)}</span>
+                <span className="bk-pays__method">
+                  {payMethodLabel(p)}
+                  {p.payment_type && p.payment_type !== "online" ? ` · ${p.payment_type}` : ""}
+                </span>
+              </div>
+              <div className="bk-pays__side">
+                <span className={`bk-pays__tag ${p.is_paid ? "is-paid" : "is-pending"}`}>
+                  {p.is_paid ? "Paid" : "Pending"}
+                </span>
+                {p.created_at && (
+                  <span className="bk-pays__date">{new Date(p.created_at).toLocaleString()}</span>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
-StatusBadge.propTypes = {
-  status: PropTypes.string.isRequired,
+PaymentHistoryPanel.propTypes = {
+  payments: PropTypes.array.isRequired,
+  formatPrice: PropTypes.func.isRequired,
+};
+
+/** Right-hand billing statement. */
+function BillingPanel({ booking, formatPrice, primaryMethodLabel }) {
+  const balanceDue = Number(booking.balance_due ?? 0);
+  const discountAmt = Number(booking.discount_amount ?? 0);
+  const discountText = discountAmt > 0
+    ? `− ${formatPrice(booking.discount_amount)}`
+    : formatPrice(booking.discount_amount);
+  return (
+    <aside className="bk-bill">
+      <h3 className="bk-bill__title">Billing</h3>
+      <div className="bk-bill__lines">
+        <div className="bk-bill__line">
+          <span>Price (per stay)</span>
+          <span>{formatPrice(booking.price_at_booking)}</span>
+        </div>
+        <div className="bk-bill__line">
+          <span>Discount</span>
+          <span>{discountText}</span>
+        </div>
+        <div className="bk-bill__line bk-bill__line--total">
+          <span>Total</span>
+          <span>{formatPrice(booking.final_price)}</span>
+        </div>
+        <div className="bk-bill__line">
+          <span>Paid</span>
+          <span>{formatPrice(booking.paid_total)}</span>
+        </div>
+      </div>
+      <div className={`bk-bill__balance ${balanceDue > 0 ? "is-due" : "is-clear"}`}>
+        <span className="bk-bill__balance-lbl">Balance due</span>
+        <span className="bk-bill__balance-val">{formatPrice(booking.balance_due)}</span>
+      </div>
+      <div className="bk-bill__method">
+        <span>Payment method</span>
+        <span>{primaryMethodLabel}</span>
+      </div>
+    </aside>
+  );
+}
+
+BillingPanel.propTypes = {
+  booking: PropTypes.object.isRequired,
+  formatPrice: PropTypes.func.isRequired,
+  primaryMethodLabel: PropTypes.string.isRequired,
 };
 
 function BookingDetailPage() {
@@ -70,6 +174,7 @@ function BookingDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   const fetchBooking = useCallback(async () => {
     setLoading(true);
@@ -92,29 +197,12 @@ function BookingDetailPage() {
     fetchBooking();
   }, [fetchBooking]);
 
-  const handleCancel = async () => {
-    if (!globalThis.confirm("Are you sure you want to cancel this booking?")) return;
-    setActionLoading(true);
-    try {
-      await cancelBooking(id);
-      toast.success("Booking canceled");
-      fetchBooking();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to cancel booking");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleCheckout = async () => {
-    if (!globalThis.confirm(
-      "Check this guest out?\n\nIf this is BEFORE the scheduled check-out date, " +
-      "the unused nights will NOT be refunded.",
-    )) return;
+  const confirmCheckout = async () => {
     setActionLoading(true);
     try {
       await checkoutBooking(id);
       toast.success("Guest checked out");
+      setCheckoutOpen(false);
       fetchBooking();
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to check out");
@@ -130,157 +218,117 @@ function BookingDetailPage() {
   const formatPrice = (val) =>
     val === null || val === undefined ? "—" : `${Number(val).toLocaleString()} сум`;
 
-  // Primary payment method for the header summary (most-recent successful payment).
-  const primaryMethod = (() => {
-    const paid = payments.filter((p) => p.is_paid);
-    if (paid.length === 0) return null;
-    // Last by created_at
-    const sorted = [...paid].sort((a, b) =>
-      String(b.created_at).localeCompare(String(a.created_at)),
-    );
-    return sorted[0].method;
-  })();
+  const primaryMethodLabel = resolvePrimaryMethodLabel(booking, payments);
+
+  const status = booking.status || "paid";
+  const nights = nightsBetween(booking.check_in_date, booking.check_out_date);
+  const early = isEarlyCheckout(booking);
+  const checkoutMsg = early
+    ? `Early checkout for room ${booking.room_number}. The unused nights will NOT be refunded.`
+    : `Check out room ${booking.room_number}?`;
 
   return (
-    <div>
-      {/* Header */}
-      <div className="page-header">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/bookings")}>
-          ← Back
+    <div className="bk-detail">
+      {/* Top bar — back + primary actions */}
+      <div className="bk-detail__bar">
+        <Button variant="secondary" size="sm" onClick={() => navigate("/bookings")}>
+          ← Back to bookings
         </Button>
-        <h1 style={{ flex: 1 }}>Booking #{booking.id}</h1>
-        {booking.source === "telegram" && (
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-              fontSize: "0.78rem",
-              padding: "4px 10px",
-              borderRadius: 999,
-              background: "#e0f2fe",
-              color: "#0369a1",
-              fontWeight: 600,
-              marginRight: 8,
-            }}
-          >
-            ✈ Telegram
-          </span>
-        )}
-        <StatusBadge status={booking.status} />
+        <div className="bk-detail__bar-actions">
+          {status === "paid" && (
+            <Button size="sm" disabled={actionLoading} onClick={() => setCheckoutOpen(true)}>
+              {actionLoading ? "Processing…" : "Check out"}
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Guest card */}
-      <div className="card" style={{ marginBottom: 24 }}>
-        <h3 className="section-title">Guest</h3>
-        <InfoRow label="Name" value={booking.client_name} />
-        <InfoRow label="Phone" value={booking.client_phone} />
-        <InfoRow label="Passport" value={booking.client_passport} />
-      </div>
-
-      {/* Stay card */}
-      <div className="card" style={{ marginBottom: 24 }}>
-        <h3 className="section-title">Stay</h3>
-        <InfoRow label="Room" value={booking.room_number} />
-        <InfoRow label="Branch" value={booking.branch_name} />
-        <InfoRow label="Check-in" value={booking.check_in_date} />
-        <InfoRow label="Check-out" value={booking.check_out_date} />
-        <InfoRow label="Booking source" value={SOURCE_LABELS[booking.source] || booking.source || "—"} />
-      </div>
-
-      {/* Money card */}
-      <div className="card" style={{ marginBottom: 24 }}>
-        <h3 className="section-title">Pricing</h3>
-        <InfoRow label="Price (per stay)" value={formatPrice(booking.price_at_booking)} />
-        <InfoRow label="Discount" value={formatPrice(booking.discount_amount)} />
-        <InfoRow
-          label="Final Price"
-          value={<strong className="text-success">{formatPrice(booking.final_price)}</strong>}
-        />
-        <InfoRow label="Paid" value={formatPrice(booking.paid_total)} />
-        <InfoRow
-          label="Balance Due"
-          value={
-            <strong style={{ color: Number(booking.balance_due) > 0 ? "var(--brand-danger)" : "inherit" }}>
-              {formatPrice(booking.balance_due)}
-            </strong>
-          }
-        />
-        <InfoRow
-          label="Payment method"
-          value={primaryMethod ? PAY_METHOD_LABELS[primaryMethod] || primaryMethod : "—"}
-        />
-      </div>
-
-      {/* Payments history */}
-      <div className="card" style={{ marginBottom: 24 }}>
-        <h3 className="section-title">Payment history</h3>
-        {payments.length === 0 ? (
-          <div className="empty-state" style={{ padding: 16 }}>No payments recorded yet.</div>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="table" style={{ width: "100%" }}>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Amount</th>
-                  <th>Method</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payments.map((p) => (
-                  <tr key={p.id}>
-                    <td>{p.created_at ? new Date(p.created_at).toLocaleString() : "—"}</td>
-                    <td>{formatPrice(p.amount)}</td>
-                    <td>{PAY_METHOD_LABELS[p.method] || p.method || "—"}</td>
-                    <td style={{ textTransform: "capitalize" }}>{p.payment_type || "—"}</td>
-                    <td>
-                      <span className={`badge ${p.is_paid ? "badge-success" : "badge-warning"}`}>
-                        {p.is_paid ? "Paid" : "Pending"}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Hero — room, guest, status, dates */}
+      <div className={`bk-detail__hero is-${status}`}>
+        <span className="bk-detail__hero-room">{String(booking.room_number ?? "—")}</span>
+        <div className="bk-detail__hero-main">
+          <div className="bk-detail__hero-top">
+            <h1 className="bk-detail__hero-name">{booking.client_name || "Guest"}</h1>
+            <span className={`bk-card__status is-${status}`}>
+              {STATUS_LABELS[status] || status}
+            </span>
           </div>
-        )}
-      </div>
-
-      {/* Meta card */}
-      <div className="card" style={{ marginBottom: 24 }}>
-        <h3 className="section-title">Meta</h3>
-        <InfoRow label="Status" value={<StatusBadge status={booking.status} />} />
-        <InfoRow
-          label="Created"
-          value={booking.created_at ? new Date(booking.created_at).toLocaleString() : "—"}
-        />
-        <InfoRow
-          label="Updated"
-          value={booking.updated_at ? new Date(booking.updated_at).toLocaleString() : "—"}
-        />
-      </div>
-
-      {/* Actions */}
-      {(booking.status === "pending" || booking.status === "paid") && (
-        <div className="card">
-          <h3 className="section-title">Actions</h3>
-          <div style={{ display: "flex", gap: 12 }}>
-            {booking.status === "pending" && (
-              <Button variant="danger" disabled={actionLoading} onClick={handleCancel}>
-                {actionLoading ? "Processing..." : "Cancel Booking"}
-              </Button>
+          <div className="bk-detail__hero-meta">
+            <span>Booking #{booking.branch_number ?? booking.id}</span>
+            {booking.branch_name && <span>· {booking.branch_name}</span>}
+            <span>· {SOURCE_LABELS[booking.source] || booking.source || "—"}</span>
+            {booking.source === "telegram" && (
+              <span className="bk-detail__tg">✈ Telegram</span>
             )}
-            {booking.status === "paid" && (
-              <Button disabled={actionLoading} onClick={handleCheckout}>
-                {actionLoading ? "Processing..." : "Checkout"}
-              </Button>
-            )}
+          </div>
+          <div className="bk-detail__hero-dates">
+            <div className="bk-detail__leg">
+              <span className="bk-detail__leg-lbl">Check-in</span>
+              <span className="bk-detail__leg-val">{fmtDate(booking.check_in_date)}</span>
+            </div>
+            <span className="bk-detail__leg-sep">
+              {nights} night{nights === 1 ? "" : "s"}
+            </span>
+            <div className="bk-detail__leg bk-detail__leg--end">
+              <span className="bk-detail__leg-lbl">Check-out</span>
+              <span className="bk-detail__leg-val">{fmtDate(booking.check_out_date)}</span>
+            </div>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Body — details (left) + billing statement (right) */}
+      <div className="bk-folio">
+        <div className="bk-folio__main">
+          <section className="bk-panel">
+            <h3 className="bk-panel__title">Guest</h3>
+            <div className="bk-info">
+              <div className="bk-info__cell">
+                <span className="bk-info__lbl">Name</span>
+                <span className="bk-info__val">{booking.client_name || "—"}</span>
+              </div>
+              <div className="bk-info__cell">
+                <span className="bk-info__lbl">Phone</span>
+                <span className="bk-info__val">{booking.client_phone || "—"}</span>
+              </div>
+              <div className="bk-info__cell">
+                <span className="bk-info__lbl">Passport</span>
+                <span className="bk-info__val">{booking.client_passport || "—"}</span>
+              </div>
+              <div className="bk-info__cell">
+                <span className="bk-info__lbl">Date of birth</span>
+                <span className="bk-info__val">{fmtDate(booking.client_dob)}</span>
+              </div>
+            </div>
+          </section>
+
+          <PaymentHistoryPanel payments={payments} formatPrice={formatPrice} />
+        </div>
+
+        <BillingPanel
+          booking={booking}
+          formatPrice={formatPrice}
+          primaryMethodLabel={primaryMethodLabel}
+        />
+      </div>
+
+      {/* Footnote meta */}
+      <p className="bk-detail__foot">
+        Created {booking.created_at ? new Date(booking.created_at).toLocaleString() : "—"}
+        {booking.updated_at ? ` · Updated ${new Date(booking.updated_at).toLocaleString()}` : ""}
+      </p>
+
+      {/* Checkout confirmation (warns on early checkout — no refund) */}
+      <ConfirmDialog
+        isOpen={checkoutOpen}
+        onClose={() => setCheckoutOpen(false)}
+        onConfirm={confirmCheckout}
+        title="Check out guest?"
+        tone={early ? "danger" : "primary"}
+        confirmLabel="Check out"
+        loading={actionLoading}
+        message={checkoutMsg}
+      />
     </div>
   );
 }

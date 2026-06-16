@@ -40,10 +40,9 @@ class Booking(models.Model):
         CANCELED = "canceled", "Canceled"
 
     class BookingSource(models.TextChoices):
-        """Where the booking originated (admin entry vs. self-service)."""
-        WALK_IN = "walk_in", "Walk-in"
-        MANUAL = "manual", "Manual (admin)"
-        TELEGRAM = "telegram", "Telegram bot"
+        """Where the booking originated. Exactly two global channels."""
+        MANUAL = "manual", "Manual"
+        TELEGRAM = "telegram", "Telegram"
 
     client = models.ForeignKey(
         "accounts.Client",
@@ -59,6 +58,15 @@ class Booking(models.Model):
         "branches.Branch",
         on_delete=models.CASCADE,
         related_name="bookings",
+    )
+    branch_number = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "Per-branch booking sequence (Branch A #1, Branch B #1, ...). "
+            "Allocated at creation; shown in the UI as '#<branch_number>'."
+        ),
     )
     check_in_date = models.DateField()
     check_out_date = models.DateField()
@@ -106,6 +114,10 @@ class Booking(models.Model):
                 condition=models.Q(check_out_date__gt=models.F("check_in_date")),
                 name="booking_checkout_after_checkin",
             ),
+            models.UniqueConstraint(
+                fields=["branch", "branch_number"],
+                name="uniq_booking_branch_number",
+            ),
         ]
         indexes = [
             models.Index(
@@ -116,6 +128,9 @@ class Booking(models.Model):
                 fields=["status"],
                 name="idx_booking_status",
             ),
+            # Plan §8 R10 — hot query paths
+            models.Index(fields=["room", "status"], name="idx_booking_room_status"),
+            models.Index(fields=["client", "status"], name="idx_booking_client_status"),
         ]
 
     def clean(self):
@@ -128,3 +143,67 @@ class Booking(models.Model):
 
     def __str__(self):
         return f"Booking #{self.pk} — Room {self.room} ({self.status})"
+
+
+class BookingExtension(models.Model):
+    """
+    A single extension segment applied to a booking.
+
+    Modelling extensions as their own rows lets us cancel *only the extended
+    days* (Scenario A) while leaving the original paid stay untouched, and
+    keeps a permanent trace for the booking card's nested **History** section.
+    """
+
+    class ExtensionStatus(models.TextChoices):
+        ACTIVE = "active", "Active"
+        CANCELED = "canceled", "Canceled"
+
+    booking = models.ForeignKey(
+        "bookings.Booking",
+        on_delete=models.CASCADE,
+        related_name="extensions",
+    )
+    previous_check_out_date = models.DateField(
+        help_text="The booking's check-out date *before* this extension.",
+    )
+    new_check_out_date = models.DateField(
+        help_text="The check-out date this extension pushed the booking to.",
+    )
+    additional_price = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+    )
+    status = models.CharField(
+        max_length=12,
+        choices=ExtensionStatus.choices,
+        default=ExtensionStatus.ACTIVE,
+    )
+    created_by = models.ForeignKey(
+        "accounts.Account",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_booking_extensions",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    canceled_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "booking_extensions"
+        ordering = ["-created_at"]
+        verbose_name = "Booking Extension"
+        verbose_name_plural = "Booking Extensions"
+        indexes = [
+            models.Index(
+                fields=["booking", "status"],
+                name="idx_bk_ext_booking_status",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"Extension #{self.pk} — Booking #{self.booking_id} "
+            f"({self.previous_check_out_date} → {self.new_check_out_date}, "
+            f"{self.status})"
+        )

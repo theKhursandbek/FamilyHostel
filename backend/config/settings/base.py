@@ -57,6 +57,7 @@ THIRD_PARTY_APPS = [
 ]
 
 LOCAL_APPS = [
+    "apps.common",
     "apps.accounts",
     "apps.branches",
     "apps.bookings",
@@ -66,6 +67,7 @@ LOCAL_APPS = [
     "apps.payments",
     "apps.reports",
     "apps.backups",
+    "apps.chat",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -189,11 +191,18 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
+        "rest_framework.throttling.ScopedRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
         "anon": "30/minute",
         "user": "100/minute",
         "auth": "10/minute",
+        "chat_user": "30/5min",
+        "chat_user_daily": "50/day",
+        "booking_create": "20/hour",
+        "payment_intent": "30/hour",
+        "otp_start": "5/hour",
+        "otp_verify": "10/hour",
     },
     # Renderer — wraps success responses in {success: true, data: ...} (Step 20)
     "DEFAULT_RENDERER_CLASSES": [
@@ -239,12 +248,42 @@ SIMPLE_JWT = {
 
 STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="")  # type: ignore[call-overload]
 STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")  # type: ignore[call-overload]
+STRIPE_PUBLISHABLE_KEY = env("STRIPE_PUBLISHABLE_KEY", default="")  # type: ignore[call-overload]
+
+# OpenAI (Mini App chat assistant)
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")  # type: ignore[call-overload]
+OPENAI_MODEL = env("OPENAI_MODEL", default="gpt-4o-mini")  # type: ignore[call-overload]
 
 # ==============================================================================
 # TELEGRAM BOT (README Section 26.4)
 # ==============================================================================
 
 TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")  # type: ignore[call-overload]
+
+# Two-bot deployment (TELEGRAM_MINI_APP_PLAN.md D19): prod + staging tokens.
+# The bot process picks one based on its TELEGRAM_BOT_ENV env var; the Mini
+# App's ?env= query string tells the backend which token to validate against.
+TELEGRAM_BOT_TOKENS = {
+    "prod": env("TELEGRAM_BOT_TOKEN_PROD", default=TELEGRAM_BOT_TOKEN),  # type: ignore[call-overload]
+    "staging": env("TELEGRAM_BOT_TOKEN_STAGING", default=""),  # type: ignore[call-overload]
+}
+
+# ==============================================================================
+# SMS / OTP (TELEGRAM_MINI_APP_PLAN.md §3.1, §4.1)
+# ==============================================================================
+
+SMS_BACKEND = env(
+    "SMS_BACKEND", default="apps.common.sms.MemorySmsBackend"  # type: ignore[call-overload]
+)
+ESKIZ_BASE_URL = env("ESKIZ_BASE_URL", default="https://notify.eskiz.uz/api")  # type: ignore[call-overload]
+ESKIZ_EMAIL = env("ESKIZ_EMAIL", default="")  # type: ignore[call-overload]
+ESKIZ_PASSWORD = env("ESKIZ_PASSWORD", default="")  # type: ignore[call-overload]
+ESKIZ_FROM = env("ESKIZ_FROM", default="4546")  # type: ignore[call-overload]
+
+OTP_LENGTH = 6
+OTP_TTL_SECONDS = 300              # 5 min validity per TELEGRAM_MINI_APP_PLAN.md §4.1
+OTP_MAX_ATTEMPTS = 5               # wrong codes per token
+OTP_MAX_ACTIVE_PER_PHONE = 5       # active tokens before /start refuses
 
 # ==============================================================================
 # CELERY — Background task queue (Step 17)
@@ -285,6 +324,34 @@ CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS = {
     "retry_policy": {"timeout": 2.0, "max_retries": 0},
 }
 
+from kombu import Exchange, Queue  # noqa: E402
+
+_BOOKING_INGESTION_EXCHANGE = Exchange("bookings.ingest", type="direct")
+_BOOKING_INGESTION_QUEUES = [
+    Queue(
+        f"bookings.ingest.{shard:02d}",
+        exchange=_BOOKING_INGESTION_EXCHANGE,
+        routing_key=f"bookings.ingest.{shard:02d}",
+    )
+    for shard in range(max(1, env.int("BOOKING_ORDERED_INGESTION_SHARDS", default=16)))
+]
+
+CELERY_TASK_DEFAULT_QUEUE = "celery"
+CELERY_TASK_CREATE_MISSING_QUEUES = False
+CELERY_TASK_QUEUES = [
+    Queue("celery", exchange=Exchange("celery"), routing_key="celery"),
+    *_BOOKING_INGESTION_QUEUES,
+]
+
+# ==============================================================================
+# BOOKING CONCURRENCY HARDENING
+# ==============================================================================
+
+BOOKING_STRICT_ISOLATION_ENABLED = env.bool("BOOKING_STRICT_ISOLATION_ENABLED", default=True)
+BOOKING_ORDERED_INGESTION_ENABLED = env.bool("BOOKING_ORDERED_INGESTION_ENABLED", default=False)
+BOOKING_ORDERED_INGESTION_SHARDS = env.int("BOOKING_ORDERED_INGESTION_SHARDS", default=16)
+BOOKING_ORDERED_INGESTION_TIMEOUT = env.int("BOOKING_ORDERED_INGESTION_TIMEOUT", default=120)
+
 # ==============================================================================
 # CELERY BEAT — Scheduled tasks (Step 26)
 # ==============================================================================
@@ -305,7 +372,50 @@ CELERY_BEAT_SCHEDULE = {
         "task": "bookings.auto_complete_due_bookings",
         "schedule": crontab(hour=12, minute=0),  # every day at 12:00
     },
+    "staff-detect-absences": {
+        # Yesterday's no-shows → absence penalty + notification.
+        "task": "staff.detect_absences",
+        "schedule": crontab(hour=3, minute=0),  # every day at 03:00
+    },
+    "staff-shift-start-reminders": {
+        # 30-minute heads-up before a shift starts.
+        "task": "staff.shift_start_reminders",
+        "schedule": crontab(minute="*/15"),
+    },
+    "cleaning-purge-old-images": {
+        # Delete cleaning photos 30 days after task completion (keep AIResult).
+        "task": "cleaning.purge_old_cleaning_images",
+        "schedule": crontab(hour=4, minute=0),  # every day at 04:00
+    },
 }
+
+# ==============================================================================
+# CLEANING AI VERIFICATION (Gemini)
+# ==============================================================================
+
+# Google Gemini (free tier) drives cleanliness verification. When no key is
+# configured the analyser fails CLOSED (rejects) so a missing/disabled AI can
+# never silently auto-approve a dirty room.
+GEMINI_API_KEY = env("GEMINI_API_KEY", default="")  # type: ignore[call-overload]
+GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-2.5-flash")  # type: ignore[call-overload]
+GEMINI_ENABLED = env.bool("GEMINI_ENABLED", default=bool(GEMINI_API_KEY))
+GEMINI_TIMEOUT_SECONDS = env.int("GEMINI_TIMEOUT_SECONDS", default=30)
+
+# Never auto-approve on AI error/timeout/quota/parse failure.
+CLEANING_AI_FAIL_CLOSED = env.bool("CLEANING_AI_FAIL_CLOSED", default=True)
+
+# Dev-only deterministic stub (approves if >=4 zone photos). OFF by default so
+# production never approves without real AI. Tests mock the analyser directly.
+CLEANING_AI_DEV_STUB = env.bool("CLEANING_AI_DEV_STUB", default=False)
+
+# Image hygiene + retention.
+CLEANING_IMAGE_MAX_EDGE = env.int("CLEANING_IMAGE_MAX_EDGE", default=1600)
+CLEANING_IMAGE_JPEG_QUALITY = env.int("CLEANING_IMAGE_JPEG_QUALITY", default=75)
+CLEANING_IMAGE_RETENTION_DAYS = env.int("CLEANING_IMAGE_RETENTION_DAYS", default=30)
+
+# Perceptual-hash duplicate detection (Hamming distance threshold + window).
+CLEANING_PHASH_MAX_DISTANCE = env.int("CLEANING_PHASH_MAX_DISTANCE", default=5)
+CLEANING_PHASH_WINDOW_DAYS = env.int("CLEANING_PHASH_WINDOW_DAYS", default=30)
 
 # ==============================================================================
 # BACKUP SYSTEM (Step 26)

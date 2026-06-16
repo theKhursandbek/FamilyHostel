@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { X } from "lucide-react";
 import PropTypes from "prop-types";
 
 function Modal({ isOpen, onClose, title, children, size = "default" }) {
@@ -24,7 +25,9 @@ function Modal({ isOpen, onClose, title, children, size = "default" }) {
       <div className={`modal-content modal-${size}`}>
         <div className="modal-header">
           <h2>{title}</h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
+            <X size={18} strokeWidth={2} aria-hidden />
+          </button>
         </div>
         {children}
       </div>

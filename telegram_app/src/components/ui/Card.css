@@ -1,0 +1,25 @@
+.ui-card {
+  background: var(--tg-secondary-bg);
+  border: 1px solid var(--tg-card-border);
+  border-radius: var(--r-lg);
+  margin-bottom: var(--s-3);
+  color: inherit;
+  display: block;
+}
+.ui-card--padded { padding: var(--s-4); }
+.ui-card--interactive {
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+.ui-card--interactive:active { transform: scale(0.99); }
+
+.ui-card__title {
+  font-weight: 600;
+  margin: 0 0 var(--s-1);
+  font-size: var(--font-md);
+}
+.ui-card__subtitle {
+  color: var(--tg-hint);
+  font-size: var(--font-sm);
+  margin: 0;
+}

@@ -14,7 +14,7 @@ Endpoints:
     PUT  /system-settings/             — update salary mode/cycle/rates
     PATCH /system-settings/            — partial update
 
-    GET  /income-rules/                — list rules (filter ?branch=&shift_type=)
+    GET  /income-rules/                — list rules (filter ?branch=)
     POST /income-rules/                — create
     PATCH /income-rules/{id}/          — update
     DELETE /income-rules/{id}/         — delete
@@ -27,7 +27,6 @@ from __future__ import annotations
 from decimal import Decimal
 
 from django.db import transaction
-from django.utils import timezone
 from rest_framework import serializers, status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -35,10 +34,7 @@ from rest_framework.views import APIView
 
 from apps.accounts.models import Administrator, Director, Staff
 from apps.accounts.permissions import IsSuperAdmin
-from apps.bookings.models import Booking
-from apps.branches.models import Room
-from apps.cleaning.models import CleaningTask
-from apps.payments.models import IncomeRule, Payment
+from apps.payments.models import IncomeRule
 from apps.payments.serializers import IncomeRuleSerializer
 from apps.reports.models import AuditLog
 
@@ -69,9 +65,42 @@ class SystemSettingsSerializer(serializers.ModelSerializer):
             "per_room_rate",
             "director_fixed_salary",
             "admin_shift_rate",
-            "gm_bonus_percent",
         ]
         read_only_fields = ["id"]
+
+    def validate_staff_shift_rate(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Shift rate cannot be negative.")
+        if value is not None and value > 99_999_999:
+            raise serializers.ValidationError("Shift rate is unrealistically large.")
+        return value
+
+    def validate_per_room_rate(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Per-room rate cannot be negative.")
+        if value is not None and value > 99_999_999:
+            raise serializers.ValidationError("Per-room rate is unrealistically large.")
+        return value
+
+    def validate_director_fixed_salary(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Director salary cannot be negative.")
+        if value is not None and value > 999_999_999:
+            raise serializers.ValidationError("Director salary is unrealistically large.")
+        return value
+
+    def validate_admin_shift_rate(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Admin shift rate cannot be negative.")
+        if value is not None and value > 99_999_999:
+            raise serializers.ValidationError("Admin shift rate is unrealistically large.")
+        return value
+
+    def validate_salary_mode(self, value):
+        allowed = {"shift", "per_room"}
+        if value not in allowed:
+            raise serializers.ValidationError(f"Must be one of: {', '.join(allowed)}.")
+        return value
 
     def update(self, instance, validated_data):
         # Mirror legacy `shift_rate` writes onto the new `staff_shift_rate`
@@ -137,15 +166,15 @@ class IncomeRuleViewSet(viewsets.ModelViewSet):
     """
     Income percentage rules (README §14.7) — managed by CEO only.
 
-    Filters: ``?branch=&shift_type=``
+    Filters: ``?branch=``
     """
 
     queryset = IncomeRule.objects.select_related("branch").all()
     serializer_class = IncomeRuleSerializer
-    permission_classes = [IsAuthenticated, IsSuperAdmin]
-    filterset_fields = ["branch", "shift_type"]
-    ordering_fields = ["branch", "shift_type", "min_income", "percent"]
-    ordering = ["branch", "shift_type", "min_income"]
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ["branch"]
+    ordering_fields = ["branch", "min_income", "percent"]
+    ordering = ["branch", "min_income"]
 
     def perform_create(self, serializer):
         instance = serializer.save()
@@ -188,157 +217,6 @@ class IncomeRuleViewSet(viewsets.ModelViewSet):
 
 
 # ==============================================================================
-# CEO OVERRIDE ENDPOINT
-# ==============================================================================
-
-
-# Whitelisted (entity_type, action, model, allowed_field, allowed_values)
-_OVERRIDE_REGISTRY = {
-    ("booking", "set_status"): {
-        "model": Booking,
-        "field": "status",
-        "choices": ["pending", "paid", "completed", "canceled"],
-    },
-    ("booking", "set_price"): {
-        "model": Booking,
-        "field": "final_price",
-        "choices": None,  # any positive Decimal
-    },
-    ("room", "set_status"): {
-        "model": Room,
-        "field": "status",
-        "choices": ["available", "booked", "occupied", "cleaning", "ready"],
-    },
-    ("cleaning_task", "set_status"): {
-        "model": CleaningTask,
-        "field": "status",
-        "choices": ["pending", "in_progress", "completed"],
-    },
-}
-
-
-class OverrideSerializer(serializers.Serializer):
-    entity_type = serializers.ChoiceField(
-        choices=sorted({k[0] for k in _OVERRIDE_REGISTRY}),
-    )
-    entity_id = serializers.IntegerField(min_value=1)
-    action = serializers.CharField(max_length=64)
-    value = serializers.CharField(max_length=255)
-    reason = serializers.CharField(max_length=1000)
-
-    def validate(self, attrs):
-        key = (attrs["entity_type"], attrs["action"])
-        if key not in _OVERRIDE_REGISTRY:
-            raise serializers.ValidationError(
-                {"action": f"Unsupported override for {attrs['entity_type']}."},
-            )
-        spec = _OVERRIDE_REGISTRY[key]
-        if spec["choices"] is not None and attrs["value"] not in spec["choices"]:
-            raise serializers.ValidationError(
-                {"value": f"Must be one of {spec['choices']}."},
-            )
-        if not attrs["reason"].strip():
-            raise serializers.ValidationError(
-                {"reason": "A reason is required for any override."},
-            )
-        return attrs
-
-
-class OverrideView(APIView):
-    """
-    Generic CEO override endpoint.
-
-    Performs a whitelisted change to a record and persists an
-    ``AuditLog`` entry with the before/after snapshot and the reason.
-    """
-
-    permission_classes = [IsAuthenticated, IsSuperAdmin]
-
-    @transaction.atomic
-    def post(self, request):
-        serializer = OverrideSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data: dict = serializer.validated_data  # type: ignore[assignment]
-
-        entity_type = data["entity_type"]
-        action_name = data["action"]
-        entity_id = data["entity_id"]
-        reason = data["reason"]
-
-        spec = _OVERRIDE_REGISTRY[(entity_type, action_name)]
-        model_cls = spec["model"]
-        field = spec["field"]
-
-        try:
-            obj = model_cls.objects.select_for_update().get(pk=entity_id)
-        except model_cls.DoesNotExist:
-            return Response(
-                {"detail": f"{entity_type} #{entity_id} not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        before_value = getattr(obj, field)
-        new_value = data["value"]
-
-        if field == "final_price":
-            try:
-                new_value = Decimal(new_value)
-            except (ArithmeticError, ValueError):
-                return Response(
-                    {"value": "Must be a valid decimal."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            if new_value <= 0:
-                return Response(
-                    {"value": "Price must be positive."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-        setattr(obj, field, new_value)
-        obj.save()
-
-        # Side effect: when a CEO flips a booking back to "pending" they
-        # almost always intend to retest the Pay/Complete flow. With the
-        # balance-aware payment service in place, leftover Payment rows
-        # would make the booking still look "fully paid" (balance_due == 0)
-        # and Pay would be rejected. So we wipe payment history here and
-        # record how many rows we removed in the audit log.
-        wiped_payments = 0
-        if (
-            entity_type == "booking"
-            and action_name == "set_status"
-            and new_value == "pending"
-        ):
-            wiped_payments, _ = Payment.objects.filter(booking=obj).delete()
-
-        AuditLog.objects.create(
-            account=request.user,
-            role="superadmin",
-            action=f"override:{entity_type}:{action_name}",
-            entity_type=model_cls.__name__,
-            entity_id=obj.pk,
-            before_data={field: str(before_value), "reason": reason},
-            after_data={
-                field: str(new_value),
-                "at": timezone.now().isoformat(),
-                **({"wiped_payments": wiped_payments} if wiped_payments else {}),
-            },
-        )
-
-        return Response(
-            {
-                "entity_type": entity_type,
-                "entity_id": obj.pk,
-                "field": field,
-                "before": str(before_value),
-                "after": str(new_value),
-                "reason": reason,
-            },
-            status=status.HTTP_200_OK,
-        )
-
-
-# ==============================================================================
 # PER-PERSON SALARY OVERRIDES
 # ==============================================================================
 
@@ -369,7 +247,11 @@ def _serialize_person(person, role: str, settings_obj: SystemSettings) -> dict:
     spec = _ROLE_REGISTRY[role]
     field = spec["field"]
     raw_value = getattr(person, field)
-    default_value = getattr(settings_obj, spec["default_attr"])
+    # Staff: use per_room_rate when salary_mode is per_room, otherwise shift rate.
+    if role == "staff" and getattr(settings_obj, "salary_mode", None) == "per_room":
+        default_value = settings_obj.per_room_rate
+    else:
+        default_value = getattr(settings_obj, spec["default_attr"])
 
     if spec["nullable"]:
         is_custom = raw_value is not None
@@ -418,6 +300,13 @@ class RolePeopleView(APIView):
         active = request.query_params.get("active")
         if active in {"1", "true", "True"}:
             qs = qs.filter(is_active=True)
+        branch = request.query_params.get("branch")
+        if branch:
+            try:
+                qs = qs.filter(branch_id=int(branch))
+            except (TypeError, ValueError):
+                pass
+
         qs = qs.order_by("full_name")
         settings_obj = _get_or_create_settings()
         data = [_serialize_person(p, role, settings_obj) for p in qs]

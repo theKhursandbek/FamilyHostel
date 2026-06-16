@@ -74,6 +74,26 @@ def send_notification(
         message[:120],
     )
 
+    # --- Real-time WS push to the user's per-account channel ---
+    try:
+        from config.ws_events import send_dashboard_event
+        from apps.accounts.models import Account
+        acc = Account.objects.filter(pk=account_id).first()
+        is_client = acc and hasattr(acc, "client_profile")
+        send_dashboard_event(
+            event_type=f"notification.{notification_type}",
+            data={
+                "id": notification.pk,
+                "type": notification_type,
+                "message": message,
+                "created_at": notification.created_at.isoformat(),
+            },
+            client_account_id=account_id if is_client else None,
+            staff_account_id=account_id if (acc and not is_client) else None,
+        )
+    except Exception:
+        logger.exception("WS dispatch failed for notification → account #%s", account_id)
+
     # --- Telegram push via Celery (Step 17 / README 26.4) ---
     def _dispatch_single():
         try:

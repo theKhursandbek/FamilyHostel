@@ -91,8 +91,6 @@ LBL_TOTAL_SALARY = "Общий ойлик"
 LBL_BONUS_PLUS = "Бонус +"
 # Per-shift remainder header (one column at end of each shift block).
 LBL_LEFTOVER = "Остатка"
-# Lobar-only row inserted under the admin payroll panel for her director cut.
-LBL_DIRECTOR_SALARY = "Директор маоши"
 
 # (label, fill, font_color)
 ADMIN_PAYROLL_ROWS: list[tuple[str, Optional[str], str]] = [
@@ -152,11 +150,9 @@ class MonthData:
     year: int
     month: int
     branch_name: str
-    lobar_variant: bool
     viewer: str                           # "CEO" or an admin's full_name
     daily_rate: int                       # staff per-shift rate (UZS)
     admin_shift_rate: int                 # admin Фикса rate per shift (UZS)
-    director_salary: Decimal              # for Lobar's "Директор маоши" row
     day_rows: list[ShiftRow]              # length = days_in_month
     night_rows: list[ShiftRow]            # length = days_in_month
     admin_panels: list[AdminPanelInputs]  # length up to PANEL_COUNT
@@ -201,7 +197,6 @@ def build_month_sheet(ws: Worksheet, data: MonthData) -> None:  # noqa: C901,PLR
     year, month = data.year, data.month
     days = calendar.monthrange(year, month)[1]
     viewer = data.viewer
-    lobar_variant = data.lobar_variant
 
     # Defensive: pad day/night rows to expected length
     day_rows = list(data.day_rows) + [ShiftRow() for _ in range(days - len(data.day_rows))]
@@ -240,11 +235,10 @@ def build_month_sheet(ws: Worksheet, data: MonthData) -> None:  # noqa: C901,PLR
     _style(ws.cell(row=1, column=NIGHT_ADMIN, value="НОЧЬ"),
            bold=True, fill_color=BLACK, font_color=WHITE, size=12)
 
-    panel_title = "ЛОБАР — Бош менеджер" if lobar_variant else "АДМИНЛАР"
     ws.merge_cells(start_row=1, end_row=1,
                    start_column=PANEL_LBL_COL,
                    end_column=PANEL_FIRST_COL + PANEL_COUNT - 1)
-    _style(ws.cell(row=1, column=PANEL_LBL_COL, value=panel_title),
+    _style(ws.cell(row=1, column=PANEL_LBL_COL, value="АДМИНЛАР"),
            bold=True, fill_color=BLUE_HDR, font_color=WHITE, size=12)
 
     # Row 2: column headers
@@ -427,7 +421,6 @@ def build_month_sheet(ws: Worksheet, data: MonthData) -> None:  # noqa: C901,PLR
                 label=label, panel=panel,
                 data_start=DATA_START, last_row=last_data_row,
                 col_letter=_col(c), panel_row_for=panel_row_for,
-                lobar_variant=lobar_variant,
                 admin_shift_rate=data.admin_shift_rate,
             )
             ws.cell(row=r, column=c, value=value)
@@ -437,29 +430,8 @@ def build_month_sheet(ws: Worksheet, data: MonthData) -> None:  # noqa: C901,PLR
                 bold=(label in (LBL_BONUS, LBL_REMAINING_SALARY, LBL_TOTAL_SALARY)),
             )
 
-    extra_used = 0
-    if lobar_variant:
-        r = 3 + len(ADMIN_PAYROLL_ROWS)
-        ws.cell(row=r, column=PANEL_LBL_COL, value=LBL_DIRECTOR_SALARY)
-        _style(ws.cell(row=r, column=PANEL_LBL_COL),
-               bold=True, fill_color=BLUE_HDR, font_color=WHITE)
-        gm_name = panels[0].full_name
-        if _can_see(viewer, gm_name):
-            ws.cell(row=r, column=PANEL_FIRST_COL,
-                    value=float(data.director_salary))
-            _style(ws.cell(row=r, column=PANEL_FIRST_COL),
-                   bold=True, number_format=NUMFMT)
-        else:
-            ws.cell(row=r, column=PANEL_FIRST_COL, value=None)
-            _style(ws.cell(row=r, column=PANEL_FIRST_COL), fill_color="D9D9D9")
-        for j in range(1, PANEL_COUNT):
-            ws.cell(row=r, column=PANEL_FIRST_COL + j, value=None)
-            _style(ws.cell(row=r, column=PANEL_FIRST_COL + j), fill_color="D9D9D9")
-        panel_row_for[LBL_DIRECTOR_SALARY] = r
-        extra_used = 1
-
     # Final black ИТОГ row
-    final_row = 3 + len(ADMIN_PAYROLL_ROWS) + extra_used + 1
+    final_row = 3 + len(ADMIN_PAYROLL_ROWS) + 1
     ws.cell(row=final_row, column=PANEL_LBL_COL, value="ИТОГ")
     _style(ws.cell(row=final_row, column=PANEL_LBL_COL),
            bold=True, fill_color=BLACK, font_color=WHITE)
@@ -474,11 +446,7 @@ def build_month_sheet(ws: Worksheet, data: MonthData) -> None:  # noqa: C901,PLR
             continue
         oilik = panel_row_for[LBL_REMAINING_SALARY]
         bonusplus = panel_row_for[LBL_BONUS_PLUS]
-        if lobar_variant and j == 0:
-            director = panel_row_for[LBL_DIRECTOR_SALARY]
-            formula = f"={L}{oilik}+{L}{bonusplus}+{L}{director}"
-        else:
-            formula = f"={L}{oilik}+{L}{bonusplus}"
+        formula = f"={L}{oilik}+{L}{bonusplus}"
         ws.cell(row=final_row, column=c, value=formula)
         _style(ws.cell(row=final_row, column=c),
                bold=True, fill_color=BLACK, font_color=WHITE,
@@ -591,7 +559,7 @@ def build_month_sheet(ws: Worksheet, data: MonthData) -> None:  # noqa: C901,PLR
 def _panel_value(*, label: str, panel: AdminPanelInputs,
                  data_start: int, last_row: int,
                  col_letter: str, panel_row_for: dict[str, int],
-                 lobar_variant: bool, admin_shift_rate: int):
+                 admin_shift_rate: int):
     name_quoted = f'"{panel.full_name}"'
     da = _col(DAY_ADMIN)
     na = _col(NIGHT_ADMIN)
@@ -613,17 +581,17 @@ def _panel_value(*, label: str, panel: AdminPanelInputs,
     adv_row = panel_row_for.get(LBL_ADVANCE)
 
     if label == LBL_DAY:
-        return f"=COUNTA({rng_day_admin})" if lobar_variant else f'=COUNTIF({rng_day_admin},{name_quoted})'
+        return f'=COUNTIF({rng_day_admin},{name_quoted})'
     if label == LBL_NIGHT:
-        return f"=COUNTA({rng_night_admin})" if lobar_variant else f'=COUNTIF({rng_night_admin},{name_quoted})'
+        return f'=COUNTIF({rng_night_admin},{name_quoted})'
     if label == LBL_TOTAL_SHIFT:
         return f"={L}{days_row}+{L}{nights_row}"
     if label == LBL_FIX:
         return f"={L}{panel_row_for[LBL_TOTAL_SHIFT]}*{admin_shift_rate}"
     if label == LBL_TOTAL_DAY:
-        return f"=SUM({rng_day_total})" if lobar_variant else f'=SUMIF({rng_day_admin},{name_quoted},{rng_day_total})'
+        return f'=SUMIF({rng_day_admin},{name_quoted},{rng_day_total})'
     if label == LBL_TOTAL_NIGHT:
-        return f"=SUM({rng_night_total})" if lobar_variant else f'=SUMIF({rng_night_admin},{name_quoted},{rng_night_total})'
+        return f'=SUMIF({rng_night_admin},{name_quoted},{rng_night_total})'
     if label == LBL_BONUS:
         pct = panel.bonus_pct
         return f"=ROUND(({L}{obd_row}+{L}{obn_row})*{pct},0)"

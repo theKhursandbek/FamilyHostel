@@ -11,6 +11,9 @@ from .models import Branch, Room, RoomImage, RoomType
 
 class BranchSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
+    location_code_label = serializers.CharField(
+        source="get_location_code_display", read_only=True,
+    )
 
     class Meta:
         model = Branch
@@ -18,6 +21,9 @@ class BranchSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "location",
+            "location_code",
+            "location_code_label",
+            "location_label",
             "image",
             "image_url",
             "is_active",
@@ -26,7 +32,10 @@ class BranchSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "image_url", "created_at", "updated_at"]
+        read_only_fields = [
+            "id", "image_url", "location_code_label",
+            "created_at", "updated_at",
+        ]
         extra_kwargs = {"image": {"write_only": True, "required": False, "allow_null": True}}
 
     def get_image_url(self, obj: Branch) -> str | None:
@@ -107,6 +116,9 @@ class RoomListSerializer(serializers.ModelSerializer):
 
     room_type_name = serializers.CharField(source="room_type.name", read_only=True)
     branch_name = serializers.CharField(source="branch.name", read_only=True)
+    branch_location_code = serializers.CharField(source="branch.location_code", read_only=True)
+    branch_location_label = serializers.CharField(source="branch.location_label", read_only=True)
+    branch_location = serializers.CharField(source="branch.location", read_only=True)
     primary_image_url = serializers.SerializerMethodField()
     images = RoomImageSerializer(many=True, read_only=True)
 
@@ -116,6 +128,9 @@ class RoomListSerializer(serializers.ModelSerializer):
             "id",
             "branch",
             "branch_name",
+            "branch_location",
+            "branch_location_code",
+            "branch_location_label",
             "room_type",
             "room_type_name",
             "room_number",

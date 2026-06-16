@@ -14,8 +14,6 @@ import {
   Clock,
   Users,
   Sliders,
-  ShieldAlert,
-  Activity,
   X,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -27,7 +25,6 @@ const commonItems = [
   { to: "/bookings", label: "Bookings", icon: ClipboardList },
   { to: "/cleaning", label: "Cleaning", icon: Sparkles },
   { to: "/reports", label: "Reports", icon: TrendingUp },
-  { to: "/salary", label: "Salary", icon: Wallet },
 ];
 
 const staffItems = [
@@ -51,10 +48,6 @@ const superAdminItems = [
   { to: "/super-admin/users", label: "Users & Roles", icon: Users },
   { to: "/super-admin/branches", label: "Branches & Rooms", icon: Building2 },
   { to: "/super-admin/salary-settings", label: "Salary Settings", icon: Sliders },
-  { to: "/super-admin/penalties", label: "Penalties", icon: AlertTriangle },
-  { to: "/super-admin/expense-approvals", label: "Expense Approvals", icon: Building2 },
-  { to: "/super-admin/activity", label: "Live Activity", icon: Activity },
-  { to: "/super-admin/override", label: "Override", icon: ShieldAlert },
 ];
 
 function SectionLabel({ children }) {
@@ -99,17 +92,17 @@ function Sidebar({ isOpen, isMobile, onClose }) {
   const isStaff = hasRole("staff");
   const isSuperAdmin = hasRole("superadmin");
   // April 2026 unification: every Director also performs Administrator duties
-  // for their branch via the same profile. So a Director sees BOTH the
-  // Director and Admin sections. SuperAdmin (CEO) sees everything too.
+  // for their branch via the same profile, so a Director sees BOTH the
+  // Director and Admin sections. CEO is strategic-only — no Admin section.
   const isDirector = hasRole("director");
-  const isAdmin = hasRole("administrator") || isDirector || isSuperAdmin;
+  const isAdmin = hasRole("administrator") || isDirector;
 
   const handleNavigate = isMobile ? onClose : undefined;
 
   return (
     <aside className={`sidebar${isOpen ? " open" : ""}`}>
       <div className="sidebar-brand">
-        <h3>FamilyHostel</h3>
+        <h3>Hotel</h3>
         {isMobile && (
           <button type="button" className="sidebar-close" onClick={onClose} aria-label="Close sidebar">
             <X size={16} strokeWidth={1.8} />
@@ -120,6 +113,19 @@ function Sidebar({ isOpen, isMobile, onClose }) {
       <nav style={{ flex: 1, overflow: "hidden" }}>
         <ul className="sidebar-nav">
           <NavItems items={commonItems} onNavigate={handleNavigate} />
+
+          {!isSuperAdmin && (
+            <li>
+              <NavLink
+                to="/salary"
+                className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}
+                onClick={handleNavigate}
+              >
+                <Wallet {...ICON_PROPS} className="sidebar-link-icon" aria-hidden="true" />
+                <span>Salary</span>
+              </NavLink>
+            </li>
+          )}
 
           {isStaff && (
             <>

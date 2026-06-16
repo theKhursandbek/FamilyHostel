@@ -1,91 +1,60 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { LogOut, Pencil } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { useTelegram } from "../context/TelegramContext";
-
-const ROLE_LABEL = {
-  superadmin: "Super Admin",
-  director: "Director",
-  administrator: "Administrator",
-  staff: "Staff",
-  client: "Guest",
-};
+import { fmtDate } from "../utils/format";
 
 /**
- * Profile / hub page.
+ * Profile / hub page — minimalistic.
  *
- * Anonymous → links to /login.
- * Client    → links to bookings.
- * Staff     → links to staff dashboard.
+ * Avatar with initials → name + phone subtitle → details list →
+ * navigation links (Bookings, Edit) → Sign out.
  */
-function ProfilePage() {
-  const { user, isAuthenticated, logout } = useAuth();
-  const { user: tgUser, isInsideTelegram } = useTelegram();
+export default function ProfilePage() {
+  const { t, i18n } = useTranslation();
+  const { user, logout } = useAuth();
 
-  if (!isAuthenticated) {
-    return (
-      <div>
-        <h1>Welcome</h1>
-        <p className="text-hint">
-          Sign in to book rooms or manage your shifts.
-        </p>
-        <Link to="/login" className="btn" style={{ marginTop: 16 }}>
-          Sign in
-        </Link>
-      </div>
-    );
-  }
+  const fullName =
+    [user?.first_name, user?.last_name].filter(Boolean).join(" ") ||
+    t("profile.account", "Account");
 
-  const roles = user?.roles || [];
-  const isStaff = roles.includes("staff");
-  const isClient = roles.includes("client");
+  const rows = [
+    { label: t("auth.dob", "Date of birth"), value: fmtDate(user?.date_of_birth, i18n.language) },
+    { label: t("auth.passport", "Passport"), value: user?.passport_number || "—" },
+    { label: t("auth.phone", "Phone"), value: user?.phone || "—" },
+  ];
 
   return (
-    <div>
-      <h1>
-        {tgUser?.first_name || "Account"}
-        {tgUser?.last_name ? ` ${tgUser.last_name}` : ""}
-      </h1>
+    <section className="profile-page">
+      <header className="profile-hero">
+        <h1 className="profile-hero__name">{fullName}</h1>
+      </header>
 
-      <div className="card">
-        <div className="card-title">Roles</div>
-        <div className="card-subtitle">
-          {roles.length
-            ? roles.map((r) => ROLE_LABEL[r] || r).join(" · ")
-            : "No active roles"}
-        </div>
+      <ul className="profile-list">
+        {rows.map(({ label, value }) => (
+          <li key={label} className="profile-list__row">
+            <span className="profile-list__label">{label}</span>
+            <span className="profile-list__value">{value}</span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="profile-edit-action-row">
+        <Link to="/me/edit" className="profile-edit-action">
+          <Pencil size={14} strokeWidth={1.8} />
+          <span>{t("profile.edit", "Edit profile")}</span>
+        </Link>
       </div>
-
-      {!isInsideTelegram && (
-        <p className="text-hint" style={{ marginTop: 8 }}>
-          Demo session (signed in via phone). Inside Telegram you'd be
-          recognised automatically.
-        </p>
-      )}
-
-      {isStaff && (
-        <Link to="/staff" className="card">
-          <div className="card-title">🧹 Staff Dashboard</div>
-          <div className="card-subtitle">Tasks, days off, penalties.</div>
-        </Link>
-      )}
-
-      {isClient && (
-        <Link to="/me/bookings" className="card">
-          <div className="card-title">📅 My Bookings</div>
-          <div className="card-subtitle">Past and upcoming reservations.</div>
-        </Link>
-      )}
 
       <button
         type="button"
-        className="btn btn-secondary"
-        style={{ marginTop: 24 }}
+        className="btn btn-secondary profile-page__logout"
         onClick={logout}
       >
-        Sign out
+        <LogOut size={16} strokeWidth={1.8} />
+        {t("auth.logout", "Sign out")}
       </button>
-    </div>
+    </section>
   );
 }
 
-export default ProfilePage;

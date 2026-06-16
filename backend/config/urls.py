@@ -31,12 +31,14 @@ urlpatterns = [
     path("api/v1/staff/", include("apps.staff.urls")),
     path("api/v1/cleaning/", include("apps.cleaning.urls")),
     path("api/v1/payments/", include("apps.payments.urls")),
+    path("api/v1/chat/", include("apps.chat.urls")),
+    path("api/v1/notifications/", include("apps.reports.notification_urls")),
     path("api/v1/reports/", include("apps.reports.urls")),
     path("api/v1/penalties/", include("apps.reports.penalty_urls")),
     path("api/v1/facility-logs/", include("apps.reports.facility_urls")),
     path("api/v1/admin-panel/", include("apps.admin_panel.urls")),
     path("api/v1/dashboard/", include("apps.admin_panel.dashboard_urls")),
-    path("api/v1/", include("apps.reports.monitoring_urls")),
+    path("api/v1/metrics/", include("apps.reports.metrics_urls")),
 ]
 
 # Serve media files in development

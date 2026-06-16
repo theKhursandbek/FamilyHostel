@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import { Menu, ChevronDown, LogOut } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useBranchScope } from "../context/BranchScopeContext";
+import BranchSelector from "./BranchSelector";
 
 const ROLE_LABEL = {
   superadmin: "CEO",
@@ -26,6 +28,7 @@ function pickDisplayRole(roles) {
  */
 function Header({ onToggleSidebar, isMobile }) {
   const { user, logout } = useAuth();
+  const { scope } = useBranchScope();
   const [menuOpen, setMenuOpen] = useState(false);
   const wrapperRef = useRef(null);
 
@@ -74,6 +77,13 @@ function Header({ onToggleSidebar, isMobile }) {
 
       {user && (
         <div className="header-actions" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          {scope && (
+            <BranchSelector
+              value={scope.value}
+              onChange={scope.onChange}
+              className="header-branch"
+            />
+          )}
           <div className="header-user-wrapper" ref={wrapperRef}>
           <button
             type="button"

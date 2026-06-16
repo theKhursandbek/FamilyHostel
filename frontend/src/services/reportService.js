@@ -13,14 +13,6 @@ export async function downloadBranchWorkbook(branchId, year) {
   return response;
 }
 
-export async function downloadGeneralManagerWorkbook(directorId, year) {
-  const response = await api.get(
-    `/reports/workbook/general-manager/${directorId}/${year}/`,
-    { responseType: "blob" },
-  );
-  return response;
-}
-
 /**
  * GET /reports/branch-dashboard/?branch=&year=&month=
  * In-page report payload — KPIs, income matrix, expenses, penalties,

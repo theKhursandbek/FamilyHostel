@@ -11,7 +11,7 @@
 #
 # Required GitHub Secrets:
 #   AZURE_CREDENTIALS          — Service principal JSON (az ad sp create-for-rbac)
-#   ACR_LOGIN_SERVER           — e.g. familyhostel.azurecr.io
+#   ACR_LOGIN_SERVER           — e.g. hotel.azurecr.io
 #   ACR_USERNAME               — ACR admin username
 #   ACR_PASSWORD               — ACR admin password
 #   AZURE_WEBAPP_NAME          — Azure App Service name
@@ -106,8 +106,8 @@ jobs:
           file: ./backend/Dockerfile
           push: true
           tags: |
-            ${{ secrets.ACR_LOGIN_SERVER }}/familyhostel-backend:latest
-            ${{ secrets.ACR_LOGIN_SERVER }}/familyhostel-backend:${{ github.sha }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/hotel-backend:latest
+            ${{ secrets.ACR_LOGIN_SERVER }}/hotel-backend:${{ github.sha }}
 
   # ────────────────────────────────────────────────────────────────────────
   # Job 3: Deploy to Azure App Service
@@ -129,7 +129,7 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          images: ${{ secrets.ACR_LOGIN_SERVER }}/familyhostel-backend:${{ github.sha }}
+          images: ${{ secrets.ACR_LOGIN_SERVER }}/hotel-backend:${{ github.sha }}
 
       - name: Wait for deployment to settle
         run: sleep 30

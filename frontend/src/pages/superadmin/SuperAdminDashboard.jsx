@@ -1,42 +1,29 @@
 import { useState, useEffect, useCallback } from "react";
+import PropTypes from "prop-types";
 import { getSuperAdminDashboard } from "../../services/dashboardService";
 import StatCard from "../../components/StatCard";
-import Table from "../../components/Table";
 import Loader from "../../components/Loader";
 import ErrorMessage from "../../components/ErrorMessage";
 
-const branchColumns = [
-  { key: "name", label: "Branch" },
-  {
-    key: "revenue",
-    label: "Revenue",
-    render: (val) =>
-      val !== null && val !== undefined
-        ? `${Number(val).toLocaleString()} UZS`
-        : "—",
-  },
-  {
-    key: "bookings_count",
-    label: "Bookings",
-    render: (val) => val ?? 0,
-  },
-  {
-    key: "staff_count",
-    label: "Staff",
-    render: (val) => val ?? 0,
-  },
-];
+const fmt = (n) => Number(n || 0).toLocaleString();
 
-const activityColumns = [
-  { key: "action", label: "Action" },
-  { key: "user_name", label: "User" },
-  { key: "branch_name", label: "Branch" },
-  {
-    key: "created_at",
-    label: "Time",
-    render: (val) => (val ? new Date(val).toLocaleString() : "—"),
-  },
-];
+function Row({ label, value, bold }) {
+  return (
+    <div style={{
+      display: "flex", justifyContent: "space-between",
+      padding: "8px 0", borderBottom: "1px solid var(--border)",
+      fontSize: 14,
+    }}>
+      <span className="text-muted">{label}</span>
+      <span style={{ fontWeight: bold ? 700 : 500 }}>{value}</span>
+    </div>
+  );
+}
+Row.propTypes = {
+  label: PropTypes.string.isRequired,
+  value: PropTypes.node.isRequired,
+  bold: PropTypes.bool,
+};
 
 function SuperAdminDashboard() {
   const [data, setData] = useState(null);
@@ -47,8 +34,7 @@ function SuperAdminDashboard() {
     setLoading(true);
     setError("");
     try {
-      const result = await getSuperAdminDashboard();
-      setData(result);
+      setData(await getSuperAdminDashboard());
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to load CEO dashboard.");
     } finally {
@@ -56,75 +42,74 @@ function SuperAdminDashboard() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchDashboard();
-  }, [fetchDashboard]);
+  useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
 
   if (loading) return <Loader message="Loading CEO dashboard..." />;
-  if (error) return <ErrorMessage message={error} onRetry={fetchDashboard} />;
-  if (!data) return <div className="empty-state">No dashboard data available.</div>;
+  if (error)   return <ErrorMessage message={error} onRetry={fetchDashboard} />;
+  if (!data)   return <div className="empty-state">No dashboard data available.</div>;
 
-  const totalBranches = data.total_branches ?? data.branches_count ?? 0;
-  const totalRevenue = data.total_revenue ?? 0;
-  const topBranch = data.top_branch ?? null;
-  const totalStaff = data.total_staff ?? 0;
-  const totalAdmins = data.total_admins ?? 0;
-  const branchList = data.branches ?? [];
-  const activityLog = data.activity ?? data.recent_activity ?? [];
+  const branches  = data.branches  || {};
+  const revenue   = data.revenue   || {};
+  const top       = data.top_branch || null;
+  const personnel = data.personnel || {};
+  const sys       = data.system_activity || {};
+  const cleaning  = sys.cleaning_today || {};
+
+  const cleaningPct = cleaning.total
+    ? Math.round((cleaning.completed / cleaning.total) * 100)
+    : 0;
 
   return (
     <div>
       <div className="page-header"><h1>CEO Dashboard</h1></div>
 
-      {/* Summary cards */}
       <div className="stat-grid">
         <StatCard
-          title="Total Branches"
-          value={totalBranches}
+          title="Branches"
+          value={branches.total ?? 0}
+          subtitle={`${branches.active ?? 0} active`}
         />
         <StatCard
-          title="Total Revenue"
-          value={`${Number(totalRevenue).toLocaleString()} UZS`}
+          title="Revenue This Month"
+          value={`${fmt(revenue.month)} UZS`}
+          subtitle={`${fmt(revenue.today)} UZS today`}
         />
         <StatCard
           title="Top Branch"
-          value={topBranch?.name || "—"}
-          subtitle={
-            topBranch?.revenue
-              ? `${Number(topBranch.revenue).toLocaleString()} UZS`
-              : undefined
-          }
+          value={top?.name || "—"}
+          subtitle={top?.revenue ? `${fmt(top.revenue)} UZS this month` : undefined}
         />
         <StatCard
-          title="Staff / Admins"
-          value={`${totalStaff} / ${totalAdmins}`}
-          subtitle={`${totalStaff + totalAdmins} total`}
+          title="Workforce"
+          value={`${personnel.active_staff ?? 0} / ${personnel.active_admins ?? 0}`}
+          subtitle="Staff / Administrators"
         />
       </div>
 
-      {/* Branch breakdown */}
-      <div className="section">
-        <h3 className="section-title">
-          Branch Overview
-        </h3>
-        <Table
-          columns={branchColumns}
-          data={branchList}
-          emptyMessage="No branch data"
-        />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 8 }}>
+        <div className="card" style={{ margin: 0 }}>
+          <h3 className="section-title" style={{ marginTop: 0 }}>Bookings</h3>
+          <Row label="Today"      value={fmt(sys.bookings_today)} />
+          <Row label="This month" value={fmt(sys.bookings_month)} bold />
+        </div>
+
+        <div className="card" style={{ margin: 0 }}>
+          <h3 className="section-title" style={{ marginTop: 0 }}>Housekeeping Today</h3>
+          <Row label="Total tasks" value={fmt(cleaning.total)} />
+          <Row label="Completed"   value={`${fmt(cleaning.completed)} (${cleaningPct}%)`} />
+          <Row label="Pending"     value={fmt(cleaning.pending)} />
+          <Row label="Retries"     value={fmt(cleaning.retry)} bold />
+        </div>
       </div>
 
-      {/* System Activity */}
-      <div className="section">
-        <h3 className="section-title">
-          Recent System Activity
-        </h3>
-        <Table
-          columns={activityColumns}
-          data={activityLog}
-          emptyMessage="No recent activity"
-        />
-      </div>
+      {sys.active_security_blocks > 0 && (
+        <div className="card" style={{ marginTop: 16, borderLeft: "4px solid #ef4444" }}>
+          <strong style={{ color: "#ef4444" }}>
+            ⚠ {sys.active_security_blocks} active security block(s)
+          </strong>{" "}
+          — review the Security page.
+        </div>
+      )}
     </div>
   );
 }

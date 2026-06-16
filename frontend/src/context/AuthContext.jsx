@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useMemo } 
 import { useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
 import * as authService from "../services/auth";
+import { getAccount } from "../services/accountsService";
 
 const AuthContext = createContext(null);
 
@@ -22,8 +23,35 @@ export function AuthProvider({ children }) {
       setIsAuthenticated(false);
       return;
     }
+    // Self-heal: strip obsolete brand prefixes from any cached
+    // branch_name so stale localStorage doesn't leak the old name.
+    if (storedUser?.branch_name) {
+      const stripped = storedUser.branch_name
+        .replace(/^Family Hostel\s+[—-]\s+/, "")
+        .replace(/^Hotel\s+[—-]\s+/, "");
+      if (stripped !== storedUser.branch_name) {
+        storedUser.branch_name = stripped;
+        localStorage.setItem("user", JSON.stringify(storedUser));
+      }
+    }
     setUser(storedUser);
     setIsAuthenticated(hasToken);
+
+    // Re-fetch the live profile so any cached fields (e.g. branch_name
+    // after a rebrand / branch rename) are refreshed without forcing a
+    // re-login. Silent failure: if the call 401s the api interceptor
+    // will handle logout.
+    if (hasToken && storedUser?.id) {
+      getAccount(storedUser.id)
+        .then((fresh) => {
+          if (fresh) {
+            const merged = { ...storedUser, ...fresh };
+            localStorage.setItem("user", JSON.stringify(merged));
+            setUser(merged);
+          }
+        })
+        .catch(() => { /* ignored — keep stale copy */ });
+    }
   }, []);
 
   const login = useCallback(async (phone, password) => {
