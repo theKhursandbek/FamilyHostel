@@ -1,0 +1,10 @@
+node_modules/
+dist/
+bot/
+.env
+.env.*
+!.env.production
+.git/
+.vscode/
+tests/
+*.log

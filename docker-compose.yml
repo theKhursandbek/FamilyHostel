@@ -1,17 +1,22 @@
 # ==============================================================================
-# Docker Compose — Hotel production stack (Steps 22-23)
+# Docker Compose — Hotel production stack
 #
 # Services:
-#   - nginx       : Reverse proxy (port 80) — static/media/WebSocket
-#   - backend     : Django (gunicorn + uvicorn ASGI workers)
-#   - postgres    : PostgreSQL 16
-#   - redis       : Broker for Celery + Channels
-#   - celery      : Celery background worker
+#   - nginx         : Reverse proxy (port 80) — serves SPAs, static/media, WS
+#   - backend       : Django (gunicorn + uvicorn ASGI workers)
+#   - postgres      : PostgreSQL 16
+#   - redis         : Broker for Celery + Channels
+#   - celery        : Celery background worker
+#   - celery-beat   : Celery periodic task scheduler
+#   - frontend      : Admin panel SPA (build-only, provides static files)
+#   - telegram-app  : Telegram Mini App SPA (build-only, provides static files)
+#   - telegram-bot  : Python Telegram bot (long-polling)
 #
 # Usage:
 #   1. Copy .env.docker.example → .env.docker  and fill in secrets
 #   2. docker-compose up --build -d
-#   3. Open http://localhost
+#   3. Open http://localhost        (admin panel)
+#   4. Open http://localhost/app/   (Telegram Mini App)
 # ==============================================================================
 
 services:
@@ -110,7 +115,7 @@ services:
       - hostel_net
 
   # ──────────────────────────────────────────────────────────────────────────
-  # Celery Beat scheduler (Step 26 — automated backups)
+  # Celery Beat scheduler
   # ──────────────────────────────────────────────────────────────────────────
   celery-beat:
     build:
@@ -136,7 +141,70 @@ services:
       - hostel_net
 
   # ──────────────────────────────────────────────────────────────────────────
-  # Nginx reverse proxy (Step 23)
+  # Frontend Admin Panel (build-only init container)
+  #
+  # Builds the Vite React app and copies dist/ into a shared volume.
+  # Nginx serves the files from that volume.
+  # ──────────────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api/v1}
+        VITE_WS_URL: ${VITE_WS_URL:-}
+    volumes:
+      - frontend_dist:/usr/share/nginx/html
+    restart: "no"
+    networks:
+      - hostel_net
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Telegram Mini App (build-only init container)
+  #
+  # Same pattern as frontend — builds and copies dist/ to a shared volume.
+  # Served by Nginx under /app/ path prefix.
+  # ──────────────────────────────────────────────────────────────────────────
+  telegram-app:
+    build:
+      context: ./telegram_app
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api/v1}
+    volumes:
+      - telegram_dist:/usr/share/nginx/html
+    restart: "no"
+    networks:
+      - hostel_net
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Telegram Bot (long-polling Python process)
+  # ──────────────────────────────────────────────────────────────────────────
+  telegram-bot:
+    build:
+      context: ./telegram_app/bot
+      dockerfile: Dockerfile
+    env_file:
+      - .env.docker
+    environment:
+      TELEGRAM_BOT_ENV: ${TELEGRAM_BOT_ENV:-prod}
+      BACKEND_BASE_URL: http://backend:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - hostel_net
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Nginx reverse proxy
+  #
+  # Serves:
+  #   /            → Admin frontend SPA
+  #   /app/        → Telegram Mini App SPA
+  #   /api/, /admin/, /health/  → Django backend
+  #   /ws/         → WebSocket (Django Channels)
+  #   /static/     → Django collected static
+  #   /media/      → User uploads
   # ──────────────────────────────────────────────────────────────────────────
   nginx:
     image: nginx:1.27-alpine
@@ -144,10 +212,14 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - static_data:/app/staticfiles:ro
       - media_data:/app/media:ro
+      - frontend_dist:/app/frontend:ro
+      - telegram_dist:/app/telegram:ro
     ports:
       - "80:80"
     depends_on:
       - backend
+      - frontend
+      - telegram-app
     restart: unless-stopped
     networks:
       - hostel_net
@@ -160,6 +232,8 @@ volumes:
   redis_data:
   static_data:
   media_data:
+  frontend_dist:
+  telegram_dist:
 
 # ==============================================================================
 # Network
