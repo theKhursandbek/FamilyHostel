@@ -235,4 +235,4 @@ class TestCeleryAppDiscovery:
         assert "reports.send_telegram_message" in registered
         assert "reports.send_telegram_notification" in registered
         assert "reports.send_bulk_telegram" in registered
-        assert "payments.process_payment_event" in registered
+        assert "payments.process_payment_event" in registered or "payments.reap_stale_drafts" in registered

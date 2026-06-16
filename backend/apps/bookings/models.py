@@ -38,6 +38,7 @@ class Booking(models.Model):
         PENDING = "pending", "Pending"
         PAID = "paid", "Paid"
         CANCELED = "canceled", "Canceled"
+        COMPLETED = "completed", "Completed"
 
     class BookingSource(models.TextChoices):
         """Where the booking originated. Exactly two global channels."""

@@ -140,7 +140,27 @@ class BookingViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Validate and create a booking (CRUD POST)."""
-        serializer.save()
+        from decimal import Decimal
+        from apps.bookings.services import create_booking
+        
+        data = serializer.validated_data
+        try:
+            booking = create_booking(
+                client=data["client"],
+                room=data["room"],
+                branch=data["branch"],
+                check_in_date=data["check_in_date"],
+                check_out_date=data["check_out_date"],
+                price_at_booking=data["price_at_booking"],
+                discount_amount=data.get("discount_amount", Decimal("0")),
+                source="manual",
+                performed_by=self.request.user,
+            )
+            serializer.instance = booking
+        except DjangoValidationError as exc:
+            raise ValidationError(
+                getattr(exc, "message_dict", None) or {"detail": exc.messages}
+            )
 
     @action(detail=True, methods=["post"], url_path="cancel")
     def cancel(self, request, pk=None):

@@ -68,7 +68,7 @@ class TestBookingModelValidation:
     def test_status_choices(self):
         """Booking statuses match README Section 19."""
         choices = {c[0] for c in Booking.BookingStatus.choices}
-        assert choices == {"pending", "paid", "canceled"}
+        assert choices == {"pending", "paid", "canceled", "completed"}
 
     def test_default_status_is_pending(self, client_profile, room, branch):
         """New bookings default to pending."""

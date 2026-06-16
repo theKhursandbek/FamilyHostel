@@ -210,9 +210,17 @@ def complete_booking(
     booking.status = Booking.BookingStatus.COMPLETED
     booking.save(update_fields=["status"])
 
-    # Mark room as cleaning (signal will auto-create a cleaning task)
+    # Mark room as cleaning and auto-create a cleaning task
     booking.room.status = Room.RoomStatus.CLEANING
     booking.room.save(update_fields=["status"])
+
+    from apps.cleaning.services import create_cleaning_task
+    create_cleaning_task(
+        room=booking.room,
+        branch=booking.branch,
+        priority="normal",
+        performed_by=performed_by,
+    )
 
     return booking
 
