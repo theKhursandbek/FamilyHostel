@@ -26,6 +26,9 @@ function fmtMoney(val) {
   return `${n.toLocaleString()} сум`;
 }
 
+function rawMoney(val) {
+  return String(val ?? "").replace(/\D/g, "");
+}
 function fmtDateTime(val) {
   if (!val) return "—";
   const d = new Date(val);

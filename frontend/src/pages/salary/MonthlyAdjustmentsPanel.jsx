@@ -36,6 +36,9 @@ function fmtMoney(v) {
   return Number.isFinite(n) ? n.toLocaleString() : "—";
 }
 
+function rawMoney(val) {
+  return String(val ?? "").replace(/\D/g, "");
+}
 function MonthlyAdjustmentsPanel({ branchId, canEdit }) {
   const toast = useToast();
   const today = new Date();

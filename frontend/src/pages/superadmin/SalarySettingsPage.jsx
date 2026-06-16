@@ -84,9 +84,6 @@ function SalarySettingsPage() {
   }, [toast]);
 
   // ------------------------------------------------------------------ Settings
-  const handleSettingsChange = (field, value) => {
-    setSettings((prev) => ({ ...prev, [field]: value }));
-  };
 
   const FIELD_LIMITS = {
     director_fixed_salary: { min: 2000000, max: 100000000 },

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components, no-unused-vars */
 import PropTypes from "prop-types";
 import { Banknote, CreditCard, QrCode, ArrowLeftRight } from "lucide-react";
 
