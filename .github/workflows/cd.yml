@@ -92,6 +92,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Verify ACR Secrets
+        run: |
+          MISSING=0
+          if [ -z "${{ secrets.ACR_LOGIN_SERVER }}" ]; then echo "::error::Secret ACR_LOGIN_SERVER is missing."; MISSING=1; fi
+          if [ -z "${{ secrets.ACR_USERNAME }}" ]; then echo "::error::Secret ACR_USERNAME is missing."; MISSING=1; fi
+          if [ -z "${{ secrets.ACR_PASSWORD }}" ]; then echo "::error::Secret ACR_PASSWORD is missing."; MISSING=1; fi
+          if [ $MISSING -eq 1 ]; then
+            echo "::error::Please configure the required ACR secrets in your GitHub repository settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
       - name: Log in to Azure Container Registry
         uses: docker/login-action@v3
         with:
@@ -120,6 +131,16 @@ jobs:
       name: production
 
     steps:
+      - name: Verify Azure Secrets
+        run: |
+          MISSING=0
+          if [ -z "${{ secrets.AZURE_CREDENTIALS }}" ]; then echo "::error::Secret AZURE_CREDENTIALS is missing."; MISSING=1; fi
+          if [ -z "${{ secrets.AZURE_WEBAPP_NAME }}" ]; then echo "::error::Secret AZURE_WEBAPP_NAME is missing."; MISSING=1; fi
+          if [ $MISSING -eq 1 ]; then
+            echo "::error::Please configure the required Azure secrets in your GitHub repository settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
       - name: Log in to Azure
         uses: azure/login@v2
         with:
